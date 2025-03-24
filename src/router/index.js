@@ -1,19 +1,27 @@
 // src/router/index.js
 import { createRouter, createWebHistory } from 'vue-router'
 import Home from '@/views/Home'
-import RainfallChart from '@/views/RainfallChart'
 
 const routes = [
   {
-    path: '/',
-    name: 'Home',
+    path: '/control',
+    name: 'Control',
     component: Home
   },
   {
-    path: '/rainfall',
-    name: 'RainfallChart', 
-    component: RainfallChart
-  }
+    path: '/statistics',
+    name: 'Statistics',
+    component: () => import('@/views/Statistics/index.vue')
+  },
+  {
+    path: '/settings',
+    name: 'Settings',
+    component: () => import('@/views/Settings/index.vue')
+  },
+  {
+    path: '/',
+    redirect: '/control'
+  },
 ]
 
 const router = createRouter({

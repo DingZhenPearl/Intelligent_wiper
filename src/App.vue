@@ -1,15 +1,25 @@
 <template>
   <div class="app-container">
-    <!-- 导航栏 -->
-    <nav class="nav-bar">
-      <router-link to="/" class="nav-item">首页</router-link>
-      <router-link to="/rainfall" class="nav-item">雨量显示</router-link>
-    </nav>
-    
     <!-- 主内容区域 -->
     <div class="main-content">
       <router-view />
     </div>
+    
+    <!-- 底部导航栏 -->
+    <nav class="bottom-nav">
+      <router-link to="/control" class="nav-item">
+        <span class="icon">🏠</span>
+        <span>控制</span>
+      </router-link>
+      <router-link to="/statistics" class="nav-item">
+        <span class="icon">📊</span>
+        <span>数据统计</span>
+      </router-link>
+      <router-link to="/settings" class="nav-item">
+        <span class="icon">⚙️</span>
+        <span>状态与设置</span>
+      </router-link>
+    </nav>
   </div>
 </template>
 
@@ -31,34 +41,45 @@ export default {
   display: flex;
   flex-direction: column;
   height: 100vh;
-}
-
-.nav-bar {
-  display: flex;
-  background-color: #2c3e50;
-  padding: 15px;
-  position: sticky;
-  top: 0;
-  z-index: 100;
-}
-
-.nav-item {
-  color: #ffffff;
-  text-decoration: none;
-  margin-right: 20px;
-  padding: 5px 10px;
-  border-radius: 4px;
-  transition: background-color 0.3s;
-}
-
-.nav-item:hover,
-.router-link-active {
-  background-color: #42b983;
+  background-color: #f8f9fa;
 }
 
 .main-content {
   flex: 1;
   overflow-y: auto;
   padding: 20px;
+  padding-bottom: 70px; /* 为底部导航留出空间 */
+}
+
+.bottom-nav {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: space-around;
+  background-color: white;
+  padding: 10px 0;
+  box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.1);
+}
+
+.nav-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-decoration: none;
+  color: #666;
+  font-size: 12px;
+  padding: 5px 0;
+  transition: color 0.3s;
+}
+
+.nav-item .icon {
+  font-size: 24px;
+  margin-bottom: 4px;
+}
+
+.router-link-active {
+  color: #4285f4;
 }
 </style>
