@@ -15,18 +15,18 @@
     <div class="work-status">
       <h2>当前雨刷工作状态</h2>
       <ul class="status-list">
-        <li :class="{ active: currentStatus === 'off' }">关闭</li>
-        <li :class="{ active: currentStatus === 'interval' }">间歇</li>
-        <li :class="{ active: currentStatus === 'low' }">低速</li>
-        <li :class="{ active: currentStatus === 'high' }">高速</li>
-        <li :class="{ active: currentStatus === 'smart' }">智能</li>
+        <li :class="{ active: currentStatus === 'off' }" @click="changeStatus('off')">关闭</li>
+        <li :class="{ active: currentStatus === 'interval' }" @click="changeStatus('interval')">间歇</li>
+        <li :class="{ active: currentStatus === 'low' }" @click="changeStatus('low')">低速</li>
+        <li :class="{ active: currentStatus === 'high' }" @click="changeStatus('high')">高速</li>
+        <li :class="{ active: currentStatus === 'smart' }" @click="changeStatus('smart')">智能</li>
       </ul>
     </div>
 
     <!-- 控制按钮 -->
     <button class="control-btn" @click="toggleWiper">
       <span class="icon">⏻</span>
-      立即关闭
+      {{ currentStatus === 'off' ? '开启雨刷' : '立即关闭' }}
     </button>
   </div>
 </template>
@@ -40,14 +40,26 @@ export default {
     const rainfall = ref(40) // 实时雨量百分比
     const currentStatus = ref('low') // 当前工作状态
 
+    const changeStatus = (status) => {
+      currentStatus.value = status
+      // 这里可以添加与后端通信的逻辑
+      console.log(`雨刷状态切换为: ${status}`)
+    }
+
     const toggleWiper = () => {
-      currentStatus.value = 'off'
-      // 这里可以添加实际的控制逻辑
+      if (currentStatus.value === 'off') {
+        // 如果当前是关闭状态，则切换到智能模式
+        changeStatus('smart')
+      } else {
+        // 如果当前是其他状态，则切换到关闭状态
+        changeStatus('off')
+      }
     }
 
     return {
       rainfall,
       currentStatus,
+      changeStatus,
       toggleWiper
     }
   }
@@ -136,6 +148,10 @@ export default {
         &.active {
           background-color: var(--primary-color);
           color: white;
+        }
+        
+        &:hover:not(.active) {
+          background-color: #e0e0e0;
         }
       }
     }
