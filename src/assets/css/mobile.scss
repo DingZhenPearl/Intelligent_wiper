@@ -1,0 +1,146 @@
+/* 移动设备优化样式 */
+
+/* 避免iOS点击闪烁 */
+* {
+  -webkit-tap-highlight-color: rgba(0,0,0,0);
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* 安全区域适配 (对刘海屏等设备) */
+.app-container {
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
+}
+
+/* 底部导航栏安全区适配 */
+.bottom-nav {
+  padding-bottom: calc(env(safe-area-inset-bottom) + 4px); /* 从2px增大到4px */
+}
+
+/* 横屏适配 */
+@media screen and (orientation: landscape) {
+  .bottom-nav {
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+    height: 60px; /* 设置横屏时导航栏高度 */
+  }
+  
+  /* 横屏时调整内容区域 */
+  .main-content {
+    padding-bottom: 60px;
+    padding-right: env(safe-area-inset-right);
+    padding-left: env(safe-area-inset-left);
+  }
+  
+  /* 优化横屏布局 */
+  .control-panel .rainfall-chart .pie-chart {
+    width: min(440px, 50vh) !important; /* 从220px增大到440px */ 
+    height: min(440px, 50vh) !important; /* 从220px增大到440px */
+  }
+}
+
+/* 禁止文本选择 */
+body {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* 改善触摸体验 */
+button, a, [role="button"] {
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+/* 优化表单元素触摸体验 */
+input, select {
+  font-size: 32px; /* 从16px增大到32px */
+}
+
+/* 改善滚动体验 */
+.main-content {
+  -webkit-overflow-scrolling: touch;
+  scroll-behavior: smooth;
+}
+
+/* 提升小屏幕设备体验 */
+@media screen and (max-width: 320px) {
+  body {
+    font-size: 26px; /* 从13px增大到26px */
+  }
+  
+  h1 {
+    font-size: 3rem; /* 从1.5rem增大到3rem */
+  }
+  
+  h2 {
+    font-size: 2.6rem; /* 从1.3rem增大到2.6rem */
+  }
+  
+  h3 {
+    font-size: 2.2rem; /* 从1.1rem增大到2.2rem */
+  }
+  
+  .nav-item {
+    font-size: 22px; /* 从11px增大到22px */
+  }
+  
+  .nav-item .icon {
+    font-size: 36px; /* 从18px增大到36px */
+  }
+  
+  .main-content {
+    padding: 20px 16px; /* 从10px 8px增大到20px 16px */
+    padding-bottom: 124px; /* 从62px增大到124px */
+  }
+  
+  button, a, input[type="button"], input[type="submit"], .clickable {
+    min-height: 80px; /* 从40px增大到80px */
+    min-width: 80px; /* 从40px增大到80px */
+  }
+}
+
+/* 适应中等尺寸设备 */
+@media screen and (max-width: 375px) {
+  body {
+    font-size: 28px; /* 从14px增大到28px */
+  }
+  
+  h1 {
+    font-size: 3.2rem; /* 从1.6rem增大到3.2rem */
+  }
+  
+  h2 {
+    font-size: 2.8rem; /* 从1.4rem增大到2.8rem */
+  }
+  
+  h3 {
+    font-size: 2.4rem; /* 从1.2rem增大到2.4rem */
+  }
+  
+  .nav-item {
+    font-size: 24px; /* 从12px增大到24px */
+  }
+  
+  .nav-item .icon {
+    font-size: 40px; /* 从20px增大到40px */
+  }
+  
+  .main-content {
+    padding: 28px 20px; /* 从14px 10px增大到28px 20px */
+    padding-bottom: 136px; /* 从68px增大到136px */
+  }
+}
+
+/* 状态栏文本颜色 - 用于Capacitor */
+:root {
+  --ion-statusbar-color: dark;
+}
+
+/* 修复安全区域适配问题 */
+@supports (padding: max(0px)) {
+  .bottom-nav {
+    padding-bottom: max(6px, env(safe-area-inset-bottom)); /* 从3px增大到6px */
+  }
+}

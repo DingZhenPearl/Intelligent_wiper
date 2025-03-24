@@ -2,8 +2,12 @@
 import { createApp } from 'vue'
 import App from './App.vue'
 import router from './router'
-// 更改文件扩展名匹配实际情况
 import './assets/css/global.scss'
+import './assets/css/mobile.scss'  // 添加移动设备样式
+
+document.addEventListener('deviceready', () => {
+  console.log('设备准备就绪');
+}, false);
 
 const app = createApp(App)
 app.use(router)

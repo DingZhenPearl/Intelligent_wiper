@@ -5,18 +5,36 @@
   box-sizing: border-box;
 }
 
+html, body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
 body {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  font-size: 16px;
-  line-height: 1.5;
+  font-size: 32px; /* 从16px增大到32px */
+  line-height: 1.4;
   color: #333;
   background-color: #f8f9fa;
 }
 
 h1, h2, h3, h4, h5, h6 {
-  margin-bottom: 0.5rem;
-  font-weight: 500;
+  margin-bottom: 1rem; /* 从0.5rem增大到1rem */
+  font-weight: 600;
   line-height: 1.2;
+}
+
+h1 {
+  font-size: 4rem; /* 从2rem增大到4rem */
+}
+
+h2 {
+  font-size: 3.2rem; /* 从1.6rem增大到3.2rem */
+}
+
+h3 {
+  font-size: 2.8rem; /* 从1.4rem增大到2.8rem */
 }
 
 a {
@@ -27,6 +45,10 @@ a {
 button {
   cursor: pointer;
   font-family: inherit;
+  font-size: 2rem; /* 从1rem增大到2rem */
+  padding: 20px 40px; /* 从10px 20px增大到20px 40px */
+  border-radius: 16px; /* 从8px增大到16px */
+  transition: all 0.3s ease;
 }
 
 /* 自定义颜色变量 */
@@ -38,6 +60,16 @@ button {
   --light-color: #f8f9fa;
   --dark-color: #202124;
   --gray-color: #5f6368;
+}
+
+/* 放大触摸目标区域 */
+button, 
+a, 
+input[type="button"], 
+input[type="submit"],
+.clickable {
+  min-height: 88px; /* 从44px增大到88px */
+  min-width: 88px; /* 从44px增大到88px */
 }
 
 /* 通用样式类 */
@@ -56,14 +88,43 @@ button {
 
 .container {
   width: 100%;
+  height: 100%;
   max-width: 1200px;
   margin: 0 auto;
-  padding: 0 15px;
+  padding: 0 30px; /* 从15px增大到30px */
 }
 
-/* 响应式断点 */
+/* 响应式布局 */
 @media (max-width: 768px) {
   .container {
-    padding: 0 10px;
+    padding: 0 24px; /* 从12px增大到24px */
   }
+  
+  body {
+    font-size: 30px; /* 从15px增大到30px */
+  }
+  
+  h1 {
+    font-size: 3.6rem; /* 从1.8rem增大到3.6rem */
+  }
+  
+  h2 {
+    font-size: 3rem; /* 从1.5rem增大到3rem */
+  }
+  
+  h3 {
+    font-size: 2.6rem; /* 从1.3rem增大到2.6rem */
+  }
+}
+
+/* 确保所有视图容器都能正确继承高度 */
+#app, .app-container, .main-content {
+  height: 100%;
+  width: 100%;
+}
+
+/* 防止内容溢出 */
+.main-content {
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
