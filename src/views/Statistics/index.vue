@@ -1,16 +1,8 @@
 <template>
   <div class="statistics">
     <h1>数据统计</h1>
-    <div class="chart-container">
-      <e-charts 
-        ref="chart"
-        :option="chartOption" 
-        :auto-resize="true"
-        style="width: 100%; height: 100%;"
-      />
-    </div>
     
-    <!-- 时间选择器组件 -->
+    <!-- 时间选择器组件移到图表上方 -->
     <div class="time-selector">
       <button 
         v-for="(period, index) in timePeriods" 
@@ -21,6 +13,15 @@
       >
         {{ period.label }}
       </button>
+    </div>
+    
+    <div class="chart-container">
+      <e-charts 
+        ref="chart"
+        :option="chartOption" 
+        :auto-resize="true"
+        style="width: 100%; height: 100%;"
+      />
     </div>
   </div>
 </template>
@@ -281,36 +282,29 @@ export default {
 
 <style lang="scss" scoped>
 .statistics {
-  padding: var(--spacing-lg) var(--spacing-md);
+  padding: var(--spacing-md) var(--spacing-sm);
+  height: 100%;
+  display: flex;
+  flex-direction: column;
   
   h1 {
     text-align: center;
-    margin-bottom: var(--spacing-lg);
-    font-size: var(--font-size-xxl);
+    margin-bottom: var(--spacing-md);
+    font-size: var(--font-size-xl);
   }
   
-  .chart-container {
-    background-color: #f5f5f5;
-    border-radius: var(--border-radius-lg);
-    padding: var(--spacing-lg);
-    min-height: 50vh;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: var(--font-size-lg);
-    margin-bottom: var(--spacing-lg);
-  }
-  
-  /* 时间选择器样式 */
+  /* 时间选择器样式 - 移至图表上方 */
   .time-selector {
     display: flex;
-    justify-content: space-between;
-    margin: 0 auto;
-    max-width: min(90%, 800px);
+    justify-content: center; /* 居中对齐 */
+    margin: 0 auto var(--spacing-md) auto; /* 下方添加间距 */
+    width: 100%;
+    max-width: 800px;
     gap: var(--spacing-sm);
     
     .time-btn {
       flex: 1;
+      max-width: 120px; /* 限制按钮最大宽度 */
       background-color: #f5f5f5;
       border: none;
       color: #666;
@@ -330,34 +324,68 @@ export default {
     }
   }
   
+  .chart-container {
+    background-color: #f5f5f5;
+    border-radius: var(--border-radius-lg);
+    padding: var(--spacing-md);
+    height: 70vh;
+    min-height: 400px;
+    display: flex;
+    flex: 1;
+    width: 100%;
+    margin-bottom: 0; /* 移除底部边距，因为按钮已经不在下方 */
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  }
+  
   /* 响应式调整 */
-  @media screen and (max-width: 320px) {
-    .chart-container {
-      min-height: 45vh;
-      padding: var(--spacing-md);
+  @media screen and (max-width: 480px) {
+    padding: var(--spacing-sm) var(--spacing-xs);
+    
+    h1 {
+      font-size: var(--font-size-lg);
+      margin-bottom: var(--spacing-sm);
     }
     
-    .time-selector .time-btn {
-      font-size: var(--font-size-sm);
-      padding: calc(var(--spacing-sm) * 0.8) 0;
+    .time-selector {
+      margin-bottom: var(--spacing-sm);
+      
+      .time-btn {
+        font-size: var(--font-size-sm);
+        padding: calc(var(--spacing-sm) * 0.8) 0;
+        max-width: none; /* 在小屏幕上取消最大宽度限制 */
+      }
+    }
+    
+    .chart-container {
+      height: 60vh;
+      min-height: 300px;
+      padding: var(--spacing-sm);
     }
   }
   
   @media screen and (min-width: 768px) {
-    padding: var(--spacing-md);
-    
-    .chart-container {
-      min-height: 40vh;
-      padding: var(--spacing-md);
-    }
+    padding: var(--spacing-lg) var(--spacing-xl);
     
     .time-selector {
-      max-width: 500px;
-      
-      .time-btn {
-        font-size: calc(var(--font-size-md) * 0.9);
-        padding: var(--spacing-sm) 0;
-      }
+      max-width: 600px;
+      margin-bottom: var(--spacing-md);
+    }
+    
+    .chart-container {
+      height: 75vh;
+      min-height: 500px;
+      padding: var(--spacing-lg);
+    }
+  }
+  
+  @media screen and (min-width: 1200px) {
+    .time-selector {
+      max-width: 800px;
+    }
+    
+    .chart-container {
+      height: 80vh;
+      min-height: 600px;
     }
   }
 }
