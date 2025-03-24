@@ -2,25 +2,279 @@
   <div class="statistics">
     <h1>数据统计</h1>
     <div class="chart-container">
-      <!-- 这里可以放置实际的统计图表 -->
-      <p>雨量数据统计图表将在此显示</p>
+      <e-charts 
+        ref="chart"
+        :option="chartOption" 
+        :auto-resize="true"
+        style="width: 100%; height: 100%;"
+      />
     </div>
     
-    <!-- 添加选择器组件 -->
+    <!-- 时间选择器组件 -->
     <div class="time-selector">
-      <button class="time-btn active">今天</button>
-      <button class="time-btn">本周</button>
-      <button class="time-btn">本月</button>
-      <button class="time-btn">全部</button>
+      <button 
+        v-for="(period, index) in timePeriods" 
+        :key="index" 
+        class="time-btn" 
+        :class="{ active: activePeriod === index }"
+        @click="changePeriod(index)"
+      >
+        {{ period.label }}
+      </button>
     </div>
   </div>
 </template>
 
 <script>
+// reactive
+import { ref, onMounted, onUnmounted,  } from 'vue'
+import ECharts from '@/components/ECharts'
+
+// 辅助变量和函数
+const oneDay = 24 * 3600 * 1000;
+
+// 获取当前日期N天前的日期字符串
+// function getNDaysAgoDate(days = 28) {
+//   const date = new Date();
+//   date.setDate(date.getDate() - days);
+//   const year = date.getFullYear();
+//   const month = String(date.getMonth() + 1).padStart(2, '0');
+//   const day = String(date.getDate()).padStart(2, '0');
+//   return `${year}-${month}-${day}T00:00:00`;
+// }
+
 export default {
   name: 'StatisticsPage',
+  components: {
+    ECharts
+  },
   setup() {
-    return {}
+    const chartData = ref([]);
+    const intervalId = ref(null);
+    let now = new Date();
+    let value = Math.random() * 1000;
+    
+    // 定义时间段选择器
+    const timePeriods = [
+      { label: '今天', days: 1 },
+      { label: '本周', days: 7 },
+      { label: '本月', days: 30 },
+      { label: '全部', days: 90 }
+    ];
+    const activePeriod = ref(2); // 默认选择"本月"
+    
+    // 生成随机数据
+    const randomData = () => {
+      now = new Date(+now + oneDay);
+      value = value + Math.random() * 21 - 10;
+      return {
+        value: [
+          now.toISOString(),
+          Math.round(value)
+        ]
+      };
+    };
+    
+    // 初始化模拟数据
+    const initMockData = (days = 30) => {
+      chartData.value = [];
+      now = new Date(); // 重置为当前日期
+      
+      // 生成过去N天的模拟数据
+      for (let i = days; i >= 0; i--) {
+        const pastDate = new Date(now.getTime() - (i * oneDay));
+        chartData.value.push({
+          value: [
+            pastDate.toISOString(),
+            Math.round(Math.random() * 100) // 0-100之间的随机雨量
+          ]
+        });
+      }
+      
+      console.log(`初始化${days}天模拟数据:`, chartData.value);
+      updateChartData();
+    };
+    
+    // 更新图表数据
+    const updateChartData = () => {
+      chartOption.value.series[0].data = chartData.value;
+    };
+    
+    // 切换时间段
+    const changePeriod = (index) => {
+      activePeriod.value = index;
+      initMockData(timePeriods[index].days);
+      
+      // 更新图表标题
+      chartOption.value.title.text = `雨量显示 - ${timePeriods[index].label}`;
+    };
+    
+    // 启动定时数据更新
+    const startDataPolling = () => {
+      // 清除可能存在的旧计时器
+      if (intervalId.value) {
+        clearInterval(intervalId.value);
+      }
+      
+      intervalId.value = setInterval(() => {
+        // 注释掉原来的API请求代码
+        /*
+        // 这里模拟 wx.request
+        fetch('http://api.heclouds.com/devices/997978117/datapoints?' + new URLSearchParams({
+          'datastream_id': 'rain_info',
+          'start': getNDaysAgoDate(timePeriods[activePeriod.value].days),
+          'limit': '1',
+          'sort': 'DESC'
+        }), {
+          headers: {
+            'content-type': 'application/json',
+            'Authorization': 'version=2018-10-31&res=products%2F544361&et=1765738973&method=sha1&sign=C4OPW%2FNXTz%2BV%2FeCtKPNpojivlPM%3D',
+          }
+        })
+        .then(response => response.json())
+        .then(responseData => {
+          console.log('定时请求返回:', responseData);
+          
+          // 安全地访问数据
+          if (responseData && responseData.data && responseData.data.datastreams && 
+              responseData.data.datastreams.length > 0 && 
+              responseData.data.datastreams[0].datapoints) {
+            
+            const datapoints = responseData.data.datastreams[0].datapoints;
+            
+            for (let d = 0; d < datapoints.length; d++){
+              console.log('新数据时间戳:', datapoints[d].at);
+              
+              if (chartData.value.length > 0) {
+                console.log('最后一条数据时间戳:', chartData.value[chartData.value.length-1].value[0]);
+              }
+              
+              let traceMark = false;
+              let storageTimeStamp = datapoints[d].at;
+              chartData.value.push({value: [datapoints[d].at, datapoints[d].value]});
+              
+              if (chartData.value.length > 0 && datapoints[d].at === chartData.value[chartData.value.length-1].value[0]) {
+                traceMark = true;
+              }
+              
+              if (chartData.value.length > timePeriods[activePeriod.value].days && traceMark === true) {
+                chartData.value.shift();
+              }
+            }
+            
+            // 更新图表
+            updateChartData();
+          }
+        })
+        .catch(err => {
+          console.error('定时请求失败:', err);
+        });
+        */
+
+        // 添加新的模拟数据
+        const newData = randomData();
+        console.log('添加新的模拟数据:', newData);
+        
+        chartData.value.push(newData);
+        
+        // 保持数据量合理
+        if (chartData.value.length > timePeriods[activePeriod.value].days) {
+          chartData.value.shift();
+        }
+        
+        // 更新图表
+        updateChartData();
+        
+      }, 5000);
+    };
+
+    // 图表配置
+    const chartOption = ref({
+      title: {
+        text: '雨量显示 - 本月',
+        textStyle: {
+          fontSize: 16
+        },
+        left: 'center'
+      },
+      tooltip: {
+        trigger: 'axis',
+        formatter: function (params) {
+          params = params[0];
+          var date = new Date(params.name);
+          return (
+            date.getDate() +
+            '/' +
+            (date.getMonth() + 1) +
+            '/' +
+            date.getFullYear() +
+            ' : ' +
+            params.value[1] +
+            ' mm'
+          );
+        },
+        axisPointer: {
+          animation: false
+        }
+      },
+      xAxis: {
+        type: 'time',
+        splitLine: {
+          show: false
+        }
+      },
+      yAxis: {
+        type: 'value',
+        boundaryGap: [0, '100%'],
+        splitLine: {
+          show: true
+        },
+        name: '雨量 (mm)'
+      },
+      grid: {
+        containLabel: true,
+        left: '3%',
+        right: '4%',
+        bottom: '3%',
+        top: '60px'
+      },
+      series: [
+        {
+          name: '雨量数据',
+          type: 'line',
+          showSymbol: false,
+          areaStyle: {
+            opacity: 0.3
+          },
+          data: []
+        }
+      ]
+    });
+
+    // 生命周期钩子
+    onMounted(() => {
+      // 初始化模拟数据
+      initMockData(timePeriods[activePeriod.value].days);
+      
+      // 启动定时更新
+      startDataPolling();
+    });
+
+    onUnmounted(() => {
+      // 清除定时器防止内存泄漏
+      if (intervalId.value) {
+        clearInterval(intervalId.value);
+        intervalId.value = null;
+      }
+      console.log("组件已卸载");
+    });
+
+    return {
+      chartOption,
+      timePeriods,
+      activePeriod,
+      changePeriod
+    }
   }
 }
 </script>
@@ -47,7 +301,7 @@ export default {
     margin-bottom: var(--spacing-lg);
   }
   
-  /* 添加时间选择器样式 */
+  /* 时间选择器样式 */
   .time-selector {
     display: flex;
     justify-content: space-between;
