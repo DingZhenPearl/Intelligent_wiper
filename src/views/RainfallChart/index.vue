@@ -1,15 +1,14 @@
 <template>
   <div class="rainfall-chart">
-    <!-- 从68px增大到136px -->
     <e-charts 
       :option="chartOption"
-      height="calc(100vh - 136px)"
+      height="calc(100vh - var(--nav-height))"
     />
   </div>
 </template>
 
 <script>
-import { ref } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import ECharts from '@/components/ECharts'
 
 export default {
@@ -18,11 +17,28 @@ export default {
     ECharts
   },
   setup() {
+    // 定义响应式图表高度
+    const navHeight = ref('6rem');
+    
+    // 根据视窗大小调整图表选项
+    const updateFontSizes = () => {
+      const baseFontSize = window.innerWidth < 768 
+        ? Math.max(12, Math.min(16, window.innerWidth / 30)) 
+        : 16;
+      
+      chartOption.value.title.textStyle.fontSize = baseFontSize * 1.5;
+      chartOption.value.xAxis.axisLabel.fontSize = baseFontSize;
+      chartOption.value.yAxis.axisLabel.fontSize = baseFontSize;
+      
+      // 更新导航栏高度估算
+      navHeight.value = `${Math.max(4, Math.min(8, window.innerWidth / 100))}rem`;
+    };
+    
     const chartOption = ref({
       title: {
         text: '雨量显示',
         textStyle: {
-          fontSize: 32 // 从16增大到32
+          fontSize: 16
         }
       },
       tooltip: {
@@ -31,46 +47,41 @@ export default {
       xAxis: {
         type: 'time',
         axisLabel: {
-          fontSize: 24 // 从12增大到24
+          fontSize: 12
         }
       },
       yAxis: {
         type: 'value',
         axisLabel: {
-          fontSize: 24 // 从12增大到24
+          fontSize: 12
         }
       },
       grid: {
         containLabel: true,
-        left: 20,  // 从10增大到20
-        right: 20, // 从10增大到20
-        bottom: 40, // 从20增大到40
-        top: 80     // 从40增大到80
+        left: '5%',
+        right: '5%',
+        bottom: '10%',
+        top: '15%'
       },
       series: [{
         type: 'line',
         data: []
-      }],
-      // 响应式调整
-      media: [{
-        query: {
-          maxWidth: 320
-        },
-        option: {
-          title: {
-            textStyle: {
-              fontSize: 28 // 从14增大到28
-            }
-          },
-          axisLabel: {
-            fontSize: 20 // 从10增大到20
-          }
-        }
       }]
-    })
+    });
+
+    // 监听窗口大小变化
+    onMounted(() => {
+      updateFontSizes();
+      window.addEventListener('resize', updateFontSizes);
+    });
+
+    onUnmounted(() => {
+      window.removeEventListener('resize', updateFontSizes);
+    });
 
     return {
-      chartOption
+      chartOption,
+      navHeight
     }
   }
 }
@@ -78,21 +89,26 @@ export default {
 
 <style lang="scss" scoped>
 .rainfall-chart {
+  --nav-height: 6rem; /* 默认导航高度 */
   height: 100%;
   width: 100%;
-  padding: 12px; /* 从6px增大到12px */
+  padding: var(--spacing-sm);
   display: flex;
   flex-direction: column;
   
   /* 添加响应式调整 */
   @media screen and (max-width: 320px) {
-    padding: 8px; /* 从4px增大到8px */
+    padding: var(--spacing-xs);
   }
   
   @media screen and (min-width: 768px) {
-    padding: 24px; /* 从12px增大到24px */
+    padding: var(--spacing-md);
     max-width: 960px;
     margin: 0 auto;
+  }
+  
+  @media screen and (min-width: 1200px) {
+    max-width: 1140px;
   }
 }
 </style>

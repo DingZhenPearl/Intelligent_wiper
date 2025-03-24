@@ -27,24 +27,24 @@ export default {
 
 <style lang="scss" scoped>
 .statistics {
-  padding: 24px 20px; /* 从12px 10px增大到24px 20px */
+  padding: var(--spacing-lg) var(--spacing-md);
   
   h1 {
     text-align: center;
-    margin-bottom: 28px; /* 从14px增大到28px */
-    font-size: 44px; /* 从22px增大到44px */
+    margin-bottom: var(--spacing-lg);
+    font-size: var(--font-size-xxl);
   }
   
   .chart-container {
     background-color: #f5f5f5;
-    border-radius: 16px; /* 从8px增大到16px */
-    padding: 28px; /* 从14px增大到28px */
-    min-height: 440px; /* 从220px增大到440px */
+    border-radius: var(--border-radius-lg);
+    padding: var(--spacing-lg);
+    min-height: 50vh;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 30px; /* 从15px增大到30px */
-    margin-bottom: 32px; /* 从16px增大到32px */
+    font-size: var(--font-size-lg);
+    margin-bottom: var(--spacing-lg);
   }
   
   /* 添加时间选择器样式 */
@@ -52,21 +52,21 @@ export default {
     display: flex;
     justify-content: space-between;
     margin: 0 auto;
-    max-width: min(800px, 95vw); /* 从400px, 92vw增大到800px, 95vw */
-    gap: 16px; /* 从8px增大到16px */
+    max-width: min(90%, 800px);
+    gap: var(--spacing-sm);
     
     .time-btn {
       flex: 1;
       background-color: #f5f5f5;
       border: none;
       color: #666;
-      padding: 16px 0; /* 从8px增大到16px */
-      font-size: 28px; /* 从14px增大到28px */
-      border-radius: 8px; /* 从4px增大到8px */
+      padding: var(--spacing-sm) 0;
+      font-size: var(--font-size-md);
+      border-radius: var(--border-radius-sm);
       cursor: pointer;
       
       &.active {
-        background-color: #4285f4;
+        background-color: var(--primary-color);
         color: white;
       }
       
@@ -79,30 +79,30 @@ export default {
   /* 响应式调整 */
   @media screen and (max-width: 320px) {
     .chart-container {
-      min-height: 360px; /* 从180px增大到360px */
-      padding: 24px; /* 从12px增大到24px */
+      min-height: 45vh;
+      padding: var(--spacing-md);
     }
     
     .time-selector .time-btn {
-      font-size: 26px; /* 从13px增大到26px */
-      padding: 12px 0; /* 从6px增大到12px */
+      font-size: var(--font-size-sm);
+      padding: calc(var(--spacing-sm) * 0.8) 0;
     }
   }
   
   @media screen and (min-width: 768px) {
-    padding: 16px;
+    padding: var(--spacing-md);
     
     .chart-container {
-      min-height: 300px;
-      padding: 20px;
+      min-height: 40vh;
+      padding: var(--spacing-md);
     }
     
     .time-selector {
       max-width: 500px;
       
       .time-btn {
-        font-size: 15px;
-        padding: 10px 0;
+        font-size: calc(var(--font-size-md) * 0.9);
+        padding: var(--spacing-sm) 0;
       }
     }
   }

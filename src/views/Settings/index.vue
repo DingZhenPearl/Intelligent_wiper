@@ -43,67 +43,67 @@ export default {
 
 <style lang="scss" scoped>
 .settings {
-  padding: 24px 20px; /* 从12px 10px增大到24px 20px */
+  padding: var(--spacing-lg) var(--spacing-md);
 
   h1 {
     text-align: center;
-    margin-bottom: 32px; /* 从16px增大到32px */
+    margin-bottom: var(--spacing-lg);
     color: #333;
-    font-size: 44px; /* 从22px增大到44px */
+    font-size: var(--font-size-xxl);
   }
 
   .settings-container {
-    max-width: min(840px, 95vw); /* 从420px, 92vw增大到840px, 95vw */
+    max-width: min(90%, 840px);
     margin: 0 auto;
     background: white;
-    border-radius: 16px; /* 从8px增大到16px */
-    padding: 28px; /* 从14px增大到28px */
-    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08); /* 增强阴影 */
+    border-radius: var(--border-radius-lg);
+    padding: var(--spacing-lg);
+    box-shadow: 0 2px var(--spacing-sm) rgba(0, 0, 0, 0.08);
   }
 
   .setting-item {
-    padding: 28px 0; /* 从14px增大到28px */
-    border-bottom: 2px solid #eee; /* 从1px增大到2px */
+    padding: var(--spacing-lg) 0;
+    border-bottom: 2px solid #eee;
 
     &:last-child {
       border-bottom: none;
     }
 
     h3 {
-      margin-bottom: 12px; /* 从6px增大到12px */
+      margin-bottom: var(--spacing-xs);
       color: #666;
-      font-size: 34px; /* 从17px增大到34px */
+      font-size: var(--font-size-lg);
     }
 
     .status-text {
       color: #4caf50;
       font-weight: 500;
-      font-size: 30px; /* 从15px增大到30px */
+      font-size: var(--font-size-md);
     }
 
     .select-input {
       width: 100%;
-      padding: 16px; /* 从8px增大到16px */
-      border: 2px solid #ddd; /* 从1px增大到2px */
-      border-radius: 8px; /* 从4px增大到8px */
-      font-size: 28px; /* 从14px增大到28px */
+      padding: var(--spacing-sm);
+      border: 2px solid #ddd;
+      border-radius: var(--border-radius-sm);
+      font-size: var(--font-size-md);
       color: #333;
-      height: 72px; /* 从36px增大到72px */
+      height: calc(var(--font-size-md) * 3);
     }
 
     .range-input {
       width: 80%;
-      margin-right: 16px; /* 从8px增大到16px */
-      height: 12px; /* 从6px增大到12px */
+      margin-right: var(--spacing-sm);
+      height: calc(var(--spacing-xs) * 1.5);
       cursor: pointer;
     }
 
     .value-text {
       color: #666;
       font-weight: 500;
-      font-size: 28px; /* 从14px增大到28px */
+      font-size: var(--font-size-md);
       display: inline-block;
-      min-width: 40px; /* 从20px增大到40px */
+      min-width: calc(var(--font-size-md) * 1.5);
       text-align: center;
     }
   }
@@ -111,27 +111,27 @@ export default {
   /* 添加响应式设计 */
   @media screen and (max-width: 320px) {
     .settings-container {
-      padding: 24px; /* 从12px增大到24px */
+      padding: var(--spacing-md);
     }
     
     .setting-item {
-      padding: 24px 0; /* 从12px增大到24px */
+      padding: var(--spacing-md) 0;
       
       h3 {
-        font-size: 32px; /* 从16px增大到32px */
+        font-size: var(--font-size-md);
       }
       
       .status-text, .value-text {
-        font-size: 26px; /* 从13px增大到26px */
+        font-size: var(--font-size-sm);
       }
     }
   }
   
   @media screen and (min-width: 768px) {
-    padding: 16px;
+    padding: var(--spacing-md);
     
     .settings-container {
-      padding: 20px;
+      padding: var(--spacing-md);
       max-width: 500px;
     }
     
@@ -139,7 +139,7 @@ export default {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 16px 0;
+      padding: var(--spacing-md) 0;
       
       h3 {
         margin-bottom: 0;

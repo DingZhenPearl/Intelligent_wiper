@@ -5,54 +5,32 @@
   box-sizing: border-box;
 }
 
-html, body {
-  width: 100%;
-  height: 100%;
-  overflow: hidden;
-}
-
-body {
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  font-size: 32px; /* 从16px增大到32px */
-  line-height: 1.4;
-  color: #333;
-  background-color: #f8f9fa;
-}
-
-h1, h2, h3, h4, h5, h6 {
-  margin-bottom: 1rem; /* 从0.5rem增大到1rem */
-  font-weight: 600;
-  line-height: 1.2;
-}
-
-h1 {
-  font-size: 4rem; /* 从2rem增大到4rem */
-}
-
-h2 {
-  font-size: 3.2rem; /* 从1.6rem增大到3.2rem */
-}
-
-h3 {
-  font-size: 2.8rem; /* 从1.4rem增大到2.8rem */
-}
-
-a {
-  color: #4285f4;
-  text-decoration: none;
-}
-
-button {
-  cursor: pointer;
-  font-family: inherit;
-  font-size: 2rem; /* 从1rem增大到2rem */
-  padding: 20px 40px; /* 从10px 20px增大到20px 40px */
-  border-radius: 16px; /* 从8px增大到16px */
-  transition: all 0.3s ease;
-}
-
-/* 自定义颜色变量 */
+/* 添加响应式尺寸变量 */
 :root {
+  /* 基础字体大小 - 随视窗宽度调整 */
+  --base-font-size: calc(16px + 0.5vw);
+  
+  /* 字体大小变量 */
+  --font-size-xxl: calc(var(--base-font-size) * 2);
+  --font-size-xl: calc(var(--base-font-size) * 1.5);
+  --font-size-lg: calc(var(--base-font-size) * 1.25);
+  --font-size-md: var(--base-font-size);
+  --font-size-sm: calc(var(--base-font-size) * 0.85);
+  
+  /* 间距变量 */
+  --spacing-xxl: calc(var(--base-font-size) * 2);
+  --spacing-xl: calc(var(--base-font-size) * 1.5);
+  --spacing-lg: calc(var(--base-font-size) * 1.25);
+  --spacing-md: var(--base-font-size);
+  --spacing-sm: calc(var(--base-font-size) * 0.75);
+  --spacing-xs: calc(var(--base-font-size) * 0.5);
+  
+  /* 边框圆角 */
+  --border-radius-lg: calc(var(--base-font-size) * 0.75);
+  --border-radius-md: calc(var(--base-font-size) * 0.5);
+  --border-radius-sm: calc(var(--base-font-size) * 0.25);
+  
+  /* 颜色变量 */
   --primary-color: #4285f4;
   --secondary-color: #34a853;
   --danger-color: #ea4335;
@@ -62,14 +40,60 @@ button {
   --gray-color: #5f6368;
 }
 
+html, body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  font-size: var(--font-size-md);
+  line-height: 1.4;
+  color: #333;
+  background-color: #f8f9fa;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  margin-bottom: var(--spacing-md);
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+h1 {
+  font-size: var(--font-size-xxl);
+}
+
+h2 {
+  font-size: var(--font-size-xl);
+}
+
+h3 {
+  font-size: var(--font-size-lg);
+}
+
+a {
+  color: var(--primary-color);
+  text-decoration: none;
+}
+
+button {
+  cursor: pointer;
+  font-family: inherit;
+  font-size: var(--font-size-md);
+  padding: var(--spacing-sm) var(--spacing-lg);
+  border-radius: var(--border-radius-md);
+  transition: all 0.3s ease;
+}
+
 /* 放大触摸目标区域 */
 button, 
 a, 
 input[type="button"], 
 input[type="submit"],
 .clickable {
-  min-height: 88px; /* 从44px增大到88px */
-  min-width: 88px; /* 从44px增大到88px */
+  min-height: calc(var(--font-size-md) * 2.75);
+  min-width: calc(var(--font-size-md) * 2.75);
 }
 
 /* 通用样式类 */
@@ -91,29 +115,29 @@ input[type="submit"],
   height: 100%;
   max-width: 1200px;
   margin: 0 auto;
-  padding: 0 30px; /* 从15px增大到30px */
+  padding: 0 var(--spacing-lg);
 }
 
-/* 响应式布局 */
+/* 响应式布局 - 使用媒体查询更新变量值 */
+@media (min-width: 1200px) {
+  :root {
+    --base-font-size: 18px;
+  }
+}
+
 @media (max-width: 768px) {
+  :root {
+    --base-font-size: calc(14px + 0.4vw);
+  }
+  
   .container {
-    padding: 0 24px; /* 从12px增大到24px */
+    padding: 0 var(--spacing-md);
   }
-  
-  body {
-    font-size: 30px; /* 从15px增大到30px */
-  }
-  
-  h1 {
-    font-size: 3.6rem; /* 从1.8rem增大到3.6rem */
-  }
-  
-  h2 {
-    font-size: 3rem; /* 从1.5rem增大到3rem */
-  }
-  
-  h3 {
-    font-size: 2.6rem; /* 从1.3rem增大到2.6rem */
+}
+
+@media (max-width: 480px) {
+  :root {
+    --base-font-size: calc(13px + 0.3vw);
   }
 }
 

@@ -56,18 +56,18 @@ export default {
 
 <style lang="scss" scoped>
 .control-panel {
-  padding: 24px 20px; /* 从12px 10px增大到24px 20px */
+  padding: var(--spacing-lg) var(--spacing-md);
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 24px; /* 从12px增大到24px */
+  gap: var(--spacing-lg);
   height: 100%;
   overflow-y: auto;
 
   h1 {
-    margin-bottom: 32px; /* 从16px增大到32px */
+    margin-bottom: var(--spacing-lg);
     color: #333;
-    font-size: 44px; /* 从22px增大到44px */
+    font-size: var(--font-size-xxl);
   }
 
   .rainfall-chart {
@@ -75,9 +75,9 @@ export default {
     
     .pie-chart {
       position: relative;
-      width: min(520px, 80vw); /* 从260px, 70vw增大到520px, 80vw */
-      height: min(520px, 80vw); /* 从260px, 70vw增大到520px, 80vw */
-      margin: 0 auto 32px; /* 从16px增大到32px */
+      width: min(70vw, 60vh);
+      height: min(70vw, 60vh);
+      margin: 0 auto var(--spacing-lg);
       
       .pie {
         width: 100%;
@@ -91,26 +91,26 @@ export default {
         top: 50%;
         left: 50%;
         transform: translate(-50%, -50%);
-        font-size: 64px; /* 从32px增大到64px */
+        font-size: calc(var(--font-size-xxl) * 1.25);
         font-weight: bold;
-        color: #4285f4;
+        color: var(--primary-color);
       }
     }
     
     .label {
-      font-size: 40px; /* 从20px增大到40px */
+      font-size: var(--font-size-xl);
       color: #666;
     }
   }
 
   .work-status {
     width: 100%;
-    max-width: min(840px, 95vw); /* 从420px, 92vw增大到840px, 95vw */
+    max-width: 90%;
     
     h2 {
-      margin-bottom: 24px; /* 从12px增大到24px */
+      margin-bottom: var(--spacing-md);
       color: #333;
-      font-size: 40px; /* 从20px增大到40px */
+      font-size: var(--font-size-xl);
     }
     
     .status-list {
@@ -119,14 +119,14 @@ export default {
       margin: 0;
       display: flex;
       flex-wrap: wrap;
-      gap: 16px; /* 从8px增大到16px */
+      gap: var(--spacing-sm);
       
       li {
-        flex: 1 0 calc(50% - 8px); /* 考虑更大的间距 */
-        padding: 24px 32px; /* 从12px 16px增大到24px 32px */
+        flex: 1 0 calc(50% - var(--spacing-xs));
+        padding: var(--spacing-md) var(--spacing-lg);
         margin-bottom: 0;
-        border-radius: 12px; /* 从6px增大到12px */
-        font-size: 30px; /* 从15px增大到30px */
+        border-radius: var(--border-radius-md);
+        font-size: var(--font-size-md);
         background-color: #f5f5f5;
         color: #666;
         cursor: pointer;
@@ -134,7 +134,7 @@ export default {
         text-align: center;
         
         &.active {
-          background-color: #4285f4;
+          background-color: var(--primary-color);
           color: white;
         }
       }
@@ -142,25 +142,25 @@ export default {
   }
 
   .control-btn {
-    background-color: #4285f4;
+    background-color: var(--primary-color);
     color: white;
     border: none;
-    border-radius: 44px; /* 从22px增大到44px */
-    padding: 24px 60px; /* 从12px 30px增大到24px 60px */
-    font-size: 32px; /* 从16px增大到32px */
+    border-radius: var(--border-radius-lg);
+    padding: var(--spacing-md) var(--spacing-xl);
+    font-size: var(--font-size-lg);
     cursor: pointer;
     display: flex;
     align-items: center;
-    gap: 12px; /* 从6px增大到12px */
+    gap: var(--spacing-xs);
     transition: background-color 0.3s ease;
-    margin-top: 20px; /* 从10px增大到20px */
+    margin-top: var(--spacing-md);
     
     &:hover {
       background-color: #3367d6;
     }
     
     .icon {
-      font-size: 36px; /* 从18px增大到36px */
+      font-size: calc(var(--font-size-lg) * 1.2);
     }
   }
   
@@ -168,38 +168,54 @@ export default {
   @media screen and (max-width: 360px) {
     .rainfall-chart {
       .pie-chart {
-        width: min(440px, 90vw); /* 从220px, 80vw增大到440px, 90vw */
-        height: min(440px, 90vw); /* 从220px, 80vw增大到440px, 90vw */
+        width: min(80vw, 50vh);
+        height: min(80vw, 50vh);
         
         .percentage {
-          font-size: 56px; /* 从28px增大到56px */
+          font-size: calc(var(--font-size-xl) * 1.5);
         }
       }
       
       .label {
-        font-size: 36px; /* 从18px增大到36px */
+        font-size: var(--font-size-lg);
       }
     }
     
     .work-status {
       .status-list li {
-        flex: 1 0 100%; /* 在小屏幕上改为单列 */
-        padding: 10px 14px;
+        flex: 1 0 100%;
+        padding: var(--spacing-sm) var(--spacing-md);
       }
     }
   }
   
   @media screen and (min-width: 768px) {
-    padding: 16px;
-    gap: 20px;
+    padding: var(--spacing-md);
+    gap: var(--spacing-md);
     
     .work-status .status-list {
       display: grid;
-      grid-template-columns: repeat(5, 1fr); /* 在大屏幕上使用网格布局 */
-      gap: 10px;
+      grid-template-columns: repeat(5, 1fr);
+      gap: var(--spacing-xs);
       
       li {
-        padding: 14px 10px;
+        padding: var(--spacing-sm) var(--spacing-xs);
+      }
+    }
+    
+    .rainfall-chart {
+      .pie-chart {
+        width: min(40vw, 350px);
+        height: min(40vw, 350px);
+      }
+    }
+  }
+  
+  @media screen and (min-width: 1200px) {
+    .rainfall-chart {
+      .pie-chart {
+        width: 400px;
+        height: 400px;
       }
     }
   }
