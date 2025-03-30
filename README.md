@@ -22,3 +22,7 @@ npm run lint
 
 ### Customize configuration
 See [Configuration Reference](https://cli.vuejs.org/config/).
+
+### 模拟器调试
+ 在网易模拟器的shell文件夹下运行CMD，输入以下命令
+ adb.exe connect 127.0.0.1:16384
