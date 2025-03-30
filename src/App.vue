@@ -5,8 +5,8 @@
       <router-view />
     </div>
     
-    <!-- 底部导航栏 -->
-    <nav class="bottom-nav">
+    <!-- 底部导航栏，在登录页面不显示 -->
+    <nav class="bottom-nav" v-if="!isLoginPage">
       <router-link to="/control" class="nav-item">
         <span class="icon">🏠</span>
         <span>控制</span>
@@ -24,8 +24,19 @@
 </template>
 
 <script>
+import { useRoute } from 'vue-router'
+import { computed } from 'vue'
+
 export default {
-  name: 'App'
+  name: 'App',
+  setup() {
+    const route = useRoute()
+    const isLoginPage = computed(() => route.path === '/login')
+    
+    return {
+      isLoginPage
+    }
+  }
 }
 </script>
 

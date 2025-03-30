@@ -1,0 +1,15 @@
+{
+  "restartable": "rs",
+  "ignore": [
+    ".git",
+    "node_modules/**/node_modules",
+    "dist",
+    "public"
+  ],
+  "verbose": true,
+  "watch": [
+    "src"
+  ],
+  "ext": "js,vue,json,scss,css,html",
+  "delay": "1000"
+}
