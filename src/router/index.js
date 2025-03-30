@@ -4,6 +4,11 @@ import Home from '@/views/Home'
 
 const routes = [
   {
+    path: '/login',
+    name: 'Login',
+    component: () => import('@/views/Login/index.vue')
+  },
+  {
     path: '/control',
     name: 'Control',
     component: Home
@@ -20,7 +25,7 @@ const routes = [
   },
   {
     path: '/',
-    redirect: '/control'
+    redirect: '/login'
   },
 ]
 

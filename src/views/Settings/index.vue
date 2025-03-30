@@ -1,41 +1,97 @@
 <template>
   <div class="settings">
-    <h1>状态与设置</h1>
-    <div class="settings-container">
-      <div class="setting-item">
-        <h3>系统状态</h3>
-        <p class="status-text">运行正常</p>
+    <h2>设置界面</h2>
+    
+    <!-- 个人信息 -->
+    <div class="section">
+      <h3>个人信息</h3>
+      <div class="user-info">
+        <img :src="userAvatar" alt="用户头像" class="avatar">
+        <div class="info-item">
+          <label>用户名:</label>
+          <span>张三</span>
+        </div>
+        <div class="info-item">
+          <label>邮箱:</label>
+          <span>zhangsan@example.com</span>
+        </div>
       </div>
-      
-      <div class="setting-item">
-        <h3>雨刷模式</h3>
-        <select v-model="wiperMode" class="select-input">
-          <option value="auto">自动模式</option>
-          <option value="manual">手动模式</option>
-        </select>
+    </div>
+
+    <!-- 状态信息 -->
+    <div class="section">
+      <h3>状态信息</h3>
+      <div class="status-list">
+        <div class="status-item">
+          <i class="icon-sensor"></i>
+          <label>传感器状态:</label>
+          <span class="status-normal">正常</span>
+        </div>
+        <div class="status-item">
+          <i class="icon-motor"></i>
+          <label>电机工作状态:</label>
+          <span class="status-normal">正常</span>
+        </div>
+        <div class="status-item">
+          <i class="icon-battery"></i>
+          <label>电池电量:</label>
+          <span class="status-normal">80%</span>
+        </div>
+        <div class="status-item">
+          <i class="icon-network"></i>
+          <label>网络连接状态:</label>
+          <span class="status-normal">已连接</span>
+        </div>
       </div>
-      
-      <div class="setting-item">
-        <h3>灵敏度调节</h3>
-        <input type="range" v-model="sensitivity" min="1" max="10" class="range-input">
-        <span class="value-text">{{ sensitivity }}</span>
-      </div>
+    </div>
+
+    <!-- 远程数据上传频率设置 -->
+    <div class="section">
+      <h3>远程数据上传频率设置</h3>
+      <select v-model="uploadFrequency" class="frequency-select">
+        <option value="1">每小时</option>
+        <option value="2">每2小时</option>
+        <option value="4">每4小时</option>
+        <option value="6">每6小时</option>
+        <option value="12">每12小时</option>
+        <option value="24">每24小时</option>
+      </select>
+    </div>
+
+    <!-- 底部按钮 -->
+    <div class="button-group">
+      <button class="btn-save" @click="saveSettings">保存设置</button>
+      <button class="btn-logout" @click="logout">退出登录</button>
     </div>
   </div>
 </template>
 
 <script>
 import { ref } from 'vue'
+import { useRouter } from 'vue-router'
 
 export default {
   name: 'SettingsPage',
   setup() {
-    const wiperMode = ref('auto')
-    const sensitivity = ref(5)
+    const router = useRouter()
+    const uploadFrequency = ref('1')
+    const userAvatar = ref('/src/assets/images/default-avatar.png')
+
+    const saveSettings = () => {
+      // TODO: 实现保存设置的逻辑
+      alert('设置已保存')
+    }
+
+    const logout = () => {
+      // TODO: 实现退出登录的逻辑
+      router.push('/login')
+    }
 
     return {
-      wiperMode,
-      sensitivity
+      uploadFrequency,
+      userAvatar,
+      saveSettings,
+      logout
     }
   }
 }
@@ -43,111 +99,111 @@ export default {
 
 <style lang="scss" scoped>
 .settings {
-  padding: var(--spacing-lg) var(--spacing-md);
+  padding: var(--spacing-md);
+  background: #f5f5f5;
+  min-height: 100vh;
 
-  h1 {
+  h2 {
     text-align: center;
     margin-bottom: var(--spacing-lg);
-    color: #333;
     font-size: var(--font-size-xxl);
+    font-weight: 600;
   }
 
-  .settings-container {
-    max-width: min(90%, 840px);
-    margin: 0 auto;
+  .section {
     background: white;
     border-radius: var(--border-radius-lg);
     padding: var(--spacing-lg);
-    box-shadow: 0 2px var(--spacing-sm) rgba(0, 0, 0, 0.08);
-  }
-
-  .setting-item {
-    padding: var(--spacing-lg) 0;
-    border-bottom: 2px solid #eee;
-
-    &:last-child {
-      border-bottom: none;
-    }
+    margin-bottom: var(--spacing-lg);
 
     h3 {
-      margin-bottom: var(--spacing-xs);
-      color: #666;
-      font-size: var(--font-size-lg);
-    }
-
-    .status-text {
-      color: #4caf50;
+      margin-bottom: var(--spacing-lg);
+      font-size: var(--font-size-xl);
       font-weight: 500;
-      font-size: var(--font-size-md);
-    }
-
-    .select-input {
-      width: 100%;
-      padding: var(--spacing-sm);
-      border: 2px solid #ddd;
-      border-radius: var(--border-radius-sm);
-      font-size: var(--font-size-md);
       color: #333;
-      height: calc(var(--font-size-md) * 3);
-    }
-
-    .range-input {
-      width: 80%;
-      margin-right: var(--spacing-sm);
-      height: calc(var(--spacing-xs) * 1.5);
-      cursor: pointer;
-    }
-
-    .value-text {
-      color: #666;
-      font-weight: 500;
-      font-size: var(--font-size-md);
-      display: inline-block;
-      min-width: calc(var(--font-size-md) * 1.5);
-      text-align: center;
     }
   }
-  
-  /* 添加响应式设计 */
-  @media screen and (max-width: 320px) {
-    .settings-container {
-      padding: var(--spacing-md);
+
+  .user-info {
+    .avatar {
+      width: 100px;
+      height: 100px;
+      border-radius: 50%;
+      margin-bottom: var(--spacing-md);
     }
-    
-    .setting-item {
-      padding: var(--spacing-md) 0;
+
+    .info-item {
+      margin: var(--spacing-sm) 0;
+      font-size: var(--font-size-lg);
       
-      h3 {
-        font-size: var(--font-size-md);
+      label {
+        color: #666;
+        margin-right: var(--spacing-sm);
+        font-weight: 500;
       }
-      
-      .status-text, .value-text {
-        font-size: var(--font-size-sm);
+
+      span {
+        color: #333;
       }
     }
   }
-  
-  @media screen and (min-width: 768px) {
-    padding: var(--spacing-md);
-    
-    .settings-container {
-      padding: var(--spacing-md);
-      max-width: 500px;
-    }
-    
-    .setting-item {
+
+  .status-list {
+    .status-item {
       display: flex;
       align-items: center;
-      justify-content: space-between;
-      padding: var(--spacing-md) 0;
-      
-      h3 {
-        margin-bottom: 0;
-        flex: 1;
+      margin: var(--spacing-md) 0;
+      font-size: var(--font-size-lg);
+
+      i {
+        margin-right: var(--spacing-sm);
+        font-size: var(--font-size-xl);
       }
-      
-      .select-input, .range-input, .status-text {
-        width: 50%;
+
+      label {
+        color: #666;
+        margin-right: var(--spacing-sm);
+        font-weight: 500;
+      }
+
+      .status-normal {
+        color: #4CAF50;
+        font-weight: 500;
+      }
+    }
+  }
+
+  .frequency-select {
+    width: 100%;
+    padding: var(--spacing-md);
+    border: 1px solid #ddd;
+    border-radius: var(--border-radius-md);
+    font-size: var(--font-size-lg);
+    color: #333;
+  }
+
+  .button-group {
+    margin-top: var(--spacing-xl);
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-md);
+
+    button {
+      width: 100%;
+      padding: var(--spacing-md);
+      border: none;
+      border-radius: var(--border-radius-md);
+      font-size: var(--font-size-lg);
+      font-weight: 500;
+      cursor: pointer;
+
+      &.btn-save {
+        background: #1976D2;
+        color: white;
+
+        &:hover {
+          background: #1565C0;
+        }
       }
     }
   }
