@@ -204,8 +204,8 @@ export default {
   justify-content: center;
   align-items: center;
   min-height: 100vh;
-  background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
-  padding: var(--spacing-md);
+  background: #f5f5f5; // 安卓风格的浅灰背景
+  padding: 16px;
   position: relative;
   overflow: hidden;
   
@@ -215,74 +215,76 @@ export default {
     left: -10%;
     width: 120%;
     height: 120%;
-    background: linear-gradient(135deg, rgba(245, 247, 250, 0.1) 0%, rgba(195, 207, 226, 0.1) 100%);
-    /* 移除不存在的图像引用，改用纯CSS渐变背景 */
-    /* background: url('/src/assets/images/pattern.svg') center/cover no-repeat; */
-    opacity: 0.5;
+    background: linear-gradient(135deg, rgba(98, 0, 238, 0.05) 0%, rgba(63, 81, 181, 0.05) 100%);
+    opacity: 0.8;
     z-index: 0;
     pointer-events: none;
-    /* 添加一些圆点作为背景装饰 */
-    background-image: radial-gradient(circle, rgba(100, 100, 255, 0.1) 2px, transparent 2px);
-    background-size: 30px 30px;
+    // Material Design风格的点阵背景
+    background-image: radial-gradient(circle, rgba(98, 0, 238, 0.1) 2px, transparent 2px);
+    background-size: 24px 24px;
   }
 
   .login-card {
     background: white;
-    border-radius: var(--border-radius-lg);
-    padding: var(--spacing-xl);
+    border-radius: 8px;
+    padding: 30px; // 增加内边距从24px到30px
     width: 100%;
-    max-width: 420px;
-    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+    max-width: 520px; // 大幅增加最大宽度从420px到520px
+    box-shadow: 0 3px 6px rgba(0, 0, 0, 0.16), 0 3px 6px rgba(0, 0, 0, 0.23); // 增强阴影效果
     position: relative;
     z-index: 1;
     
     .app-title {
       text-align: center;
-      margin-bottom: var(--spacing-lg);
-      font-size: var(--font-size-xxl);
-      font-weight: 600;
-      color: var(--primary-color);
+      margin-bottom: 28px; // 增加间距
+      font-size: 28px; // 增大标题字体
+      font-weight: 500; // Material Design标题字重
+      color: #6200ee; // 安卓主色调
     }
   }
   
   .mode-switch {
     display: flex;
-    margin-bottom: var(--spacing-lg);
-    border-radius: var(--border-radius-md);
+    margin-bottom: 24px;
+    border-radius: 4px;
     overflow: hidden;
-    border: 1px solid var(--primary-color);
+    background-color: #f5f5f5; // 安卓常用的轻灰色背景
+    padding: 2px;
 
     .switch-btn {
       flex: 1;
-      padding: var(--spacing-sm);
+      padding: 12px; // 增大按钮内边距
       background: transparent;
       border: none;
-      color: var(--primary-color);
-      font-size: var(--font-size-md);
+      color: #6200ee; // 安卓主色
+      font-size: 18px; // 增大按钮字体
       cursor: pointer;
-      transition: all 0.3s;
+      transition: all 0.2s ease; // 更快的过渡效果
+      border-radius: 4px;
 
       &.active {
-        background: var(--primary-color);
+        background: #6200ee; // 安卓主色
         color: white;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12), 0 1px 2px rgba(0, 0, 0, 0.24); // Material Design按钮阴影
       }
 
       &:hover:not(.active) {
-        background: rgba(25, 118, 210, 0.1);
+        background: rgba(98, 0, 238, 0.08); // 微弱的悬停效果，符合Material Design
       }
     }
   }
 
   .login-form {
     .form-group {
-      margin-bottom: var(--spacing-md);
+      margin-bottom: 24px; // 增加表单项间距
+      position: relative; // 为下划线定位做准备
 
       label {
         display: block;
-        margin-bottom: var(--spacing-xs);
-        color: #666;
-        font-weight: 500;
-        font-size: var(--font-size-md);
+        margin-bottom: 10px; // 增加标签下方间距
+        color: #757575; // Material Design的次要文本颜色
+        font-weight: 400;
+        font-size: 16px; // 增大标签字体
       }
       
       .input-wrapper {
@@ -290,115 +292,146 @@ export default {
         
         .input-icon {
           position: absolute;
-          left: var(--spacing-sm);
+          left: 0;
           top: 50%;
           transform: translateY(-50%);
-          width: 20px;
-          height: 20px;
+          width: 26px; // 增大图标尺寸
+          height: 26px;
           opacity: 0.6;
           background-size: contain;
           background-repeat: no-repeat;
           background-position: center;
+          color: #6200ee; // 安卓主色
           
           &.user-icon {
-            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%234285f4'%3E%3Cpath d='M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z'%3E%3C/path%3E%3C/svg%3E");
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%236200ee'%3E%3Cpath d='M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z'%3E%3C/path%3E%3C/svg%3E");
           }
           
           &.lock-icon {
-            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%234285f4'%3E%3Cpath d='M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z'%3E%3C/path%3E%3C/svg%3E");
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%236200ee'%3E%3Cpath d='M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z'%3E%3C/path%3E%3C/svg%3E");
           }
         }
 
         input {
           width: 100%;
-          padding: var(--spacing-md) var(--spacing-md) var(--spacing-md) calc(var(--spacing-sm) * 4);
-          border: 1px solid #ddd;
-          border-radius: var(--border-radius-md);
-          font-size: var(--font-size-md);
-          transition: all 0.3s;
+          padding: 14px 14px 10px 36px; // 增大输入框内边距
+          border: none; // 移除边框
+          border-bottom: 1px solid #e0e0e0; // 只保留底部边框，符合Material Design
+          font-size: 18px; // 增大输入框字体
+          transition: all 0.2s;
+          background-color: transparent; // 透明背景
+          border-radius: 0; // 移除圆角，Material Design输入框通常是平的
 
           &:focus {
             outline: none;
-            border-color: var(--primary-color);
-            box-shadow: 0 0 0 2px rgba(66, 133, 244, 0.2);
+            border-bottom: 2px solid #6200ee; // 聚焦时加粗下划线
+            padding-bottom: 9px; // 调整聚焦时下方内边距
           }
+          
+          // 添加输入动画
+          &:not(:placeholder-shown) {
+            border-bottom-color: #6200ee;
+          }
+        }
+
+        // 添加下划线动画效果
+        &::after {
+          content: '';
+          position: absolute;
+          bottom: 0;
+          left: 0;
+          width: 0;
+          height: 2px;
+          background-color: #6200ee;
+          transition: width 0.3s ease;
+        }
+        
+        input:focus + &::after {
+          width: 100%;
         }
       }
     }
 
     .error-message {
-      color: #f44336;
-      margin-bottom: var(--spacing-md);
-      font-size: var(--font-size-sm);
-      padding: var(--spacing-xs);
-      background-color: rgba(244, 67, 54, 0.1);
-      border-radius: var(--border-radius-sm);
+      color: #b00020; // Material Design错误色
+      margin-bottom: 16px;
+      font-size: 14px;
+      padding: 8px;
+      background-color: rgba(176, 0, 32, 0.08); // 淡化的错误背景
+      border-radius: 4px;
       text-align: center;
     }
 
     .btn-submit {
       width: 100%;
-      padding: var(--spacing-md);
-      background: var(--primary-color);
+      padding: 14px; // 增大按钮高度
+      background: #6200ee; // 安卓主色
       color: white;
       border: none;
-      border-radius: var(--border-radius-md);
-      font-size: var(--font-size-md);
+      border-radius: 4px; // Material Design按钮圆角
+      font-size: 18px; // 增大按钮字体
       font-weight: 500;
       cursor: pointer;
-      transition: all 0.3s;
-      margin-top: var(--spacing-md);
+      transition: all 0.2s; // 更快的过渡
+      margin-top: 28px; // 增大按钮上方间距
+      text-transform: uppercase; // Material Design按钮通常使用大写
+      letter-spacing: 0.5px; // 字间距
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12), 0 1px 2px rgba(0, 0, 0, 0.24); // Material Design阴影
 
       &:hover {
-        background: #3367d6;
-        transform: translateY(-1px);
-        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        background: #7928f5; // 稍亮的色调
+        box-shadow: 0 3px 6px rgba(0, 0, 0, 0.16), 0 3px 6px rgba(0, 0, 0, 0.23); // 更强的阴影
       }
       
       &:active {
-        transform: translateY(0);
-        box-shadow: none;
+        background: #5000d1; // 稍暗的色调
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12); // 按下时减弱阴影
+        transform: translateY(1px); // 轻微下沉效果
       }
     }
   }
   
   .footer-text {
     text-align: center;
-    margin-top: var(--spacing-lg);
-    font-size: var(--font-size-sm);
-    color: #999;
+    margin-top: 28px; // 增大底部间距
+    font-size: 14px; // 增大版权信息字体
+    color: #757575; // Material Design次要文字颜色
   }
 
   @media screen and (max-width: 480px) {
-    padding: var(--spacing-sm);
+    padding: 16px; // 增大外边距
 
     .login-card {
-      padding: var(--spacing-md);
+      padding: 24px; // 增大内边距
+      width: 94%; // 略微增加宽度占比
+      max-width: none; // 在小屏幕上移除最大宽度限制
       
       .app-title {
-        font-size: var(--font-size-xl);
-        margin-bottom: var(--spacing-md);
+        font-size: 24px;
+        margin-bottom: 20px;
       }
     }
 
     .login-form {
       .form-group {
-        margin-bottom: var(--spacing-sm);
-
-        label {
-          font-size: var(--font-size-sm);
-        }
+        margin-bottom: 16px;
 
         .input-wrapper input {
-          padding: var(--spacing-sm) var(--spacing-sm) var(--spacing-sm) calc(var(--spacing-sm) * 3.5);
-          font-size: var(--font-size-sm);
+          font-size: 16px; // 保持16px确保移动设备不会自动缩放
         }
       }
 
       .btn-submit {
-        padding: var(--spacing-sm);
-        font-size: var(--font-size-md);
+        padding: 10px;
       }
+    }
+  }
+
+  // 添加大屏幕适配
+  @media screen and (min-width: 768px) {
+    .login-card {
+      max-width: 600px; // 在大屏幕上大幅增加登录框宽度
+      padding: 36px; // 大屏幕上进一步增大内边距
     }
   }
 }
