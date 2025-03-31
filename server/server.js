@@ -19,12 +19,12 @@ const app = express();
 // 静态文件服务
 app.use(express.static(path.join(__dirname, '../dist')));
 
-// 添加更严格的CORS配置
+// 修改CORS配置，允许来自任何来源的请求
 app.use(cors({
-  origin: true,  // 允许所有来源，等同于"*"
+  origin: '*', // 允许所有来源
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
-  credentials: false  // 禁用credentials，因为跨域时容易引起问题
+  credentials: false // 禁用credentials以避免跨域问题
 }));
 
 // 确保每个响应都包含CORS头部

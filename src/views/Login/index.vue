@@ -159,6 +159,8 @@
 <script>
 import { ref, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
+import { post } from '@/services/api'  // 导入API服务
+import { isNative, getNetworkStatus } from '@/utils/platform'  // 导入平台检测工具
 
 export default {
   name: 'LoginPage',
@@ -266,6 +268,12 @@ export default {
       }
     }
     
+    // 获取API地址前缀（不含/api/auth）
+    const getApiUrl = () => {
+      const savedUrl = localStorage.getItem('server_url')
+      return savedUrl ? `http://${savedUrl}` : 'http://localhost:3000'
+    }
+    
     // 测试服务器连接
     const testConnectionToServer = async (serverUrl, showMessage = true) => {
       isConnecting.value = true
@@ -274,15 +282,29 @@ export default {
       }
       
       try {
-        const response = await fetch(`http://${serverUrl}/api/status`, {
+        // 检查网络状态
+        const networkStatus = await getNetworkStatus()
+        if (!networkStatus.connected) {
+          isServerConnected.value = false
+          if (showMessage) {
+            connectionSuccess.value = false
+            connectionMessage.value = '设备未连接网络，请检查WiFi或移动数据'
+          }
+          return false
+        }
+        
+        const url = `http://${serverUrl}/api/status`
+        console.log(`测试连接: ${url}, 是否原生环境: ${isNative()}`)
+        
+        // 使用新的API服务测试连接
+        const response = await fetch(url, {
           method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          mode: 'cors', // 确保启用CORS
-          cache: 'no-cache', // 不缓存结果
-          timeout: 5000 // 5秒超时
+          headers: { 'Content-Type': 'application/json' },
+          mode: 'cors',
+          cache: 'no-cache'
         })
+        
+        console.log('连接测试响应:', response)
         
         if (response.ok) {
           isServerConnected.value = true
@@ -304,7 +326,7 @@ export default {
         isServerConnected.value = false
         if (showMessage) {
           connectionSuccess.value = false
-          connectionMessage.value = `连接失败: ${error.message}`
+          connectionMessage.value = `连接失败: ${error.message || '未知错误'}`
         }
         return false
       } finally {
@@ -312,59 +334,32 @@ export default {
       }
     }
     
-    // 获取动态API地址
-    const getApiBaseUrl = () => {
-      const savedUrl = localStorage.getItem('server_url')
-      if (savedUrl) {
-        return `http://${savedUrl}/api/auth`
-      } else {
-        return 'http://localhost:3000/api/auth'
-      }
-    }
-
     const handleLogin = async () => {
       try {
         errorMessage.value = ''
         
-        // 验证服务器连接
-        const apiUrl = getApiBaseUrl()
-        if (!isServerConnected.value) {
-          // 尝试重新连接
-          const serverAddress = apiUrl.replace('http://', '').replace('/api/auth', '')
-          const connected = await testConnectionToServer(serverAddress, false)
-          if (!connected) {
-            errorMessage.value = '无法连接到服务器，请检查服务器设置'
-            showConfig.value = true
-            return
-          }
-        }
-        
+        // 验证表单
         if (!username.value || !password.value) {
           errorMessage.value = '用户名和密码不能为空'
           return
         }
         
-        // 使用动态API地址
-        const API_BASE_URL = getApiBaseUrl()
-        console.log('使用API地址:', API_BASE_URL)
+        // 获取API地址
+        const apiUrl = getApiUrl()
+        console.log(`登录请求URL: ${apiUrl}/api/auth/login, 原生环境: ${isNative()}`)
         
-        const response = await fetch(`${API_BASE_URL}/login`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          credentials: 'include',
-          body: JSON.stringify({
-            username: username.value,
-            password: password.value
-          })
+        // 使用修改后的API服务发送登录请求
+        const response = await post('/api/auth/login', {
+          username: username.value,
+          password: password.value
         })
-
-        const data = await response.json()
         
-        console.log('登录响应:', response.status, data)
-
+        console.log('登录响应:', response)
+        
         if (response.ok) {
+          const data = await response.json()
+          console.log('登录成功, 用户数据:', data)
+          
           // 存储用户信息并跳转
           localStorage.setItem('user', JSON.stringify({
             user_id: data.user_id,
@@ -372,17 +367,18 @@ export default {
           }))
           router.push('/home')
         } else {
-          errorMessage.value = data.error || (
+          const errorData = await response.json()
+          console.error('登录失败:', errorData)
+          
+          errorMessage.value = errorData.error || (
             response.status === 500 
               ? '服务器内部错误，请稍后重试' 
               : '登录失败，请检查用户名和密码'
           )
         }
       } catch (error) {
-        console.error('登录错误:', error)
-        errorMessage.value = '网络错误，请检查服务器连接后重试'
-        // 遇到网络错误自动打开服务器配置
-        showConfig.value = true
+        console.error('登录过程错误:', error)
+        errorMessage.value = `网络错误: ${error.message || '请检查服务器连接'}`
       }
     }
 
@@ -395,21 +391,12 @@ export default {
       try {
         errorMessage.value = ''
         
-        // 使用动态API地址
-        const API_BASE_URL = getApiBaseUrl()
-        
-        const response = await fetch(`${API_BASE_URL}/register`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          credentials: 'include', // 添加此行以支持跨域cookie
-          body: JSON.stringify({
-            username: username.value,
-            password: password.value
-          })
+        // 使用API服务发送注册请求
+        const response = await post('/api/auth/register', {
+          username: username.value,
+          password: password.value
         })
-
+        
         const data = await response.json()
 
         if (response.ok) {
