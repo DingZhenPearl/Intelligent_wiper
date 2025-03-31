@@ -7,7 +7,7 @@
     
     <!-- 底部导航栏，在登录页面不显示 -->
     <nav class="bottom-nav" v-if="!isLoginPage">
-      <router-link to="/control" class="nav-item">
+      <router-link to="/home" class="nav-item">
         <span class="icon">🏠</span>
         <span>控制</span>
       </router-link>

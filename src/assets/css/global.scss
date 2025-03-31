@@ -7,8 +7,8 @@
 
 /* 添加响应式尺寸变量 */
 :root {
-  /* 基础字体大小 - 随视窗宽度调整 */
-  --base-font-size: calc(16px + 0.5vw);
+  /* 基础字体大小 - 更激进的视口单位计算 */
+  --base-font-size: calc(1.2vw + 14px);
   
   /* 字体大小变量 */
   --font-size-xxl: calc(var(--base-font-size) * 2);
@@ -113,38 +113,26 @@ input[type="submit"],
 .container {
   width: 100%;
   height: 100%;
-  max-width: 1200px;
+  max-width: 90vw; // 移除固定最大宽度限制
   margin: 0 auto;
-  padding: 0 var(--spacing-lg);
+  padding: 0 max(2vw, var(--spacing-lg));
 }
 
 /* 响应式布局 - 使用媒体查询更新变量值 */
 @media (min-width: 1200px) {
   :root {
-    --base-font-size: 18px;
+    --base-font-size: calc(1.5vw + 16px); // 使用纯视口单位
   }
 }
 
-@media (max-width: 768px) {
-  :root {
-    --base-font-size: calc(14px + 0.4vw);
-  }
-  
-  .container {
-    padding: 0 var(--spacing-md);
-  }
-}
-
-@media (max-width: 480px) {
-  :root {
-    --base-font-size: calc(13px + 0.3vw);
-  }
-}
+/* 删除其他媒体查询中的max-width限制 */
 
 /* 确保所有视图容器都能正确继承高度 */
 #app, .app-container, .main-content {
   height: 100%;
   width: 100%;
+  max-width: none !important;
+  max-height: none !important;
 }
 
 /* 防止内容溢出 */

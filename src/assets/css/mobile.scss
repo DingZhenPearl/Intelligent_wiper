@@ -23,7 +23,7 @@
 @media screen and (orientation: landscape) {
   :root {
     /* 横屏时稍微调整基础字体大小 */
-    --base-font-size: calc(14px + 0.35vw);
+    --base-font-size: calc(1.5vw + 14px); // 使用纯视口单位
   }
   
   .bottom-nav {
@@ -42,8 +42,10 @@
   
   /* 优化横屏布局 */
   .control-panel .rainfall-chart .pie-chart {
-    width: min(50vh, 60vw) !important;
-    height: min(50vh, 60vw) !important;
+    width: 70vw !important; // 移除最小值限制
+    height: 70vh !important;
+    max-width: none !important;
+    max-height: none !important;
     margin: 0 auto;
   }
 }
@@ -74,7 +76,7 @@ input, select {
 /* 提升小屏幕设备体验 */
 @media screen and (max-width: 320px) {
   :root {
-    --base-font-size: calc(12px + 0.3vw);
+    --base-font-size: calc(0.7vw + 10px); // 更新为纯视口单位
   }
   
   .main-content {
@@ -94,12 +96,23 @@ input, select {
 /* 适应中等尺寸设备 */
 @media screen and (min-width: 321px) and (max-width: 375px) {
   :root {
-    --base-font-size: calc(13px + 0.35vw);
+    --base-font-size: calc(0.8vw + 11px); // 更新为纯视口单位
   }
   
   .main-content {
     padding: var(--spacing-lg) var(--spacing-md);
     padding-bottom: calc(var(--spacing-xxl) * 2.2);
+  }
+}
+
+// 添加大屏幕支持
+@media screen and (min-width: 1920px) {
+  :root {
+    --base-font-size: calc(2vw + 16px);
+  }
+  
+  .main-content {
+    padding: calc(2vw + var(--spacing-lg));
   }
 }
 
