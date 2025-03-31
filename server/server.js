@@ -3,12 +3,13 @@ const cors = require('cors');
 const session = require('express-session');
 const path = require('path');
 const { exec } = require('child_process');
+const os = require('os');
 
-// 直接在代码中定义配置
+// 修改配置使服务器监听所有网络接口
 const config = {
   server: {
     port: 3000,
-    host: 'localhost',
+    host: '0.0.0.0',  // 确保是0.0.0.0而不是localhost
     secret_key: 'mwYgR7#*X2'
   }
 };
@@ -18,20 +19,38 @@ const app = express();
 // 静态文件服务
 app.use(express.static(path.join(__dirname, '../dist')));
 
-// 中间件配置
+// 添加更严格的CORS配置
 app.use(cors({
-  origin: `http://${config.server.host}:8080`,
-  credentials: true
+  origin: true,  // 允许所有来源，等同于"*"
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  credentials: false  // 禁用credentials，因为跨域时容易引起问题
 }));
 
+// 确保每个响应都包含CORS头部
+app.use((req, res, next) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+  
+  // 对OPTIONS请求直接返回200
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+  next();
+});
+
 app.use(express.json());
+
+// 修改session配置，简化跨域问题
 app.use(session({
   secret: config.server.secret_key,
   resave: false,
   saveUninitialized: false,
   cookie: {
     secure: false,
-    maxAge: 24 * 60 * 60 * 1000 // 24小时
+    sameSite: 'none', // 允许跨站点cookie
+    maxAge: 24 * 60 * 60 * 1000
   }
 }));
 
@@ -54,10 +73,11 @@ function executePythonScript(action, params = {}) {
     const { PythonShell } = require('python-shell');
     
     let options = {
-      mode: 'json',
+      mode: 'text',  // 将mode改为text而不是json，我们自己处理解析
       pythonPath: 'python', // 根据环境可能需要修改为'python3'
       scriptPath: path.dirname(PYTHON_SCRIPT),
-      args: args
+      args: args,
+      encoding: 'utf8'  // 明确指定编码
     };
     
     console.log(`执行Python脚本: ${path.basename(PYTHON_SCRIPT)}`);
@@ -66,8 +86,18 @@ function executePythonScript(action, params = {}) {
     // 尝试使用PythonShell执行脚本
     PythonShell.run(path.basename(PYTHON_SCRIPT), options).then(results => {
       if (results && results.length > 0) {
-        console.log('Python返回结果:', results[0]);
-        resolve(results[0]);
+        try {
+          // 手动解析JSON
+          const jsonOutput = results[0].trim();
+          console.log('Python原始返回结果:', jsonOutput);
+          const parsedResult = JSON.parse(jsonOutput);
+          console.log('解析后的结果:', parsedResult);
+          resolve(parsedResult);
+        } catch (parseErr) {
+          console.error('解析Python返回的JSON失败:', parseErr);
+          console.error('原始输出:', results[0]);
+          reject(new Error(`无法解析Python输出: ${parseErr.message}`));
+        }
       } else {
         reject(new Error('Python脚本没有返回数据'));
       }
@@ -78,7 +108,7 @@ function executePythonScript(action, params = {}) {
       console.log('回退到exec方法执行Python脚本...');
       const command = `python "${PYTHON_SCRIPT}" ${args.join(' ')}`;
       
-      exec(command, (error, stdout, stderr) => {
+      exec(command, { encoding: 'utf8' }, (error, stdout, stderr) => {
         if (stderr) {
           console.error(`Python脚本错误输出: ${stderr}`);
         }
@@ -90,7 +120,7 @@ function executePythonScript(action, params = {}) {
         
         try {
           console.log(`Python脚本原始输出: ${stdout}`);
-          const result = JSON.parse(stdout);
+          const result = JSON.parse(stdout.trim());
           resolve(result);
         } catch (e) {
           console.error(`解析结果失败: ${stdout}`);
@@ -204,12 +234,47 @@ app.get('/api/auth/user', async (req, res) => {
   }
 });
 
+// 获取本地IP地址函数
+function getLocalIpAddresses() {
+  const interfaces = os.networkInterfaces();
+  const addresses = [];
+
+  Object.keys(interfaces).forEach((netInterface) => {
+    interfaces[netInterface].forEach((iface) => {
+      // 只获取IPv4地址且排除内部地址
+      if (iface.family === 'IPv4' && !iface.internal) {
+        addresses.push(iface.address);
+      }
+    });
+  });
+  
+  return addresses;
+}
+
 // 处理所有前端路由
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, '../dist/index.html'));
 });
 
+// 添加简单的服务器状态检测API
+app.get('/api/status', (req, res) => {
+  res.json({
+    status: 'online',
+    message: '服务器正常运行',
+    timestamp: new Date().toISOString()
+  });
+});
+
 // 启动服务器
 app.listen(config.server.port, config.server.host, () => {
   console.log(`服务器运行在 http://${config.server.host}:${config.server.port}`);
+  console.log('注意：服务器现在允许从任何网络接口访问');
+  
+  // 显示所有可用的IP地址，方便移动设备连接
+  const ipAddresses = getLocalIpAddresses();
+  console.log('您可以通过以下IP地址从移动设备访问服务器:');
+  ipAddresses.forEach(ip => {
+    console.log(`http://${ip}:${config.server.port}`);
+  });
+  console.log('请确保您的防火墙已经开放了3000端口!');
 });

@@ -29,3 +29,4 @@ See [Configuration Reference](https://cli.vuejs.org/config/).
 
 ### python依赖
 使用conda list --export > requirements.txt导入依赖
+pip freeze > requirements.txt 导出依赖

@@ -4,6 +4,10 @@ import argparse
 import sys
 import traceback
 from werkzeug.security import generate_password_hash, check_password_hash
+import io
+
+# 设置 stdout 编码为 utf-8
+sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 
 # 添加日志记录
 def log(message):
@@ -79,10 +83,9 @@ def init_db():
                 )
             ''')
         conn.commit()
-        print("数据库初始化成功")
         return {"success": True, "message": "数据库初始化成功"}
     except Exception as e:
-        print(f"数据库初始化失败: {str(e)}")
+        log(f"数据库初始化失败: {str(e)}")
         return {"success": False, "error": str(e)}
     finally:
         conn.close()
@@ -232,7 +235,7 @@ if __name__ == '__main__':
         else:
             result = {"success": False, "error": "未知操作"}
         
-        # 以标准JSON格式输出结果
+        # 以标准JSON格式输出结果，确保使用 utf-8 编码
         print(json.dumps(result, ensure_ascii=False))
         sys.stdout.flush()  # 确保输出被立即刷新
         
