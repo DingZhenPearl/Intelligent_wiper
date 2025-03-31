@@ -32,11 +32,11 @@ See [Configuration Reference](https://cli.vuejs.org/config/).
 pip freeze > requirements.txt 导出依赖
 
 ### 安卓端效果图
-
+1.登录
 ![alt text](Screenshot_2025-03-31-19-25-00-36_6928599de3a3140b5616ee58debe00bc.jpg)
-
+2.控制
 ![alt text](Screenshot_2025-03-31-19-25-07-75_6928599de3a3140b5616ee58debe00bc.jpg)
-
+3.图表
 ![alt text](Screenshot_2025-03-31-19-25-10-18_6928599de3a3140b5616ee58debe00bc.jpg)
-
+4.设置
 ![alt text](Screenshot_2025-03-31-19-25-13-75_6928599de3a3140b5616ee58debe00bc.jpg)
