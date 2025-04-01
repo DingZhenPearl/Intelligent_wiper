@@ -157,22 +157,37 @@ app.post('/api/auth/register', async (req, res) => {
 // 用户登录
 app.post('/api/auth/login', async (req, res) => {
   try {
-    const { username, password } = req.body;
-    
-    // 添加输入验证
-    if (!username || !password) {
-      return res.status(400).json({ error: "用户名和密码不能为空" });
-    }
-    
-    console.log(`尝试登录: 用户名=${username}, 密码长度=${password ? password.length : 0}`);
-    
-    // 对于登录请求，特别处理一下参数
-    const result = await executePythonScript('login', { 
-      username, 
-      password: password.replace(/"/g, '\\"').replace(/'/g, "\\'") // 转义引号
+    console.log('收到登录请求:', {
+      headers: req.headers,
+      body: req.body,
+      origin: req.get('origin')
     });
     
-    console.log('登录结果:', result);
+    // 检查请求体是否为空
+    if (!req.body) {
+      console.error('请求体为空');
+      return res.status(400).json({ error: "请求数据无效" });
+    }
+    
+    const { username, password } = req.body;
+    console.log('登录信息:', { username, passwordLength: password ? password.length : 0 });
+    
+    // 更详细的输入验证
+    if (!username || typeof username !== 'string' || username.trim() === '') {
+      return res.status(400).json({ error: "用户名不能为空" });
+    }
+    
+    if (!password || typeof password !== 'string' || password.trim() === '') {
+      return res.status(400).json({ error: "密码不能为空" });
+    }
+    
+    // 处理登录请求
+    const result = await executePythonScript('login', { 
+      username: username.trim(), 
+      password: password.trim().replace(/"/g, '\\"').replace(/'/g, "\\'")
+    });
+    
+    console.log('登录处理结果:', result);
     
     if (result && result.success) {
       // 保存用户信息到session
@@ -191,7 +206,7 @@ app.post('/api/auth/login', async (req, res) => {
       res.status(500).json({ error: "服务器处理错误" });
     }
   } catch (error) {
-    console.error('登录错误:', error);
+    console.error('登录过程错误:', error);
     res.status(500).json({ error: '服务器内部错误', details: error.message });
   }
 });

@@ -338,21 +338,32 @@ export default {
       try {
         errorMessage.value = ''
         
-        // 验证表单
-        if (!username.value || !password.value) {
-          errorMessage.value = '用户名和密码不能为空'
+        // 严格的表单验证
+        if (!username.value || username.value.trim() === '') {
+          errorMessage.value = '用户名不能为空'
           return
         }
         
-        // 获取API地址
-        const apiUrl = getApiUrl()
-        console.log(`登录请求URL: ${apiUrl}/api/auth/login, 原生环境: ${isNative()}`)
+        if (!password.value || password.value.trim() === '') {
+          errorMessage.value = '密码不能为空'
+          return
+        }
         
-        // 使用修改后的API服务发送登录请求
-        const response = await post('/api/auth/login', {
-          username: username.value,
-          password: password.value
+        // 准备登录数据
+        const loginData = {
+          username: username.value.trim(),
+          password: password.value.trim()
+        }
+        
+        console.log('准备登录:', {
+          url: `${getApiUrl()}/api/auth/login`,
+          username: loginData.username,
+          passwordLength: loginData.password.length,
+          isNative: isNative()
         })
+        
+        // 发送登录请求
+        const response = await post('/api/auth/login', loginData)
         
         console.log('登录响应:', response)
         

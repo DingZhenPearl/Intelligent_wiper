@@ -39,7 +39,9 @@ const handleApiError = (error, url) => {
 // API请求核心函数
 const apiRequest = async (endpoint, options = {}) => {
   const baseUrl = getBaseUrl();
-  const url = `${baseUrl}${endpoint}`;
+  // 确保endpoint总是以单斜杠开头
+  const normalizedEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+  const url = `${baseUrl}${normalizedEndpoint}`;
   
   console.log(`发起API请求: ${url}`, {
     method: options.method || 'GET',
@@ -70,16 +72,33 @@ const apiRequest = async (endpoint, options = {}) => {
         return handleApiError(nativeError, url);
       }
     } else {
-      // 在Web环境中使用标准fetch
+      // Web环境处理
       try {
-        console.log('使用标准fetch发送请求');
-        return await fetch(url, {
-          ...options,
-          mode: 'cors', // 确保启用CORS
-          cache: 'no-cache' // 不缓存结果
+        console.log('Web环境发送请求:', {
+          url,
+          method: options.method,
+          headers: options.headers,
+          body: options.body
         });
+        
+        // 确保请求头包含Content-Type
+        const headers = {
+          'Content-Type': 'application/json',
+          ...(options.headers || {})
+        };
+        
+        const response = await fetch(url, {
+          ...options,
+          headers,
+          mode: 'cors',
+          cache: 'no-cache',
+          credentials: 'include'
+        });
+        
+        console.log('Web请求响应:', response);
+        return response;
       } catch (webError) {
-        console.error('Fetch请求失败:', webError);
+        console.error('Web请求失败:', webError);
         return handleApiError(webError, url);
       }
     }
@@ -94,10 +113,22 @@ export const get = (endpoint, headers = {}) => {
 };
 
 export const post = (endpoint, data = {}, headers = {}) => {
+  console.log('准备发送POST请求:', {
+    endpoint,
+    data,
+    isNative: isNative()
+  });
+  
+  // 确保body数据格式正确
+  const body = JSON.stringify(data);
+  
   return apiRequest(endpoint, {
     method: 'POST',
-    headers,
-    body: JSON.stringify(data)
+    headers: {
+      'Content-Type': 'application/json',
+      ...headers
+    },
+    body
   });
 };
 
