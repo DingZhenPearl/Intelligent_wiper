@@ -57,6 +57,18 @@ app.use(session({
 // Python脚本路径
 const PYTHON_SCRIPT = path.join(__dirname, '../python/db_service.py');
 
+// 添加敏感信息处理函数
+function maskSensitiveInfo(obj) {
+  const masked = { ...obj };
+  if (masked.password) {
+    masked.password = '******';
+  }
+  if (masked.body && masked.body.password) {
+    masked.body = { ...masked.body, password: '******' };
+  }
+  return masked;
+}
+
 // 执行Python数据库操作
 function executePythonScript(action, params = {}) {
   return new Promise((resolve, reject) => {
@@ -69,6 +81,13 @@ function executePythonScript(action, params = {}) {
       }
     });
     
+    const maskedArgs = args.map(arg => 
+      arg.startsWith('--password=') ? '--password=******' : arg
+    );
+    
+    console.log(`执行Python脚本: ${path.basename(PYTHON_SCRIPT)}`);
+    console.log(`参数: ${maskedArgs.join(' ')}`);
+
     // 使用更安全的方式执行Python脚本
     const { PythonShell } = require('python-shell');
     
@@ -81,7 +100,7 @@ function executePythonScript(action, params = {}) {
     };
     
     console.log(`执行Python脚本: ${path.basename(PYTHON_SCRIPT)}`);
-    console.log(`参数: ${args.join(' ')}`);
+    console.log(`参数: ${maskedArgs.join(' ')}`);
 
     // 尝试使用PythonShell执行脚本
     PythonShell.run(path.basename(PYTHON_SCRIPT), options).then(results => {
@@ -91,7 +110,7 @@ function executePythonScript(action, params = {}) {
           const jsonOutput = results[0].trim();
           console.log('Python原始返回结果:', jsonOutput);
           const parsedResult = JSON.parse(jsonOutput);
-          console.log('解析后的结果:', parsedResult);
+          console.log('解析后的结果:', maskSensitiveInfo(parsedResult));
           resolve(parsedResult);
         } catch (parseErr) {
           console.error('解析Python返回的JSON失败:', parseErr);
@@ -102,7 +121,7 @@ function executePythonScript(action, params = {}) {
         reject(new Error('Python脚本没有返回数据'));
       }
     }).catch(err => {
-      console.error('PythonShell执行错误:', err);
+      console.error('PythonShell执行错误:', maskSensitiveInfo(err));
       
       // 如果PythonShell失败，回退到exec方法
       console.log('回退到exec方法执行Python脚本...');
@@ -141,7 +160,10 @@ executePythonScript('init')
 app.post('/api/auth/register', async (req, res) => {
   try {
     const { username, password } = req.body;
+    console.log('注册请求:', { username, passwordLength: password ? password.length : 0 });
+    
     const result = await executePythonScript('register', { username, password });
+    console.log('注册结果:', maskSensitiveInfo(result));
     
     if (result.success) {
       res.status(201).json({ message: result.message });
@@ -149,7 +171,7 @@ app.post('/api/auth/register', async (req, res) => {
       res.status(400).json({ error: result.error });
     }
   } catch (error) {
-    console.error('注册错误:', error);
+    console.error('注册错误:', maskSensitiveInfo(error));
     res.status(500).json({ error: '服务器内部错误' });
   }
 });
@@ -158,8 +180,8 @@ app.post('/api/auth/register', async (req, res) => {
 app.post('/api/auth/login', async (req, res) => {
   try {
     console.log('收到登录请求:', {
-      headers: req.headers,
-      body: req.body,
+      headers: maskSensitiveInfo(req.headers),
+      body: maskSensitiveInfo(req.body),
       origin: req.get('origin')
     });
     
@@ -187,7 +209,7 @@ app.post('/api/auth/login', async (req, res) => {
       password: password.trim().replace(/"/g, '\\"').replace(/'/g, "\\'")
     });
     
-    console.log('登录处理结果:', result);
+    console.log('登录处理结果:', maskSensitiveInfo(result));
     
     if (result && result.success) {
       // 保存用户信息到session
@@ -206,7 +228,7 @@ app.post('/api/auth/login', async (req, res) => {
       res.status(500).json({ error: "服务器处理错误" });
     }
   } catch (error) {
-    console.error('登录过程错误:', error);
+    console.error('登录过程错误:', maskSensitiveInfo(error));
     res.status(500).json({ error: '服务器内部错误', details: error.message });
   }
 });
