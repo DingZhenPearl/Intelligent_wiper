@@ -31,6 +31,9 @@
     padding-right: env(safe-area-inset-right);
     height: auto;
     min-height: calc(var(--base-font-size) * 3);
+    width: 100%; /* 确保在小屏设备横屏时占满宽度 */
+    left: 50%; /* 确保居中 */
+    transform: translateX(-50%);
   }
   
   /* 横屏时调整内容区域 */
@@ -197,5 +200,7 @@ input, select {
 @supports (padding: max(0px)) {
   .bottom-nav {
     padding-bottom: max(var(--spacing-sm), env(safe-area-inset-bottom));
+    width: 100%; /* 确保底部导航条在所有设备上都能正确适应宽度 */
+    /* 不需要重复设置居中样式，已经在基础样式中添加 */
   }
 }

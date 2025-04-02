@@ -200,9 +200,11 @@ input[type="submit"],
   
   /* 桌面导航优化 */
   .bottom-nav {
-    max-width: 1200px;
+    width: 85%; /* 改为百分比宽度替代固定宽度 */
     margin: 0 auto;
     border-radius: var(--border-radius-lg) var(--border-radius-lg) 0 0;
+    max-width: 1600px; /* 设置最大宽度限制，防止在超宽屏幕上过于宽大 */
+    transition: width 0.3s ease; /* 添加平滑过渡效果 */
   }
 }
 
@@ -210,5 +212,16 @@ input[type="submit"],
 @media (min-width: 1400px) {
   :root {
     --base-font-size: 16px; /* 桌面端使用固定字体大小 */
+  }
+  
+  .bottom-nav {
+    width: 80%; /* 更大屏幕减小比例 */
+  }
+}
+
+/* 添加对超宽屏幕的支持 */
+@media (min-width: 1800px) {
+  .bottom-nav {
+    width: 75%; /* 进一步缩小宽度比例 */
   }
 }

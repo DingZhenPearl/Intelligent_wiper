@@ -65,8 +65,8 @@ export default {
 .bottom-nav {
   position: fixed;
   bottom: 0;
-  left: 0;
-  right: 0;
+  left: 50%; /* 将导航栏左边缘放在视口中心 */
+  transform: translateX(-50%); /* 向左移动自身宽度的一半以实现居中 */
   display: flex;
   justify-content: space-around;
   background-color: white;
@@ -74,6 +74,7 @@ export default {
   box-shadow: 0 -2px var(--spacing-sm) rgba(0, 0, 0, 0.1); 
   z-index: 100;
   height: auto;
+  width: 100%; /* 确保全宽 */
 }
 
 .nav-item {
@@ -102,14 +103,13 @@ export default {
   .main-content {
     padding: var(--spacing-md);
     padding-bottom: calc(var(--spacing-xl) * 2);
-    max-width: 960px;
+    max-width: 90%;
     margin: 0 auto;
   }
   
   .bottom-nav {
-    max-width: 960px;
-    left: 50%;
-    transform: translateX(-50%);
+    width: 90%; /* 改为百分比宽度 */
+    /* left 和 transform 已在基础样式中设置 */
     border-radius: var(--border-radius-lg) var(--border-radius-lg) 0 0;
     padding: var(--spacing-xs) 0 var(--spacing-md);
   }
@@ -123,13 +123,30 @@ export default {
   }
 }
 
-@media screen and (min-width: 1200px) {
+@media screen and (min-width: 1024px) {
   .main-content {
-    max-width: 1140px;
+    max-width: 85%;
   }
   
   .bottom-nav {
-    max-width: 1140px;
+    width: 85%; /* 大屏幕稍微窄一些 */
+    max-width: 1600px; /* 设置最大宽度防止在超宽屏幕上过宽 */
+  }
+}
+
+@media screen and (min-width: 1400px) {
+  .main-content {
+    max-width: 80%;
+  }
+  
+  .bottom-nav {
+    width: 80%; /* 在更大的屏幕上进一步减小比例 */
+  }
+}
+
+@media screen and (min-width: 1800px) {
+  .main-content, .bottom-nav {
+    width: 75%; /* 超宽屏幕继续减小比例 */
   }
 }
 </style>
