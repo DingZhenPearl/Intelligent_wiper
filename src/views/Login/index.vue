@@ -3,12 +3,6 @@
     <div class="login-card">
       <h1 class="app-title">智能雨刷系统</h1>
       
-      <!-- 显示服务器状态 -->
-      <div class="server-status" @click="showConfig = true">
-        <span class="status-icon" :class="{ 'connected': isServerConnected }"></span>
-        <span class="status-text">服务器: {{ serverStatusText }}</span>
-      </div>
-      
       <div class="mode-switch">
         <button 
           :class="['switch-btn', { active: mode === 'login' }]"
@@ -110,66 +104,19 @@
         <button type="submit" class="btn-submit">注册</button>
       </form>
       
-      <!-- 服务器设置按钮 - 更明显的位置 -->
-      <button @click="showConfig = true" class="server-config-btn">
-        <span class="icon">⚙️</span> 服务器设置
-      </button>
-      
       <!-- 提示信息 -->
       <p class="footer-text">© 2023 智能雨刷系统 · 版权所有</p>
     </div>
     
     <div class="background-decoration"></div>
-    
-    <!-- 服务器配置弹窗 -->
-    <div class="config-modal" v-if="showConfig">
-      <div class="config-panel">
-        <h3>服务器配置</h3>
-        
-        <div v-if="availableServers.length > 0" class="server-list">
-          <p>推荐服务器地址：</p>
-          <div 
-            v-for="(server, index) in availableServers" 
-            :key="index" 
-            class="server-option"
-            @click="selectServer(server)"
-          >
-            {{ server }}
-          </div>
-        </div>
-        
-        <div class="form-group">
-          <label for="server-url">服务器地址:</label>
-          <input 
-            type="text" 
-            id="server-url" 
-            v-model="serverUrl" 
-            placeholder="例如: 192.168.1.100:3000"
-          />
-        </div>
-        
-        <div class="button-group">
-          <button @click="testConnection" class="btn-test">测试连接</button>
-          <button @click="saveServerConfig" class="btn-save" :disabled="isConnecting">
-            {{ isConnecting ? '连接中...' : '保存' }}
-          </button>
-          <button @click="showConfig = false" class="btn-cancel">取消</button>
-        </div>
-        
-        <div v-if="connectionMessage" 
-          :class="['connection-message', { 'success': connectionSuccess, 'error': !connectionSuccess }]">
-          {{ connectionMessage }}
-        </div>
-      </div>
-    </div>
   </div>
 </template>
 
 <script>
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { post } from '@/services/api'  // 导入API服务
-import { isNative, getNetworkStatus } from '@/utils/platform'  // 导入平台检测工具
+import { isNative } from '@/utils/platform'  // 导入平台检测工具
 
 export default {
   name: 'LoginPage',
@@ -182,22 +129,7 @@ export default {
     const errorMessage = ref('')
     const rememberPassword = ref(false)
     
-    // 服务器配置相关
-    const showConfig = ref(false)
-    const serverUrl = ref('')
-    const isConnecting = ref(false)
-    const connectionMessage = ref('')
-    const connectionSuccess = ref(false)
-    const isServerConnected = ref(false)
-    const availableServers = ref([])
-    
-    // 服务器状态文本
-    const serverStatusText = computed(() => {
-      if (!serverUrl.value) return '未配置';
-      return isServerConnected.value ? '已连接' : '未连接';
-    })
-    
-    // 从本地存储加载服务器配置和保存的登录信息
+    // 从本地存储加载保存的登录信息
     onMounted(() => {
       // 检查用户是否已登录，如果已登录直接进入控制页面
       const savedUser = localStorage.getItem('user')
@@ -216,13 +148,6 @@ export default {
         }
       }
       
-      const savedUrl = localStorage.getItem('server_url')
-      if (savedUrl) {
-        serverUrl.value = savedUrl
-        // 自动测试服务器连接
-        testConnectionToServer(savedUrl)
-      }
-      
       // 检查是否有保存的登录信息
       const savedCredentials = localStorage.getItem('saved_credentials')
       if (savedCredentials) {
@@ -237,144 +162,7 @@ export default {
           localStorage.removeItem('saved_credentials')
         }
       }
-      
-      // 尝试检测局域网中的服务器
-      detectLocalServers()
     })
-    
-    // 检测局域网中的服务器
-    const detectLocalServers = async () => {
-      // 获取设备IP地址，通常形如192.168.x.y
-      const ipPrefix = getLocalIpPrefix()
-      if (ipPrefix) {
-        const servers = []
-        
-        // 先添加默认的localhost
-        servers.push('localhost:3000')
-        
-        // 添加特定的常用IP，比如主机的IP
-        for (let i = 1; i <= 254; i++) {
-          if (i % 50 === 0) {
-            const ip = `${ipPrefix}.${i}:3000`
-            servers.push(ip)
-            
-            // 测试这个IP是否可连接
-            testConnectionToServer(ip, false).then(connected => {
-              if (connected) {
-                console.log(`找到可用服务器: ${ip}`)
-                if (!availableServers.value.includes(ip)) {
-                  availableServers.value.push(ip)
-                }
-              }
-            })
-          }
-        }
-      }
-    }
-    
-    // 获取本地IP前缀
-    const getLocalIpPrefix = () => {
-      // 模拟获取IP前缀，实际应用中可能需要使用网络API
-      // 这里简单假设一个常见的网络前缀
-      return '192.168.1'
-    }
-    
-    // 选择推荐的服务器
-    const selectServer = (server) => {
-      serverUrl.value = server
-      testConnectionToServer(server)
-    }
-    
-    // 保存服务器配置
-    const saveServerConfig = () => {
-      // 移除可能的http://前缀
-      let url = serverUrl.value.replace(/^https?:\/\//, '')
-      if (url) {
-        localStorage.setItem('server_url', url)
-        showConfig.value = false
-        
-        // 保存后重新测试连接
-        testConnectionToServer(url)
-      }
-    }
-    
-    // 测试连接
-    const testConnection = () => {
-      // 移除可能的http://前缀
-      let url = serverUrl.value.replace(/^https?:\/\//, '')
-      if (url) {
-        testConnectionToServer(url)
-      } else {
-        connectionMessage.value = '请输入服务器地址'
-        connectionSuccess.value = false
-      }
-    }
-    
-    // 获取API地址前缀（不含/api/auth）
-    const getApiUrl = () => {
-      const savedUrl = localStorage.getItem('server_url')
-      return savedUrl ? `http://${savedUrl}` : 'http://localhost:3000'
-    }
-    
-    // 测试服务器连接
-    const testConnectionToServer = async (serverUrl, showMessage = true) => {
-      isConnecting.value = true
-      if (showMessage) {
-        connectionMessage.value = '正在连接服务器...'
-      }
-      
-      try {
-        // 检查网络状态
-        const networkStatus = await getNetworkStatus()
-        if (!networkStatus.connected) {
-          isServerConnected.value = false
-          if (showMessage) {
-            connectionSuccess.value = false
-            connectionMessage.value = '设备未连接网络，请检查WiFi或移动数据'
-          }
-          return false
-        }
-        
-        const url = `http://${serverUrl}/api/status`
-        console.log(`测试连接: ${url}, 是否原生环境: ${isNative()}`)
-        
-        // 使用新的API服务测试连接
-        const response = await fetch(url, {
-          method: 'GET',
-          headers: { 'Content-Type': 'application/json' },
-          mode: 'cors',
-          cache: 'no-cache'
-        })
-        
-        console.log('连接测试响应:', response)
-        
-        if (response.ok) {
-          isServerConnected.value = true
-          if (showMessage) {
-            connectionSuccess.value = true
-            connectionMessage.value = '服务器连接成功!'
-          }
-          return true
-        } else {
-          isServerConnected.value = false
-          if (showMessage) {
-            connectionSuccess.value = false
-            connectionMessage.value = `服务器返回错误: ${response.status}`
-          }
-          return false
-        }
-      } catch (error) {
-        console.error('连接测试错误:', error)
-        isServerConnected.value = false
-        if (showMessage) {
-          connectionSuccess.value = false
-          connectionMessage.value = `连接失败: ${error.message || '未知错误'}`
-        }
-        return false
-      } finally {
-        isConnecting.value = false
-      }
-    }
     
     const handleLogin = async () => {
       try {
@@ -398,7 +186,6 @@ export default {
         }
         
         console.log('准备登录:', {
-          url: `${getApiUrl()}/api/auth/login`,
           username: loginData.username,
           passwordLength: loginData.password.length,
           isNative: isNative()
@@ -443,7 +230,7 @@ export default {
         }
       } catch (error) {
         console.error('登录过程错误:', error)
-        errorMessage.value = `网络错误: ${error.message || '请检查服务器连接'}`
+        errorMessage.value = `网络错误: ${error.message || '请检查网络连接'}`
       }
     }
 
@@ -476,7 +263,7 @@ export default {
         }
       } catch (error) {
         console.error('注册错误:', error)
-        errorMessage.value = '网络错误，请检查服务器连接后重试'
+        errorMessage.value = '网络错误，请检查网络连接后重试'
       }
     }
 
@@ -486,21 +273,9 @@ export default {
       password,
       confirmPassword,
       errorMessage,
-      rememberPassword, // 导出记住密码状态
+      rememberPassword,
       handleLogin,
-      handleRegister,
-      // 服务器配置相关
-      showConfig,
-      serverUrl,
-      saveServerConfig,
-      testConnection,
-      isConnecting,
-      connectionMessage,
-      connectionSuccess,
-      isServerConnected,
-      serverStatusText,
-      availableServers,
-      selectServer
+      handleRegister
     }
   }
 }
@@ -746,80 +521,6 @@ export default {
     }
   }
 
-  .config-modal {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: rgba(0, 0, 0, 0.5);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 100;
-    
-    .config-panel {
-      background: white;
-      padding: 20px;
-      border-radius: 8px;
-      width: 85%;
-      max-width: 400px;
-      
-      h3 {
-        margin-top: 0;
-        margin-bottom: 20px;
-        color: #6200ee;
-      }
-      
-      .form-group {
-        margin-bottom: 20px;
-        
-        label {
-          display: block;
-          margin-bottom: 8px;
-          color: #333;
-        }
-        
-        input {
-          width: 100%;
-          padding: 10px;
-          border: 1px solid #ddd;
-          border-radius: 4px;
-          font-size: 16px;
-          
-          &:focus {
-            outline: none;
-            border-color: #6200ee;
-          }
-        }
-      }
-      
-      .button-group {
-        display: flex;
-        justify-content: flex-end;
-        gap: 10px;
-        
-        button {
-          padding: 8px 16px;
-          border-radius: 4px;
-          border: none;
-          font-size: 14px;
-          cursor: pointer;
-          
-          &.btn-save {
-            background: #6200ee;
-            color: white;
-          }
-          
-          &.btn-cancel {
-            background: #f5f5f5;
-            color: #333;
-          }
-        }
-      }
-    }
-  }
-
   @media screen and (max-width: 380px) {
     padding: 10px;
 
@@ -830,126 +531,6 @@ export default {
 
     .form-group .input-wrapper input {
       font-size: 16px; // 确保在小屏设备上不会自动缩放
-    }
-  }
-}
-
-/* 增加服务器状态指示器 */
-.server-status {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 5px 10px;
-  margin-bottom: 15px;
-  cursor: pointer;
-  
-  .status-icon {
-    width: 12px;
-    height: 12px;
-    border-radius: 50%;
-    background-color: #f44336; /* 红色表示未连接 */
-    margin-right: 8px;
-    
-    &.connected {
-      background-color: #4caf50; /* 绿色表示已连接 */
-    }
-  }
-  
-  .status-text {
-    font-size: 14px;
-    color: #666;
-  }
-}
-
-/* 明显的服务器配置按钮 */
-.server-config-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin: 20px auto 0;
-  padding: 10px 15px;
-  background-color: #f5f5f5;
-  border: none;
-  border-radius: 4px;
-  color: #333;
-  font-size: 14px;
-  cursor: pointer;
-  transition: background-color 0.3s;
-  
-  .icon {
-    margin-right: 8px;
-  }
-  
-  &:hover {
-    background-color: #e0e0e0;
-  }
-}
-
-/* 改进配置弹窗样式 */
-.config-modal {
-  .config-panel {
-    .server-list {
-      margin-bottom: 20px;
-      padding: 10px;
-      background-color: #f9f9f9;
-      border-radius: 4px;
-      
-      p {
-        margin: 0 0 8px 0;
-        font-size: 14px;
-        color: #333;
-      }
-      
-      .server-option {
-        padding: 8px 10px;
-        border-radius: 4px;
-        margin-bottom: 5px;
-        background-color: #f0f0f0;
-        cursor: pointer;
-        font-size: 14px;
-        
-        &:hover {
-          background-color: #e0e0e0;
-        }
-      }
-    }
-    
-    .button-group {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 10px;
-      
-      .btn-test {
-        grid-column: 1 / span 2;
-        background: #2196f3;
-        color: white;
-        border: none;
-        padding: 10px;
-        border-radius: 4px;
-        cursor: pointer;
-        
-        &:hover {
-          background: #1e88e5;
-        }
-      }
-    }
-    
-    .connection-message {
-      margin-top: 15px;
-      padding: 10px;
-      border-radius: 4px;
-      text-align: center;
-      font-size: 14px;
-      
-      &.success {
-        background-color: rgba(76, 175, 80, 0.2);
-        color: #388e3c;
-      }
-      
-      &.error {
-        background-color: rgba(244, 67, 54, 0.2);
-        color: #d32f2f;
-      }
     }
   }
 }

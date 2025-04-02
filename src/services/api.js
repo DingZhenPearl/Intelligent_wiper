@@ -1,10 +1,10 @@
 import { isNative } from '../utils/platform';
 import { CapacitorHttp } from '@capacitor/core';
 
-// 动态获取API基础URL
+// 设置固定的API基础URL
 const getBaseUrl = () => {
-  const savedUrl = localStorage.getItem('server_url');
-  return savedUrl ? `http://${savedUrl}` : 'http://localhost:3000';
+  // 使用固定服务器地址，不再从localStorage获取
+  return 'http://10.29.101.231:3000';
 };
 
 // 格式化响应对象，使其与fetch API返回格式一致
