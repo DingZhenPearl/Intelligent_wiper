@@ -22,31 +22,22 @@
 /* 横屏适配 */
 @media screen and (orientation: landscape) {
   :root {
-    /* 横屏时稍微调整基础字体大小 */
-    --base-font-size: calc(1.5vw + 14px); // 使用纯视口单位
+    /* 横屏时调整基础字体大小为更小值 */
+    --base-font-size: calc(0.8vw + 12px);
   }
   
   .bottom-nav {
     padding-left: env(safe-area-inset-left);
     padding-right: env(safe-area-inset-right);
     height: auto;
-    min-height: calc(var(--base-font-size) * 3.5);
+    min-height: calc(var(--base-font-size) * 3);
   }
   
   /* 横屏时调整内容区域 */
   .main-content {
-    padding-bottom: calc(var(--base-font-size) * 3.5);
+    padding-bottom: calc(var(--base-font-size) * 3);
     padding-right: env(safe-area-inset-right);
     padding-left: env(safe-area-inset-left);
-  }
-  
-  /* 优化横屏布局 */
-  .control-panel .rainfall-chart .pie-chart {
-    width: 70vw !important; // 移除最小值限制
-    height: 70vh !important;
-    max-width: none !important;
-    max-height: none !important;
-    margin: 0 auto;
   }
 }
 
@@ -54,6 +45,52 @@
 body {
   user-select: none;
   -webkit-user-select: none;
+}
+
+/* 禁止文本选择 - 仅在触摸设备上 */
+@media (hover: none) and (pointer: coarse) {
+  body {
+    user-select: none;
+    -webkit-user-select: none;
+  }
+}
+
+/* 在桌面浏览器中启用文本选择 */
+@media (hover: hover) and (pointer: fine) {
+  body {
+    user-select: auto;
+    -webkit-user-select: auto;
+  }
+  
+  /* 桌面浏览器优化 */
+  button, a, [role="button"] {
+    cursor: pointer;
+  }
+  
+  /* 桌面浏览器中图表和可视化元素的增强 */
+  .chart-container, .pie-chart {
+    transition: all 0.3s ease;
+  }
+  
+  .control-panel .rainfall-chart .pie-chart:hover {
+    transform: scale(1.02);
+  }
+  
+  /* 桌面视图的状态列表增强 */
+  .status-list li {
+    transition: all 0.2s ease;
+  }
+  
+  .status-list li:hover:not(.active) {
+    transform: translateY(-2px);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  }
+  
+  /* 桌面视图中表单元素的焦点状态 */
+  input:focus, select:focus, button:focus {
+    outline: 2px solid var(--primary-color);
+    outline-offset: 2px;
+  }
 }
 
 /* 改善触摸体验 */
@@ -113,6 +150,41 @@ input, select {
   
   .main-content {
     padding: calc(2vw + var(--spacing-lg));
+  }
+}
+
+/* 浏览器屏幕尺寸适配 - 修正桌面中等尺寸 */
+@media screen and (min-width: 768px) and (max-width: 1023px) {
+  :root {
+    --base-font-size: calc(0.6vw + 14px);
+  }
+  
+  .main-content {
+    padding: var(--spacing-xl) var(--spacing-lg);
+  }
+}
+
+/* 桌面大屏幕优化 */
+@media screen and (min-width: 1024px) and (max-width: 1919px) {
+  :root {
+    --base-font-size: calc(0.4vw + 15px);
+  }
+  
+  .main-content {
+    max-width: 1140px;
+    margin: 0 auto;
+    padding-bottom: calc(var(--spacing-xxl) + var(--spacing-xl));
+  }
+}
+
+/* 手机横屏专用样式 */
+@media screen and (orientation: landscape) and (max-height: 500px) {
+  .main-content {
+    padding-top: var(--spacing-xs);
+  }
+  
+  h1, h2 {
+    margin-bottom: var(--spacing-xs);
   }
 }
 

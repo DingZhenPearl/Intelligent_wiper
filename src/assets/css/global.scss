@@ -140,3 +140,75 @@ input[type="submit"],
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
 }
+
+/* 桌面浏览器特定样式 */
+@media (hover: hover) and (pointer: fine) {
+  /* 针对具有悬停功能的设备（通常是桌面浏览器）*/
+  a:hover, button:hover, .clickable:hover {
+    opacity: 0.85;
+    transform: translateY(-2px);
+    transition: all 0.2s ease;
+  }
+  
+  /* 桌面浏览器上优化滚动条 */
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  
+  ::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 4px;
+  }
+  
+  ::-webkit-scrollbar-thumb {
+    background: #ccc;
+    border-radius: 4px;
+  }
+  
+  ::-webkit-scrollbar-thumb:hover {
+    background: #aaa;
+  }
+  
+  /* 桌面视图中的卡片悬停效果 */
+  .section, .card, .status-item {
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+  }
+  
+  .section:hover, .card:hover, .status-item:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.1);
+  }
+}
+
+/* 桌面特定布局优化 */
+@media screen and (min-width: 1024px) {
+  .container {
+    padding: 0 var(--spacing-xl);
+    max-width: 1200px;
+  }
+  
+  /* 桌面按钮样式优化 */
+  button {
+    cursor: pointer;
+  }
+  
+  /* 改善桌面视图间距 */
+  .main-content {
+    padding: var(--spacing-xl);
+  }
+  
+  /* 桌面导航优化 */
+  .bottom-nav {
+    max-width: 1200px;
+    margin: 0 auto;
+    border-radius: var(--border-radius-lg) var(--border-radius-lg) 0 0;
+  }
+}
+
+/* 覆盖移动端的一些样式，在桌面使用更合适的值 */
+@media (min-width: 1400px) {
+  :root {
+    --base-font-size: 16px; /* 桌面端使用固定字体大小 */
+  }
+}

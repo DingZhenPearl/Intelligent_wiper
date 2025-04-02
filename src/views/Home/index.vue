@@ -2,32 +2,34 @@
   <div class="control-panel">
     <h1>主控制界面</h1>
     
-    <!-- 雨量百分比图 -->
-    <div class="rainfall-chart">
-      <div class="pie-chart">
-        <div class="pie" :style="{ background: `conic-gradient(#4285f4 ${rainfall}%, #e8f0fe ${rainfall}% 100%)` }"></div>
-        <div class="percentage">{{ rainfall }}%</div>
+    <div class="responsive-layout">
+      <!-- 雨量百分比图 -->
+      <div class="rainfall-chart">
+        <div class="pie-chart">
+          <div class="pie" :style="{ background: `conic-gradient(#4285f4 ${rainfall}%, #e8f0fe ${rainfall}% 100%)` }"></div>
+          <div class="percentage">{{ rainfall }}%</div>
+        </div>
+        <div class="label">实时雨量</div>
       </div>
-      <div class="label">实时雨量</div>
-    </div>
 
-    <!-- 工作状态列表 -->
-    <div class="work-status">
-      <h2>当前雨刷工作状态</h2>
-      <ul class="status-list">
-        <li :class="{ active: currentStatus === 'off' }" @click="changeStatus('off')">关闭</li>
-        <li :class="{ active: currentStatus === 'interval' }" @click="changeStatus('interval')">间歇</li>
-        <li :class="{ active: currentStatus === 'low' }" @click="changeStatus('low')">低速</li>
-        <li :class="{ active: currentStatus === 'high' }" @click="changeStatus('high')">高速</li>
-        <li :class="{ active: currentStatus === 'smart' }" @click="changeStatus('smart')">智能</li>
-      </ul>
+      <!-- 工作状态列表 -->
+      <div class="work-status">
+        <h2>当前雨刷工作状态</h2>
+        <ul class="status-list">
+          <li :class="{ active: currentStatus === 'off' }" @click="changeStatus('off')">关闭</li>
+          <li :class="{ active: currentStatus === 'interval' }" @click="changeStatus('interval')">间歇</li>
+          <li :class="{ active: currentStatus === 'low' }" @click="changeStatus('low')">低速</li>
+          <li :class="{ active: currentStatus === 'high' }" @click="changeStatus('high')">高速</li>
+          <li :class="{ active: currentStatus === 'smart' }" @click="changeStatus('smart')">智能</li>
+        </ul>
+      
+        <!-- 控制按钮 -->
+        <button class="control-btn" @click="toggleWiper">
+          <span class="icon">⏻</span>
+          {{ currentStatus === 'off' ? '开启雨刷' : '立即关闭' }}
+        </button>
+      </div>
     </div>
-
-    <!-- 控制按钮 -->
-    <button class="control-btn" @click="toggleWiper">
-      <span class="icon">⏻</span>
-      {{ currentStatus === 'off' ? '开启雨刷' : '立即关闭' }}
-    </button>
   </div>
 </template>
 
@@ -82,13 +84,24 @@ export default {
     font-size: var(--font-size-xxl);
   }
 
+  .responsive-layout {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--spacing-lg);
+  }
+
   .rainfall-chart {
     text-align: center;
+    width: 100%;
     
     .pie-chart {
       position: relative;
       width: min(70vw, 60vh);
       height: min(70vw, 60vh);
+      max-width: 350px; /* 限制最大尺寸 */
+      max-height: 350px;
       margin: 0 auto var(--spacing-lg);
       
       .pie {
@@ -170,6 +183,9 @@ export default {
     gap: var(--spacing-xs);
     transition: background-color 0.3s ease;
     margin-top: var(--spacing-md);
+    width: 100%;
+    max-width: 400px;
+    justify-content: center;
     
     &:hover {
       background-color: #3367d6;
@@ -186,6 +202,8 @@ export default {
       .pie-chart {
         width: min(80vw, 50vh);
         height: min(80vw, 50vh);
+        max-width: 200px; /* 较小屏幕限制尺寸 */
+        max-height: 200px;
         
         .percentage {
           font-size: calc(var(--font-size-xl) * 1.5);
@@ -205,7 +223,64 @@ export default {
     }
   }
   
-  @media screen and (min-width: 768px) {
+  /* 手机横屏模式特别优化 - 新增 */
+  @media screen and (orientation: landscape) and (max-width: 900px) {
+    padding: var(--spacing-md) var(--spacing-sm);
+    
+    h1 {
+      font-size: var(--font-size-xl);
+      margin-bottom: var(--spacing-md);
+    }
+    
+    .responsive-layout {
+      flex-direction: row;
+      align-items: flex-start;
+      gap: var(--spacing-md);
+    }
+    
+    .rainfall-chart {
+      flex: 0 0 40%;
+      
+      .pie-chart {
+        width: 25vh;
+        height: 25vh;
+        min-width: 100px;
+        min-height: 100px;
+        max-width: 150px;
+        max-height: 150px;
+      }
+      
+      .label {
+        font-size: var(--font-size-md);
+      }
+    }
+    
+    .work-status {
+      flex: 0 0 55%;
+      
+      h2 {
+        font-size: var(--font-size-lg);
+        margin-bottom: var(--spacing-sm);
+      }
+      
+      .status-list {
+        gap: var(--spacing-xs);
+        
+        li {
+          padding: var(--spacing-sm) var(--spacing-xs);
+          font-size: var(--font-size-sm);
+        }
+      }
+      
+      .control-btn {
+        padding: var(--spacing-sm) var(--spacing-md);
+        font-size: var(--font-size-md);
+        margin-top: var(--spacing-sm);
+      }
+    }
+  }
+  
+  @media screen and (min-width: 768px) and (max-width: 1023px) {
     padding: var(--spacing-md);
     gap: var(--spacing-md);
     
@@ -221,18 +296,102 @@ export default {
     
     .rainfall-chart {
       .pie-chart {
-        width: min(40vw, 350px);
-        height: min(40vw, 350px);
+        width: min(40vw, 300px);
+        height: min(40vw, 300px);
       }
     }
   }
   
-  @media screen and (min-width: 1200px) {
+  /* 桌面端布局优化 - 调整 */
+  @media screen and (min-width: 1024px) {
+    padding: var(--spacing-xl);
+    
+    .responsive-layout {
+      flex-direction: row;
+      justify-content: space-between;
+      align-items: stretch;
+      gap: var(--spacing-xl);
+      max-width: 90%;
+      margin: 0 auto;
+    }
+
+    .rainfall-chart {
+      flex: 1;
+      max-width: 40%;
+      padding: var(--spacing-lg);
+      background-color: white;
+      border-radius: var(--border-radius-lg);
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      
+      .pie-chart {
+        width: min(30vw, 300px);
+        height: min(30vw, 300px);
+        max-width: 300px;
+        max-height: 300px;
+        margin: 0 auto var(--spacing-lg);
+      }
+    }
+
+    .work-status {
+      flex: 1;
+      max-width: 55%;
+      padding: var(--spacing-lg);
+      background-color: white;
+      border-radius: var(--border-radius-lg);
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+      
+      h2 {
+        margin-top: 0;
+      }
+      
+      .status-list {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: var(--spacing-md);
+        
+        li {
+          padding: var(--spacing-md);
+          font-size: var(--font-size-lg);
+        }
+      }
+      
+      .control-btn {
+        margin-top: var(--spacing-lg);
+        max-width: none;
+        padding: var(--spacing-md) var(--spacing-xl);
+      }
+    }
+  }
+  
+  /* 大屏幕优化 - 调整 */
+  @media screen and (min-width: 1400px) {
+    .responsive-layout {
+      max-width: 80%;
+    }
+    
     .rainfall-chart {
       .pie-chart {
-        width: 400px;
-        height: 400px;
+        width: min(25vw, 350px);
+        height: min(25vw, 350px);
+        max-width: 350px;
+        max-height: 350px;
       }
+    }
+    
+    .work-status {
+      .status-list {
+        grid-template-columns: repeat(5, 1fr);
+      }
+    }
+  }
+  
+  /* 超大屏幕优化 - 新增 */
+  @media screen and (min-width: 1800px) {
+    .responsive-layout {
+      max-width: 1600px;
     }
   }
 }
