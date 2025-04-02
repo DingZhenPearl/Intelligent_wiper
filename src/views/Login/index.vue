@@ -51,6 +51,15 @@
         <div class="error-message" v-if="errorMessage">
           {{ errorMessage }}
         </div>
+        
+        <!-- 添加记住密码选项 -->
+        <div class="remember-me">
+          <label class="checkbox-container">
+            <input type="checkbox" v-model="rememberPassword">
+            <span class="checkbox-text">记住密码</span>
+          </label>
+        </div>
+        
         <button type="submit" class="btn-submit">登录</button>
       </form>
       
@@ -171,6 +180,7 @@ export default {
     const password = ref('')
     const confirmPassword = ref('')
     const errorMessage = ref('')
+    const rememberPassword = ref(false)
     
     // 服务器配置相关
     const showConfig = ref(false)
@@ -187,13 +197,45 @@ export default {
       return isServerConnected.value ? '已连接' : '未连接';
     })
     
-    // 从本地存储加载服务器配置
+    // 从本地存储加载服务器配置和保存的登录信息
     onMounted(() => {
+      // 检查用户是否已登录，如果已登录直接进入控制页面
+      const savedUser = localStorage.getItem('user')
+      if (savedUser) {
+        try {
+          const userData = JSON.parse(savedUser)
+          if (userData && userData.user_id) {
+            console.log('检测到用户已登录，自动跳转到控制页面')
+            router.push('/home')
+            return // 直接返回，不执行后续代码
+          }
+        } catch (e) {
+          console.error('解析用户数据出错:', e)
+          // 出错时清除可能损坏的数据
+          localStorage.removeItem('user')
+        }
+      }
+      
       const savedUrl = localStorage.getItem('server_url')
       if (savedUrl) {
         serverUrl.value = savedUrl
         // 自动测试服务器连接
         testConnectionToServer(savedUrl)
+      }
+      
+      // 检查是否有保存的登录信息
+      const savedCredentials = localStorage.getItem('saved_credentials')
+      if (savedCredentials) {
+        try {
+          const credentials = JSON.parse(savedCredentials)
+          username.value = credentials.username || ''
+          password.value = credentials.password || ''
+          rememberPassword.value = true
+        } catch (e) {
+          console.error('解析保存的登录凭证出错:', e)
+          // 出错时清除可能损坏的数据
+          localStorage.removeItem('saved_credentials')
+        }
       }
       
       // 尝试检测局域网中的服务器
@@ -371,11 +413,23 @@ export default {
           const data = await response.json()
           console.log('登录成功, 用户数据:', data)
           
-          // 存储用户信息并跳转
+          // 存储用户信息
           localStorage.setItem('user', JSON.stringify({
             user_id: data.user_id,
             username: data.username
           }))
+
+          // 处理记住密码功能
+          if (rememberPassword.value) {
+            localStorage.setItem('saved_credentials', JSON.stringify({
+              username: username.value.trim(),
+              password: password.value.trim()
+            }))
+          } else {
+            // 如果不记住密码，则清除之前保存的凭证
+            localStorage.removeItem('saved_credentials')
+          }
+          
           router.push('/home')
         } else {
           const errorData = await response.json()
@@ -432,6 +486,7 @@ export default {
       password,
       confirmPassword,
       errorMessage,
+      rememberPassword, // 导出记住密码状态
       handleLogin,
       handleRegister,
       // 服务器配置相关
@@ -612,6 +667,32 @@ export default {
       background-color: rgba(176, 0, 32, 0.08);
       border-radius: 4px;
       text-align: center;
+    }
+
+    .remember-me {
+      display: flex;
+      align-items: center;
+      margin-top: calc(var(--spacing-md) - 5px);
+      margin-bottom: calc(var(--spacing-md) - 5px);
+      
+      .checkbox-container {
+        display: flex;
+        align-items: center;
+        cursor: pointer;
+        user-select: none;
+        
+        input[type="checkbox"] {
+          margin-right: 8px;
+          width: 16px;
+          height: 16px;
+          accent-color: var(--primary-color);
+        }
+        
+        .checkbox-text {
+          font-size: clamp(14px, 0.9vw + 0.4rem, 18px);
+          color: #666;
+        }
+      }
     }
 
     .btn-submit {

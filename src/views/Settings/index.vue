@@ -69,6 +69,7 @@
 <script>
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
+import { post } from '@/services/api'  // 导入API服务
 
 export default {
   name: 'SettingsPage',
@@ -82,9 +83,25 @@ export default {
       alert('设置已保存')
     }
 
-    const logout = () => {
-      // TODO: 实现退出登录的逻辑
-      router.push('/login')
+    const logout = async () => {
+      try {
+        // 1. 调用服务器登出API
+        await post('/api/auth/logout')
+        
+        // 2. 只清除本地存储中的用户会话信息
+        localStorage.removeItem('user')
+        
+        // 注意：不再清除saved_credentials，保留记住的密码
+        console.log('用户已登出，但保留了记住的登录凭据')
+        
+        // 3. 导航到登录页面
+        router.push('/login')
+      } catch (error) {
+        console.error('登出过程中出错:', error)
+        // 即使出错也清除本地用户信息并重定向
+        localStorage.removeItem('user')
+        router.push('/login')
+      }
     }
 
     return {

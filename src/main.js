@@ -1,14 +1,15 @@
 // src/main.js
 import { createApp } from 'vue'
 import App from './App.vue'
-import router from './router'
-import './assets/css/global.scss'
-import './assets/css/mobile.scss'  // 添加移动设备样式
+import router from './router' // 导入路由配置
+import './assets/css/global.scss' // 导入全局样式
+import './assets/css/mobile.scss' // 导入移动端样式
 
-document.addEventListener('deviceready', () => {
-  console.log('设备准备就绪');
-}, false);
-
+// 创建Vue应用
 const app = createApp(App)
+
+// 使用路由
 app.use(router)
+
+// 挂载应用
 app.mount('#app')
