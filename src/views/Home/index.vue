@@ -25,7 +25,8 @@
       
         <!-- 控制按钮 -->
         <button class="control-btn" @click="toggleWiper">
-          <span class="icon">⏻</span>
+        <!-- 将 ⏻ 替换为更通用的图标 -->
+        <span class="icon material-icons">power_settings_new</span>
           {{ currentStatus === 'off' ? '开启雨刷' : '立即关闭' }}
         </button>
       </div>
