@@ -38,6 +38,7 @@
 // reactive
 import { ref, onMounted, onUnmounted, computed, watch } from 'vue'
 import ECharts from '@/components/ECharts'
+import rainfallService from '@/services/rainfallService'
 
 // 辅助变量和函数
 
@@ -108,9 +109,40 @@ export default {
       // 但总体保持在较小范围内波动
       const change = (Math.random() * 4 - 2) * Math.min(timeDiff / 60, 1);
 
-      // 确保值在合理范围内 (0-50)
-      lastValue = Math.max(0, Math.min(50, lastValue + change));
+      // 确保值在合理范围内 (0-33 mm/h)
+      lastValue = Math.max(0, Math.min(33, lastValue + change));
       lastDataTime = currentDate;
+
+      // 计算雨量值，保留一位小数
+      const rainfallValue = Math.round(lastValue * 10) / 10;
+
+      // 计算雨量级别
+      let rainfallLevel = { level: 'none', text: '无降雨' };
+      let rainfallPercentage = 0;
+
+      if (rainfallValue < 0.3) {
+        // 无降雨 (<0.3mm/h)
+        rainfallLevel = { level: 'none', text: '无降雨' };
+        rainfallPercentage = 0;
+      } else if (rainfallValue >= 0.3 && rainfallValue <= 2.2) {
+        // 小雨 (0.3-2.2mm/h)
+        rainfallLevel = { level: 'light', text: '小雨' };
+        // 将范围 0.3-2.2 映射到 1-25
+        rainfallPercentage = Math.round(1 + (rainfallValue - 0.3) * (25 - 1) / (2.2 - 0.3));
+      } else if (rainfallValue > 2.2 && rainfallValue <= 4.0) {
+        // 中雨 (2.2-4.0mm/h)
+        rainfallLevel = { level: 'medium', text: '中雨' };
+        // 将范围 2.2-4.0 映射到 26-50
+        rainfallPercentage = Math.round(26 + (rainfallValue - 2.2) * (50 - 26) / (4.0 - 2.2));
+      } else {
+        // 大雨 (4.0-33mm/h)
+        rainfallLevel = { level: 'heavy', text: '大雨' };
+        // 将范围 4.0-33 映射到 51-100
+        rainfallPercentage = Math.round(51 + (rainfallValue - 4.0) * (100 - 51) / (33 - 4.0));
+      }
+
+      // 更新共享服务中的雨量数据
+      rainfallService.updateRainfallData(rainfallValue, rainfallLevel, rainfallPercentage);
 
       // 格式化时间为小时:分钟:秒格式
       const hours = currentDate.getHours();
@@ -130,11 +162,11 @@ export default {
       return {
         value: [
           formattedTime,
-          Math.round(lastValue * 10) / 10 // 保留一位小数
+          rainfallValue // 保留一位小数
         ],
         originalDate: currentDate,
         timeKey: timeKey,
-        rainfallValue: Math.round(lastValue * 10) / 10 // 单独存储雨量值便于计算平均值
+        rainfallValue: rainfallValue // 单独存储雨量值便于计算平均值
       };
     };
 
@@ -250,45 +282,16 @@ export default {
 
       // 根据选择的时间段筛选和聚合数据
       const filterDate = new Date();
-      const aggregatedData = new Map(); // 用于聚合数据
 
       if (period.all) {
-        // 一个月的数据，按天聚合
+        // 总数据（一个月），按天聚合，单位为 mm/天
         filterDate.setDate(filterDate.getDate() - 30);
         filterDate.setHours(0, 0, 0, 0);
 
+        // 首先按小时聚合数据
+        const hourlyData = new Map();
+
         // 筛选过去30天的数据
-        const filteredData = globalMockData.value.filter(item => {
-          return item.originalDate >= filterDate;
-        });
-
-        // 按天聚合数据
-        filteredData.forEach(item => {
-          const dayKey = item.timeKey.day;
-          if (!aggregatedData.has(dayKey)) {
-            aggregatedData.set(dayKey, {
-              values: [],
-              timeKey: dayKey,
-              originalDate: new Date(item.originalDate)
-            });
-          }
-          aggregatedData.get(dayKey).values.push(item.rainfallValue);
-        });
-
-        // 计算每天的平均值
-        aggregatedData.forEach((data, key) => {
-          const avgValue = data.values.reduce((sum, val) => sum + val, 0) / data.values.length;
-          chartData.value.push({
-            value: [key, Math.round(avgValue * 10) / 10],
-            originalDate: data.originalDate
-          });
-        });
-      } else if (period.days > 0) {
-        // 一天内的数据，按小时聚合
-        filterDate.setDate(filterDate.getDate() - period.days);
-        filterDate.setHours(0, 0, 0, 0);
-
-        // 筛选过去一天的数据
         const filteredData = globalMockData.value.filter(item => {
           return item.originalDate >= filterDate;
         });
@@ -296,64 +299,196 @@ export default {
         // 按小时聚合数据
         filteredData.forEach(item => {
           const hourKey = item.timeKey.hour;
-          if (!aggregatedData.has(hourKey)) {
-            aggregatedData.set(hourKey, {
+          const dayKey = item.timeKey.day;
+          const hourDayKey = `${dayKey}-${hourKey}`; // 创建包含天和小时的唯一键
+
+          if (!hourlyData.has(hourDayKey)) {
+            hourlyData.set(hourDayKey, {
               values: [],
-              timeKey: hourKey,
+              dayKey: dayKey,
+              hourKey: hourKey,
               originalDate: new Date(item.originalDate)
             });
           }
-          aggregatedData.get(hourKey).values.push(item.rainfallValue);
+          hourlyData.get(hourDayKey).values.push(item.rainfallValue);
         });
 
         // 计算每小时的平均值
-        aggregatedData.forEach((data, key) => {
+        const hourlyAverages = new Map();
+        hourlyData.forEach((data) => {
+          const avgValue = data.values.reduce((sum, val) => sum + val, 0) / data.values.length;
+
+          if (!hourlyAverages.has(data.dayKey)) {
+            hourlyAverages.set(data.dayKey, {
+              values: [],
+              dayKey: data.dayKey,
+              originalDate: new Date(data.originalDate)
+            });
+          }
+          hourlyAverages.get(data.dayKey).values.push(avgValue);
+        });
+
+        // 计算每天的总和（小时平均值的相加），单位为 mm/天
+        hourlyAverages.forEach((data, key) => {
+          // 将每天的所有小时平均值相加
+          const totalValue = data.values.reduce((sum, val) => sum + val, 0);
+          chartData.value.push({
+            value: [key, Math.round(totalValue * 10) / 10],
+            originalDate: data.originalDate,
+            unit: 'mm/天' // 添加单位信息
+          });
+        });
+      } else if (period.days > 0) {
+        // 一天内的数据，按小时聚合，单位为 mm/h
+        filterDate.setDate(filterDate.getDate() - period.days);
+        filterDate.setHours(0, 0, 0, 0);
+
+        // 首先按分钟聚合数据
+        const minuteData = new Map();
+
+        // 筛选过去一天的数据
+        const filteredData = globalMockData.value.filter(item => {
+          return item.originalDate >= filterDate;
+        });
+
+        // 按分钟聚合数据
+        filteredData.forEach(item => {
+          const hourKey = item.timeKey.hour;
+          const minuteKey = item.timeKey.minute || (item.timeKey.second ? item.timeKey.second.split(':').slice(0, 2).join(':') : hourKey);
+
+          if (!minuteData.has(minuteKey)) {
+            minuteData.set(minuteKey, {
+              values: [],
+              hourKey: hourKey,
+              originalDate: new Date(item.originalDate)
+            });
+          }
+          minuteData.get(minuteKey).values.push(item.rainfallValue);
+        });
+
+        // 计算每分钟的平均值，然后按小时聚合
+        const hourlyAverages = new Map();
+        minuteData.forEach((data) => {
+          const avgValue = data.values.reduce((sum, val) => sum + val, 0) / data.values.length;
+
+          if (!hourlyAverages.has(data.hourKey)) {
+            hourlyAverages.set(data.hourKey, {
+              values: [],
+              hourKey: data.hourKey,
+              originalDate: new Date(data.originalDate)
+            });
+          }
+          hourlyAverages.get(data.hourKey).values.push(avgValue);
+        });
+
+        // 计算每小时的平均值，单位为 mm/h
+        hourlyAverages.forEach((data, key) => {
           const avgValue = data.values.reduce((sum, val) => sum + val, 0) / data.values.length;
           chartData.value.push({
             value: [key, Math.round(avgValue * 10) / 10],
-            originalDate: data.originalDate
+            originalDate: data.originalDate,
+            unit: 'mm/h' // 添加单位信息
           });
         });
       } else if (period.hours > 0) {
-        // 一小时内的数据，意10分钟聚合
+        // 一小时内的数据，按分钟聚合，然后每10分钟取平均，单位为 mm/h
         filterDate.setHours(filterDate.getHours() - period.hours);
         filterDate.setMinutes(0, 0, 0);
+
+        // 首先按分钟聚合数据
+        const minuteData = new Map();
 
         // 筛选过去一小时的数据
         const filteredData = globalMockData.value.filter(item => {
           return item.originalDate >= filterDate;
         });
 
-        // 意10分钟聚合数据
+        // 按分钟聚合数据
         filteredData.forEach(item => {
+          // 如果有秒级别的数据，提取分钟部分
+          const minuteKey = item.timeKey.minute || (item.timeKey.second ? item.timeKey.second.split(':').slice(0, 2).join(':') : item.timeKey.tenMinute);
           const tenMinKey = item.timeKey.tenMinute;
-          if (!aggregatedData.has(tenMinKey)) {
-            aggregatedData.set(tenMinKey, {
+
+          if (!minuteData.has(minuteKey)) {
+            minuteData.set(minuteKey, {
               values: [],
-              timeKey: tenMinKey,
+              tenMinKey: tenMinKey,
               originalDate: new Date(item.originalDate)
             });
           }
-          aggregatedData.get(tenMinKey).values.push(item.rainfallValue);
+          minuteData.get(minuteKey).values.push(item.rainfallValue);
         });
 
-        // 计算每10分钟的平均值
-        aggregatedData.forEach((data, key) => {
+        // 计算每分钟的平均值，然后意10分钟聚合
+        const tenMinAverages = new Map();
+        minuteData.forEach((data) => {
+          const avgValue = data.values.reduce((sum, val) => sum + val, 0) / data.values.length;
+
+          if (!tenMinAverages.has(data.tenMinKey)) {
+            tenMinAverages.set(data.tenMinKey, {
+              values: [],
+              tenMinKey: data.tenMinKey,
+              originalDate: new Date(data.originalDate)
+            });
+          }
+          tenMinAverages.get(data.tenMinKey).values.push(avgValue);
+        });
+
+        // 计算每10分钟的平均值，单位为 mm/h
+        tenMinAverages.forEach((data, key) => {
           const avgValue = data.values.reduce((sum, val) => sum + val, 0) / data.values.length;
           chartData.value.push({
             value: [key, Math.round(avgValue * 10) / 10],
-            originalDate: data.originalDate
+            originalDate: data.originalDate,
+            unit: 'mm/h' // 添加单位信息
           });
         });
       } else if (period.minutes > 0) {
-        // 10分钟内的数据，显示每5秒的原始数据
+        // 10分钟内的数据，直接显示每5秒的原始数据
         filterDate.setMinutes(filterDate.getMinutes() - period.minutes);
         filterDate.setSeconds(0, 0);
 
-        // 筛选过去10分钟的数据，不需要聚合
-        chartData.value = globalMockData.value.filter(item => {
-          return item.originalDate >= filterDate && item.timeKey.second; // 确保有秒级别的数据
-        });
+        // 清空当前图表数据
+        chartData.value = [];
+
+        // 生成过去10分钟内每5秒的模拟数据
+        const now = new Date();
+        const startTime = new Date(now);
+        startTime.setMinutes(now.getMinutes() - period.minutes, 0, 0);
+
+        // 重置随机数据生成器的状态
+        let tempLastDataTime = new Date(startTime);
+        let tempLastValue = Math.random() * 20; // 初始值
+
+        // 生成从过去10分钟到现在的每5秒的数据点
+        for (let t = startTime.getTime(); t <= now.getTime(); t += 5000) { // 每5秒一个数据点
+          const currentDate = new Date(t);
+
+          // 计算与上次数据的时间差（秒）
+          const timeDiff = (currentDate - tempLastDataTime) / 1000;
+
+          // 根据时间差生成合理的变化量
+          const change = (Math.random() * 4 - 2) * Math.min(timeDiff / 60, 1);
+
+          // 确保值在合理范围内 (0-50)
+          tempLastValue = Math.max(0, Math.min(50, tempLastValue + change));
+          tempLastDataTime = currentDate;
+
+          // 格式化时间
+          const hours = currentDate.getHours();
+          const minutes = currentDate.getMinutes();
+          const seconds = currentDate.getSeconds();
+          const formattedTime = `${hours}:${minutes < 10 ? '0' + minutes : minutes}:${seconds < 10 ? '0' + seconds : seconds}`;
+
+          chartData.value.push({
+            value: [
+              formattedTime,
+              Math.round(tempLastValue * 10) / 10 // 保留一位小数
+            ],
+            originalDate: currentDate,
+            unit: 'mm/h' // 保持单位一致性
+          });
+        }
       }
 
       // 对数据进行排序，确保时间顺序正确
@@ -706,18 +841,38 @@ export default {
       const period = timePeriods[index];
       initMockData(period);
 
-      // 更新图表标题
-      chartOption.value.title.text = `雨量显示 - ${timePeriods[index].label}`;
+      // 更新图表标题和单位
+      const unit = index === 3 ? 'mm/天' : 'mm/h';
+      chartOption.value.title.text = `雨量显示 (${unit}) - ${timePeriods[index].label}`;
+
+      // 更新Y轴名称
+      chartOption.value.yAxis.name = index === 3 ? '雨量 (mm/天)' : '雨量 (mm/h)';
     };
 
     // 启动定时数据更新
     const startDataPolling = () => {
+      console.log('启动定时数据更新，每5秒一次');
+
       // 清除可能存在的旧计时器
       if (intervalId.value) {
         clearInterval(intervalId.value);
+        console.log('清除旧的定时器');
       }
 
+      // 立即生成一次数据，确保初始显示
+      const initialData = randomData();
+      console.log('初始化数据:', initialData.value[1] + 'mm');
+      globalMockData.value.push(initialData);
+
+      // 重新初始化当前时间段的数据
+      const initialPeriod = timePeriods[activePeriod.value];
+      initMockData(initialPeriod);
+
+      // 设置定时器，每5秒更新一次
       intervalId.value = setInterval(() => {
+        const now = new Date();
+        console.log(`定时器触发，当前时间: ${now.getHours()}:${now.getMinutes()}:${now.getSeconds()}`);
+
         // 添加新的模拟数据
         const newData = randomData(); // 已经包含了timeKey和rainfallValue
         console.log('添加新的模拟数据:', newData.value[1] + 'mm');
@@ -735,12 +890,14 @@ export default {
         initMockData(period);
 
       }, 5000); // 5秒更新一次
+
+      console.log('定时器已启动，ID:', intervalId.value);
     };
 
     // 图表配置
     const chartOption = ref({
       title: {
-        text: '雨量显示 - 本小时',
+        text: '雨量显示 (mm/h) - 10分钟内',
         textStyle: {
           fontSize: 16
         },
@@ -751,21 +908,28 @@ export default {
         formatter: function (params) {
           params = params[0];
           var date = new Date(params.name);
+          var unit = params.data.unit || 'mm'; // 使用数据中的单位信息，如果没有则默认为 mm
 
           // 根据当前视图调整显示格式
           if (activePeriod.value === 0) {
-            // 本小时视图 - 只显示时间
+            // 10分钟内视图 - 只显示时间
             return date.getHours() + ':' +
                   (date.getMinutes() < 10 ? '0' : '') + date.getMinutes() +
-                  ' - 雨量: ' + params.value[1] + ' mm';
-          } else {
-            // 其他视图 - 显示完整日期和时间
-            return date.getFullYear() + '年' +
-                  (date.getMonth() + 1) + '月' +
-                  date.getDate() + '日 ' +
-                  date.getHours() + ':' +
+                  (params.name.split(':').length > 2 ? ':' + (date.getSeconds() < 10 ? '0' : '') + date.getSeconds() : '') +
+                  ' - 雨量: ' + params.value[1] + ' ' + unit;
+          } else if (activePeriod.value === 1) {
+            // 一小时内视图 - 显示小时和分钟
+            return date.getHours() + ':' +
                   (date.getMinutes() < 10 ? '0' : '') + date.getMinutes() +
-                  ' - 雨量: ' + params.value[1] + ' mm';
+                  ' - 雨量: ' + params.value[1] + ' ' + unit;
+          } else if (activePeriod.value === 2) {
+            // 一天内视图 - 显示小时
+            return date.getHours() + ':00' +
+                  ' - 雨量: ' + params.value[1] + ' ' + unit;
+          } else {
+            // 总数据视图 - 显示日期
+            return (date.getMonth() + 1) + '月' + date.getDate() + '日' +
+                  ' - 雨量: ' + params.value[1] + ' ' + unit;
           }
         },
         axisPointer: {
@@ -784,7 +948,14 @@ export default {
         splitLine: {
           show: true
         },
-        name: '雨量 (mm)'
+        name: function() {
+          // 根据当前视图返回不同的单位
+          if (activePeriod.value === 3) { // 总数据视图
+            return '雨量 (mm/天)';
+          } else { // 其他视图
+            return '雨量 (mm/h)';
+          }
+        }()
       },
       grid: {
         containLabel: true,
