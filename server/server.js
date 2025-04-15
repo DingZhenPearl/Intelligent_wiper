@@ -369,6 +369,8 @@ executePythonScript(RAINFALL_DB_SCRIPT, 'init')
 
 // 启动数据采集器
 let collectorProcess = null;
+let shouldRestartCollector = true; // 控制是否应该重启采集器
+
 function startRainfallCollector(username = 'admin') {
   const { spawn } = require('child_process');
   console.log(`启动雨量数据采集器 (用户: ${username})...`);
@@ -401,10 +403,21 @@ function startRainfallCollector(username = 'admin') {
 
   collectorProcess.on('close', (code) => {
     console.log(`雨量采集器已终止，退出码: ${code}`);
-    // 如果意外终止，尝试重启
-    if (code !== 0) {
+
+    // 清除引用
+    collectorProcess = null;
+
+    // 如果意外终止且应该重启，则尝试重启
+    if (code !== 0 && shouldRestartCollector) {
       console.log('尝试重启雨量采集器...');
-      setTimeout(startRainfallCollector, 5000);
+      setTimeout(() => {
+        // 再次检查是否应该重启
+        if (shouldRestartCollector) {
+          startRainfallCollector(username);
+        } else {
+          console.log('重启标志已关闭，不再重启雨量采集器');
+        }
+      }, 5000);
     }
   });
 
@@ -416,8 +429,8 @@ function startRainfallCollector(username = 'admin') {
   });
 }
 
-// 延迟5秒后启动采集器，确保数据库已初始化
-setTimeout(startRainfallCollector, 5000);
+// 不再自动启动数据采集器，改为在用户登录后手动启动
+// setTimeout(startRainfallCollector, 5000);
 
 // 用户注册
 app.post('/api/auth/register', async (req, res) => {
@@ -481,13 +494,18 @@ app.post('/api/auth/login', async (req, res) => {
         username: result.username
       };
 
-      // 为该用户启动一个专用的数据采集器
-      // 先停止现有的采集器
+      // 登录时不再自动启动数据采集器
+      // 设置不重启标志
+      shouldRestartCollector = false;
+      console.log(`用户${result.username}登录，设置不重启标志`);
+
+      // 如果有正在运行的采集器，停止它
       if (collectorProcess) {
+        console.log(`用户${result.username}登录，停止现有数据采集器`);
         collectorProcess.kill();
+        // 不需要设置为null，因为在close事件中已经处理
       }
-      // 然后使用用户名启动新的采集器
-      startRainfallCollector(result.username);
+      // 用户需要点击“开始收集数据”按钮才会启动数据采集器
 
       res.json({
         message: result.message,
@@ -506,24 +524,68 @@ app.post('/api/auth/login', async (req, res) => {
 });
 
 // 用户登出
-app.post('/api/auth/logout', (req, res) => {
-  // 在销毁session前保存用户名
-  const wasLoggedIn = req.session.user ? true : false;
+app.post('/api/auth/logout', async (req, res) => {
+  try {
+    // 在销毁session前保存用户名
+    const wasLoggedIn = req.session.user ? true : false;
+    const username = req.session.user ? req.session.user.username : 'admin';
 
-  req.session.destroy((err) => {
-    if (err) {
-      res.status(500).json({ error: '登出失败' });
-    } else {
-      // 如果用户登出，停止用户专用的数据采集器，并启动默认的采集器
-      if (wasLoggedIn && collectorProcess) {
-        collectorProcess.kill();
-        // 启动默认的采集器
-        startRainfallCollector('admin');
+    // 先强制停止数据采集器，然后再销毁session
+    // 设置不重启标志
+    shouldRestartCollector = false;
+    console.log('用户登出，设置不重启标志');
+
+    // 如果有正在运行的数据采集器，强制停止
+    if (collectorProcess) {
+      console.log(`用户登出，强制停止数据采集器`);
+
+      // 使用SIGKILL信号强制终止进程
+      try {
+        collectorProcess.kill('SIGKILL');
+        console.log('已发送SIGKILL信号终止数据采集器');
+      } catch (killError) {
+        console.error('终止数据采集器时出错:', killError);
       }
 
-      res.json({ message: '登出成功' });
+      // 等待进程终止
+      await new Promise(resolve => setTimeout(resolve, 1000));
+
+      // 确保进程引用被清除
+      collectorProcess = null;
     }
-  });
+
+    // 再次确认没有数据采集器在运行
+    // 尝试终止所有可能的Python进程
+    try {
+      if (process.platform === 'win32') {
+        // Windows系统
+        require('child_process').execSync('taskkill /F /IM python.exe /T', { stdio: 'ignore' });
+      } else {
+        // Linux/Mac系统
+        require('child_process').execSync(`pkill -f "${RAINFALL_COLLECTOR_SCRIPT}"`, { stdio: 'ignore' });
+      }
+      console.log('已尝试终止所有相关Python进程');
+    } catch (execError) {
+      // 忽略错误，因为可能没有找到匹配的进程
+      console.log('没有找到需要终止的Python进程或终止过程中出错');
+    }
+
+    // 销毁session
+    await new Promise((resolve, reject) => {
+      req.session.destroy(err => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve();
+        }
+      });
+    });
+
+    res.json({ message: '登出成功，所有数据采集器已停止' });
+  } catch (error) {
+    console.error('登出过程出错:', error);
+    res.status(500).json({ error: '登出失败' });
+  }
 });
 
 // 获取当前用户信息
@@ -605,20 +667,103 @@ app.get('/api/rainfall/stats', async (req, res) => {
 // 生成模拟数据
 app.get('/api/rainfall/mock', async (req, res) => {
   try {
-    const days = req.query.days || 7;
-    // 使用登录用户的用户名，如果未登录则使用'admin'
-    const username = req.session.user ? req.session.user.username : 'admin';
-    console.log(`生成${days}天的模拟数据，用户: ${username}`);
+    // 不再检查用户是否登录
+    // 使用默认用户名如果未登录
 
+    const days = req.query.days || 7;
+    const username = req.session.user ? req.session.user.username : 'admin';
+    console.log(`初始化模拟数据，用户: ${username}`);
+
+    // 先清除现有数据并初始化
     const result = await executePythonScript(RAINFALL_DB_SCRIPT, 'mock', { username, days });
 
     if (result.success) {
-      res.json(result);
+      // 设置重启标志为true
+      shouldRestartCollector = true;
+      console.log('设置重启标志为true，允许数据采集器自动重启');
+
+      // 如果有正在运行的数据采集器，先停止
+      if (collectorProcess) {
+        console.log(`停止现有数据采集器，准备重新启动`);
+        collectorProcess.kill();
+        // 不需要设置为null，因为在close事件中已经处理
+
+        // 等待一小段时间，确保进程已经完全终止
+        setTimeout(() => {
+          // 启动新的数据采集器，每5秒生成一个数据点
+          console.log(`启动新的数据采集器，用户: ${username}`);
+          startRainfallCollector(username);
+        }, 1000);
+      } else {
+        // 启动新的数据采集器，每5秒生成一个数据点
+        console.log(`启动新的数据采集器，用户: ${username}`);
+        startRainfallCollector(username);
+      }
+
+      res.json({
+        success: true,
+        message: `模拟数据已初始化，数据采集器已启动，将每5秒生成一个新数据点`
+      });
     } else {
-      res.status(500).json({ error: result.error || '生成模拟数据失败' });
+      res.status(500).json({ error: result.error || '初始化模拟数据失败' });
     }
   } catch (error) {
-    console.error('生成模拟数据错误:', error);
+    console.error('初始化模拟数据错误:', error);
+    res.status(500).json({ error: '服务器内部错误' });
+  }
+});
+
+// 停止数据采集器
+app.get('/api/rainfall/stop', async (req, res) => {
+  try {
+    // 不再检查用户是否登录
+    const username = req.session.user ? req.session.user.username : 'admin';
+
+    // 设置不重启标志
+    shouldRestartCollector = false;
+    console.log('设置不重启标志，确保数据采集器不会自动重启');
+
+    // 如果有正在运行的数据采集器，强制停止
+    if (collectorProcess) {
+      console.log(`强制停止数据采集器，用户: ${username}`);
+
+      // 使用SIGKILL信号强制终止进程
+      try {
+        collectorProcess.kill('SIGKILL');
+        console.log('已发送SIGKILL信号终止数据采集器');
+      } catch (killError) {
+        console.error('终止数据采集器时出错:', killError);
+      }
+
+      // 等待进程终止
+      await new Promise(resolve => setTimeout(resolve, 1000));
+
+      // 确保进程引用被清除
+      collectorProcess = null;
+    }
+
+    // 再次确认没有数据采集器在运行
+    // 尝试终止所有可能的Python进程
+    try {
+      if (process.platform === 'win32') {
+        // Windows系统
+        require('child_process').execSync('taskkill /F /IM python.exe /T', { stdio: 'ignore' });
+      } else {
+        // Linux/Mac系统
+        require('child_process').execSync(`pkill -f "${RAINFALL_COLLECTOR_SCRIPT}"`, { stdio: 'ignore' });
+      }
+      console.log('已尝试终止所有相关Python进程');
+    } catch (execError) {
+      // 忽略错误，因为可能没有找到匹配的进程
+      console.log('没有找到需要终止的Python进程或终止过程中出错');
+    }
+
+    res.json({
+      success: true,
+      message: '数据采集器已强制停止'
+    });
+  } catch (error) {
+    console.error('停止数据采集器错误:', error);
     res.status(500).json({ error: '服务器内部错误' });
   }
 });
@@ -648,16 +793,41 @@ app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, '../dist/index.html'));
 });
 
-// 启动服务器
-app.listen(config.server.port, config.server.host, () => {
-  console.log(`服务器运行在 http://${config.server.host}:${config.server.port}`);
-  console.log('注意：服务器现在允许从任何网络接口访问');
+// 启动前先清除可能存在的遗留Python进程
+async function cleanupBeforeStart() {
+  console.log('服务器启动前清除可能存在的遗留Python进程');
 
-  // 显示所有可用的IP地址，方便移动设备连接
-  const ipAddresses = getLocalIpAddresses();
-  console.log('您可以通过以下IP地址从移动设备访问服务器:');
-  ipAddresses.forEach(ip => {
-    console.log(`http://${ip}:${config.server.port}`);
+  // 设置不重启标志
+  shouldRestartCollector = false;
+
+  try {
+    if (process.platform === 'win32') {
+      // Windows系统
+      require('child_process').execSync('taskkill /F /IM python.exe /T', { stdio: 'ignore' });
+    } else {
+      // Linux/Mac系统
+      require('child_process').execSync(`pkill -f "${RAINFALL_COLLECTOR_SCRIPT}"`, { stdio: 'ignore' });
+    }
+    console.log('已尝试终止所有相关Python进程');
+  } catch (execError) {
+    // 忽略错误，因为可能没有找到匹配的进程
+    console.log('没有找到需要终止的Python进程或终止过程中出错');
+  }
+}
+
+// 启动服务器
+// 先清除遗留进程，然后启动服务器
+cleanupBeforeStart().then(() => {
+  app.listen(config.server.port, config.server.host, () => {
+    console.log(`服务器运行在 http://${config.server.host}:${config.server.port}`);
+    console.log('注意：服务器现在允许从任何网络接口访问');
+
+    // 显示所有可用的IP地址，方便移动设备连接
+    const ipAddresses = getLocalIpAddresses();
+    console.log('您可以通过以下IP地址从移动设备访问服务器:');
+    ipAddresses.forEach(ip => {
+      console.log(`http://${ip}:${config.server.port}`);
+    });
+    console.log('请确保您的防火墙已经开放了3000端口!');
   });
-  console.log('请确保您的防火墙已经开放了3000端口!');
 });

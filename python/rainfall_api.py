@@ -194,21 +194,54 @@ def get_home_data(username='admin'):
         username: 用户名，默认为'admin'
     """
     try:
-        # 采集单次数据
-        result = collect_single_data(username)
+        # 先尝试获取最近的一条数据
+        recent_data = get_recent_data(username, 'raw', 1)
 
-        if result["success"]:
+        if recent_data["success"] and recent_data["data"]:
+            # 如果有最近的数据，使用它
+            item = recent_data["data"][0]
+
+            # 检查数据是否过时（超过10秒）
+            data_time = item["timestamp"]
+            now = datetime.now()
+            time_diff = (now - data_time).total_seconds()
+
+            if time_diff > 10:
+                # 数据过时，返回数据但添加提示消息
+                return {
+                    "success": True,
+                    "data": {
+                        "timestamp": item["timestamp"].strftime("%Y-%m-%d %H:%M:%S"),
+                        "rainfall_value": item["rainfall_value"],
+                        "rainfall_level": item["rainfall_level"],
+                        "rainfall_percentage": item["rainfall_percentage"]
+                    },
+                    "message": "数据采集器已停止，请点击按钮开始收集数据"
+                }
+            else:
+                # 数据未过时，正常返回
+                return {
+                    "success": True,
+                    "data": {
+                        "timestamp": item["timestamp"].strftime("%Y-%m-%d %H:%M:%S"),
+                        "rainfall_value": item["rainfall_value"],
+                        "rainfall_level": item["rainfall_level"],
+                        "rainfall_percentage": item["rainfall_percentage"]
+                    }
+                }
+        else:
+            # 如果没有最近的数据，返回默认值
+            now = datetime.now()
             return {
                 "success": True,
                 "data": {
-                    "timestamp": result["data"]["timestamp"],
-                    "rainfall_value": result["data"]["rainfall_value"],
-                    "rainfall_level": result["data"]["rainfall_level"],
-                    "rainfall_percentage": result["data"]["rainfall_percentage"]
-                }
+                    "timestamp": now.strftime("%Y-%m-%d %H:%M:%S"),
+                    "rainfall_value": 0.0,
+                    "rainfall_level": "none",
+                    "rainfall_percentage": 0
+                },
+                "message": "数据采集器未启动，请点击按钮开始收集数据"
             }
-        else:
-            return result
     except Exception as e:
         log(f"获取首页数据失败: {str(e)}")
         log(traceback.format_exc())

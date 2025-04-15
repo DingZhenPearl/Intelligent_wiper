@@ -11,6 +11,33 @@
           <div class="rainfall-level">{{ getRainfallLevelText(rainfall) }}</div>
         </div>
         <div class="label">实时雨量</div>
+        <div class="data-status" v-if="!mockDataMessage && !isMockDataLoading">
+          {{ backendMessage || '点击下方按钮开始收集数据' }}
+        </div>
+
+        <!-- 数据收集控制按钮 -->
+        <div class="data-control-buttons">
+          <button
+            v-if="!isDataPollingActive"
+            class="mock-data-btn start"
+            @click="() => generateMockData(7)"
+            :disabled="isMockDataLoading"
+          >
+            <span class="icon material-icons">play_arrow</span>
+            {{ isMockDataLoading ? '正在初始化...' : '开始收集数据' }}
+          </button>
+          <button
+            v-else
+            class="mock-data-btn stop"
+            @click="stopServiceDataCheck"
+          >
+            <span class="icon material-icons">stop</span>
+            停止收集数据
+          </button>
+        </div>
+        <div v-if="mockDataMessage" class="mock-data-message" :class="{ success: mockDataSuccess, error: !mockDataSuccess }">
+          {{ mockDataMessage }}
+        </div>
       </div>
 
       <!-- 工作状态列表 -->
@@ -47,6 +74,12 @@ export default {
     const rainfall = ref(0) // 实时雨量百分比
     const rainfallLevel = ref({ level: 'none', text: '无降雨' }) // 雨量级别
     const currentStatus = ref('low') // 当前工作状态
+    const backendMessage = ref('') // 来自后端的消息
+
+    // 模拟数据相关状态
+    const isMockDataLoading = ref(false) // 是否正在生成模拟数据
+    const mockDataMessage = ref('') // 模拟数据生成结果消息
+    const mockDataSuccess = ref(true) // 模拟数据生成是否成功
 
     // 监听共享服务中的雨量数据变化
     watch(() => rainfallService.rainfallPercentage.value, (newPercentage) => {
@@ -63,16 +96,62 @@ export default {
     }, { immediate: true }); // 立即触发一次
 
     // 定时从后端获取雨量数据
+    const dataPollingInterval = ref(null); // 存储定时器ID
+    const isDataPollingActive = ref(false); // 数据轮询是否活跃
+
+    // 启动数据轮询
     const startServiceDataCheck = () => {
+      // 如果已经在轮询，则不重复启动
+      if (isDataPollingActive.value) {
+        console.log('[Home] 数据轮询已经在运行中');
+        return;
+      }
+
       console.log('[Home] 开始定时从后端获取雨量数据');
 
       // 立即获取一次数据
       fetchRainfallFromBackend();
 
       // 每5秒获取一次数据
-      setInterval(() => {
+      dataPollingInterval.value = setInterval(() => {
         fetchRainfallFromBackend();
       }, 5000);
+
+      isDataPollingActive.value = true;
+    };
+
+    // 停止数据轮询和数据采集器
+    const stopServiceDataCheck = async () => {
+      // 停止前端数据轮询
+      if (dataPollingInterval.value) {
+        console.log('[Home] 停止前端数据轮询');
+        clearInterval(dataPollingInterval.value);
+        dataPollingInterval.value = null;
+        isDataPollingActive.value = false;
+      }
+
+      try {
+        // 不再检查登录状态
+
+        // 调用后端 API 停止数据采集器
+        console.log('[Home] 调用后端 API 停止数据采集器');
+        const result = await rainfallDataService.stopDataCollector();
+
+        if (result.success) {
+          // 设置提示消息
+          backendMessage.value = '数据采集已停止，点击按钮开始收集数据';
+          console.log(`[Home] 停止数据采集器成功: ${result.message}`);
+
+          // 获取最新状态
+          fetchRainfallFromBackend();
+        } else {
+          console.error(`[Home] 停止数据采集器失败: ${result.error}`);
+          backendMessage.value = `停止数据采集器失败: ${result.error || '未知错误'}`;
+        }
+      } catch (error) {
+        console.error('[Home] 停止数据采集器错误:', error);
+        backendMessage.value = `停止数据采集器错误: ${error.message || '未知错误'}`;
+      }
     };
 
 
@@ -96,12 +175,23 @@ export default {
             data.rainfall_percentage
           );
 
+          // 如果有消息，显示它
+          if (result.message) {
+            backendMessage.value = result.message;
+          } else {
+            backendMessage.value = '';
+          }
+
           console.log(`[Home] 从后端获取雨量数据成功: ${data.rainfall_value} mm/h (${data.rainfall_level}, ${data.rainfall_percentage}%) (时间: ${now.getHours()}:${now.getMinutes()}:${now.getSeconds()})`);
         } else {
           console.error('[Home] 从后端获取雨量数据失败:', result.error);
+          backendMessage.value = result.error || '获取数据失败';
+
+          // 不再处理未登录错误
         }
       } catch (error) {
         console.error('[Home] 从后端获取雨量数据错误:', error);
+        backendMessage.value = `获取数据错误: ${error.message || '未知错误'}`;
       }
     };
 
@@ -157,16 +247,83 @@ export default {
       }
     };
 
+    // 初始化模拟数据并开始实时收集
+    const generateMockData = async (days = 7) => {
+      try {
+        // 设置加载状态
+        isMockDataLoading.value = true;
+        mockDataMessage.value = '';
+
+        // 不再检查登录状态
+
+        // 确保 days 是一个数字
+        const daysValue = typeof days === 'number' ? days : 7;
+
+        console.log(`[首页] 开始初始化模拟数据并启动数据采集器，天数: ${daysValue}`);
+
+        // 调用服务初始化模拟数据
+        const result = await rainfallDataService.generateMockData(daysValue);
+
+        if (result.success) {
+          mockDataSuccess.value = true;
+          mockDataMessage.value = `数据采集器已启动，每5秒生成一个新数据点`;
+          console.log(`[首页] 模拟数据初始化成功: ${result.message}`);
+
+          // 立即获取最新数据并启动数据轮询
+          fetchRainfallFromBackend();
+          startServiceDataCheck();
+
+          // 10秒后清除消息
+          setTimeout(() => {
+            mockDataMessage.value = '';
+          }, 10000);
+        } else {
+          mockDataSuccess.value = false;
+          mockDataMessage.value = `初始化模拟数据失败: ${result.error || '未知错误'}`;
+          console.error(`[首页] 初始化模拟数据失败:`, result.error);
+
+          // 5秒后清除错误消息
+          setTimeout(() => {
+            mockDataMessage.value = '';
+          }, 5000);
+        }
+      } catch (error) {
+        mockDataSuccess.value = false;
+        mockDataMessage.value = `初始化模拟数据错误: ${error.message || '未知错误'}`;
+        console.error(`[首页] 初始化模拟数据错误:`, error);
+
+        // 5秒后清除错误消息
+        setTimeout(() => {
+          mockDataMessage.value = '';
+        }, 5000);
+      } finally {
+        // 重置加载状态
+        isMockDataLoading.value = false;
+      }
+    };
+
     // 生命周期钩子
     onMounted(() => {
-      console.log('首页组件已挂载，开始从后端获取雨量数据');
+      console.log('首页组件已挂载');
 
-      // 启动定时从后端获取雨量数据
-      startServiceDataCheck();
+      // 不再检查登录状态
+
+      // 只获取一次数据，不启动轮询
+      fetchRainfallFromBackend();
+
+      // 设置初始提示消息
+      backendMessage.value = '点击按钮开始收集数据';
     });
 
     onUnmounted(() => {
       console.log("首页组件已卸载");
+
+      // 清理定时器
+      if (dataPollingInterval.value) {
+        clearInterval(dataPollingInterval.value);
+        dataPollingInterval.value = null;
+        isDataPollingActive.value = false;
+      }
     });
 
     return {
@@ -176,7 +333,17 @@ export default {
       changeStatus,
       toggleWiper,
       getRainfallColor,
-      getRainfallLevelText
+      getRainfallLevelText,
+      // 模拟数据相关
+      isMockDataLoading,
+      mockDataMessage,
+      mockDataSuccess,
+      generateMockData,
+      backendMessage,
+      // 数据轮询相关
+      isDataPollingActive,
+      startServiceDataCheck,
+      stopServiceDataCheck
     }
   }
 }
@@ -252,6 +419,80 @@ export default {
     .label {
       font-size: var(--font-size-xl);
       color: #666;
+      margin-bottom: var(--spacing-xs);
+    }
+
+    .data-status {
+      font-size: var(--font-size-sm);
+      color: #888;
+      margin-bottom: var(--spacing-md);
+      font-style: italic;
+    }
+
+    .data-control-buttons {
+      display: flex;
+      justify-content: center;
+      gap: var(--spacing-md);
+      margin-bottom: var(--spacing-sm);
+    }
+
+    .mock-data-btn {
+      background-color: #4285f4;
+      color: white;
+      border: none;
+      border-radius: var(--border-radius-md);
+      padding: var(--spacing-sm) var(--spacing-md);
+      font-size: var(--font-size-sm);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: var(--spacing-xs);
+      transition: background-color 0.3s ease;
+
+      &.start {
+        background-color: #4285f4;
+
+        &:hover:not(:disabled) {
+          background-color: #3367d6;
+        }
+      }
+
+      &.stop {
+        background-color: #ea4335;
+
+        &:hover:not(:disabled) {
+          background-color: #d33426;
+        }
+      }
+
+      &:disabled {
+        background-color: #a0a0a0;
+        cursor: not-allowed;
+      }
+
+      .icon {
+        font-size: calc(var(--font-size-sm) * 1.2);
+      }
+    }
+
+    .mock-data-message {
+      margin-top: var(--spacing-sm);
+      padding: var(--spacing-xs) var(--spacing-sm);
+      border-radius: var(--border-radius-sm);
+      font-size: var(--font-size-sm);
+      text-align: center;
+
+      &.success {
+        background-color: rgba(76, 175, 80, 0.1);
+        color: #4caf50;
+        border: 1px solid rgba(76, 175, 80, 0.3);
+      }
+
+      &.error {
+        background-color: rgba(244, 67, 54, 0.1);
+        color: #f44336;
+        border: 1px solid rgba(244, 67, 54, 0.3);
+      }
     }
   }
 

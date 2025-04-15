@@ -231,11 +231,11 @@ def get_rainfall_level(value):
         return 'heavy', percentage
 
 def generate_mock_data(username='admin', days=7):
-    """生成模拟数据
+    """清除现有数据并初始化一个起始数据点
 
     参数:
         username: 用户名，默认为'admin'
-        days: 生成数据的天数
+        days: 参数保留但不再使用，仅用于兼容现有API
     """
     conn = get_db_connection()
     try:
@@ -248,55 +248,31 @@ def generate_mock_data(username='admin', days=7):
             cursor.execute("DELETE FROM rainfall_monthly WHERE username = %s", (username,))
         conn.commit()
 
-        # 生成过去几天的模拟数据
-        end_time = datetime.now()
-        start_time = end_time - timedelta(days=days)
+        # 只生成一个初始数据点
+        current_time = datetime.now()
+        # 初始雨量值设为0
+        rainfall_value = 0.0
+        # 获取雨量级别和百分比
+        level, percentage = get_rainfall_level(rainfall_value)
 
-        # 每5秒一个数据点
-        current_time = start_time
-        last_value = 0
+        log(f"Initializing mock data for user {username} at {current_time}")
 
-        log(f"Starting to generate mock data for user {username}, from {start_time} to {end_time}")
-
-        count = 0
+        # 插入初始数据点
         with conn.cursor() as cursor:
-            while current_time <= end_time:
-                # 生成合理的随机变化
-                change = (random.random() * 4 - 2) * 0.1
-                last_value = max(0, min(33, last_value + change))
+            sql = '''
+                INSERT INTO rainfall_raw
+                (username, timestamp, rainfall_value, rainfall_level, rainfall_percentage)
+                VALUES (%s, %s, %s, %s, %s)
+            '''
+            cursor.execute(sql, (username, current_time, rainfall_value, level, percentage))
+            conn.commit()
 
-                # 计算雨量值，保留一位小数
-                rainfall_value = round(last_value, 1)
+        # 不需要聚合数据，因为只有一个数据点
+        # 数据采集器将负责后续数据的生成和聚合
 
-                # 获取雨量级别和百分比
-                level, percentage = get_rainfall_level(rainfall_value)
-
-                # 插入数据
-                sql = '''
-                    INSERT INTO rainfall_raw
-                    (username, timestamp, rainfall_value, rainfall_level, rainfall_percentage)
-                    VALUES (%s, %s, %s, %s, %s)
-                '''
-                cursor.execute(sql, (username, current_time, rainfall_value, level, percentage))
-
-                # 每1000条数据提交一次
-                count += 1
-                if count % 1000 == 0:
-                    conn.commit()
-                    log(f"Generated {count} records, current time: {current_time}")
-
-                # 增加5秒
-                current_time += timedelta(seconds=5)
-
-        # 最后提交
-        conn.commit()
-
-        # 聚合数据
-        aggregate_data(username)
-
-        return {"success": True, "message": f"Successfully generated {count} mock data records for user {username}"}
+        return {"success": True, "message": f"Successfully initialized mock data for user {username}. Data collection will continue at 5-second intervals."}
     except Exception as e:
-        log(f"Failed to generate mock data: {str(e)}")
+        log(f"Failed to initialize mock data: {str(e)}")
         log(traceback.format_exc())
         return {"success": False, "error": str(e)}
     finally:
