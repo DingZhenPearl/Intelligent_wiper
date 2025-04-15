@@ -38,6 +38,7 @@
 <script>
 import { ref, onMounted, onUnmounted, watch } from 'vue'
 import rainfallService from '@/services/rainfallService'
+import rainfallDataService from '@/services/rainfallDataService'
 
 export default {
   name: 'ControlPanel',
@@ -61,31 +62,50 @@ export default {
       console.log(`[Home] 更新雨量级别: ${newLevel.text} (时间: ${now.getHours()}:${now.getMinutes()}:${now.getSeconds()})`);
     }, { immediate: true }); // 立即触发一次
 
-    // 定时检查共享服务中的数据
+    // 定时从后端获取雨量数据
     const startServiceDataCheck = () => {
-      console.log('[Home] 开始定时检查共享服务中的数据');
+      console.log('[Home] 开始定时从后端获取雨量数据');
 
-      // 立即检查一次
-      updateRainfallFromService();
+      // 立即获取一次数据
+      fetchRainfallFromBackend();
 
-      // 每秒检查一次，便于调试
+      // 每5秒获取一次数据
       setInterval(() => {
-        updateRainfallFromService();
-      }, 1000);
+        fetchRainfallFromBackend();
+      }, 5000);
     };
 
-    // 从共享服务中获取雨量数据
-    const updateRainfallFromService = () => {
-      // 获取当前雨量数据
-      const data = rainfallService.getRainfallData();
-      const now = new Date();
 
-      // 更新本地响应式数据
-      rainfall.value = data.percentage;
-      rainfallLevel.value = data.level;
 
-      console.log(`[Home] 从服务获取雨量数据: ${data.value} mm/h (${data.level.text}, ${data.percentage}%) (时间: ${now.getHours()}:${now.getMinutes()}:${now.getSeconds()})`);
+    // 从后端获取雨量数据
+    const fetchRainfallFromBackend = async () => {
+      try {
+        console.log('[Home] 开始从后端获取雨量数据');
+
+        // 从后端获取数据
+        const result = await rainfallDataService.fetchHomeData();
+
+        if (result.success) {
+          const data = result.data;
+          const now = new Date();
+
+          // 更新共享服务中的雨量数据
+          rainfallService.updateRainfallData(
+            data.rainfall_value,
+            { level: data.rainfall_level, text: getRainfallLevelText(data.rainfall_percentage) },
+            data.rainfall_percentage
+          );
+
+          console.log(`[Home] 从后端获取雨量数据成功: ${data.rainfall_value} mm/h (${data.rainfall_level}, ${data.rainfall_percentage}%) (时间: ${now.getHours()}:${now.getMinutes()}:${now.getSeconds()})`);
+        } else {
+          console.error('[Home] 从后端获取雨量数据失败:', result.error);
+        }
+      } catch (error) {
+        console.error('[Home] 从后端获取雨量数据错误:', error);
+      }
     };
+
+
 
     // 智能模式是一个固定的模式，实际的自动调节逻辑在硬件端实现
 
@@ -139,9 +159,9 @@ export default {
 
     // 生命周期钩子
     onMounted(() => {
-      console.log('首页组件已挂载，开始使用共享雨量数据');
+      console.log('首页组件已挂载，开始从后端获取雨量数据');
 
-      // 启动定时检查共享服务中的数据
+      // 启动定时从后端获取雨量数据
       startServiceDataCheck();
     });
 

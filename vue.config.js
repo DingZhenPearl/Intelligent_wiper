@@ -1,7 +1,7 @@
 const { defineConfig } = require('@vue/cli-service')
 module.exports = defineConfig({
   transpileDependencies: true,
-  publicPath: './',  // 使用相对路径很重要
+  publicPath: '/',  // 使用绝对路径以支持history模式
   outputDir: 'dist',  // 确保输出目录正确
   devServer: {
     historyApiFallback: true,  // 确保history模式下的路由可以正常工作
