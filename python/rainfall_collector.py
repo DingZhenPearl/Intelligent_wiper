@@ -105,13 +105,6 @@ def start_collection(username='admin', interval=5, use_real_data=False, verbose=
     """
     global running, last_aggregate_time
 
-    # 先检查环境变量中是否有用户名
-    import os
-    env_username = os.environ.get('RAINFALL_USERNAME')
-    if env_username:
-        log(f"从环境变量中获取到用户名: {env_username}")
-        username = env_username
-
     # 详细输出用户名信息
     log(f"开始数据采集，原始用户名: '{username}', 类型: {type(username)}")
 
@@ -183,13 +176,6 @@ def collect_single_data(username='admin', use_real_data=False):
         username: 用户名，默认为'admin'
         use_real_data: 是否使用真实数据，如果为False则使用模拟数据
     """
-    # 先检查环境变量中是否有用户名
-    import os
-    env_username = os.environ.get('RAINFALL_USERNAME')
-    if env_username:
-        log(f"从环境变量中获取到用户名: {env_username}")
-        username = env_username
-
     # 详细输出用户名信息
     log(f"采集单次数据，原始用户名: '{username}', 类型: {type(username)}")
 
@@ -261,13 +247,6 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     try:
-        # 先检查环境变量中是否有用户名
-        import os
-        env_username = os.environ.get('RAINFALL_USERNAME')
-        if env_username:
-            log(f"从环境变量中获取到用户名: {env_username}")
-            args.username = env_username
-
         # 确保用户名不为空
         username = args.username
         log(f"原始命令行参数中的用户名: '{username}', 类型: {type(username)}")
