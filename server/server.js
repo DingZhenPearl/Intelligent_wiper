@@ -361,8 +361,9 @@ executePythonScript(DB_SERVICE_SCRIPT, 'init')
   .then(result => console.log('数据库初始化结果:', result))
   .catch(err => console.error('数据库初始化失败:', err));
 
-// 初始化雨量数据库
+// 初始化雨量数据库，只创建表结构，不清除现有数据
 const RAINFALL_DB_SCRIPT = path.join(__dirname, '../python/rainfall_db.py');
+console.log('初始化雨量数据库，保留现有数据');
 executePythonScript(RAINFALL_DB_SCRIPT, 'init')
   .then(result => console.log('雨量数据库初始化结果:', result))
   .catch(err => console.error('雨量数据库初始化失败:', err));
@@ -371,18 +372,84 @@ executePythonScript(RAINFALL_DB_SCRIPT, 'init')
 let collectorProcess = null;
 let shouldRestartCollector = true; // 控制是否应该重启采集器
 
-function startRainfallCollector(username = 'admin') {
+async function startRainfallCollector(username = 'admin') {
   const { spawn } = require('child_process');
-  console.log(`启动雨量数据采集器 (用户: ${username})...`);
+  console.log(`准备启动雨量数据采集器 (用户: ${username})...`);
+  console.log(`当前用户名: ${username}`);
+
+  // 确保用户名不为空
+  if (!username || username.trim() === '') {
+    console.error('用户名不能为空，使用默认用户名: admin');
+    username = 'admin';
+  } else {
+    console.log(`使用用户名: ${username}`);
+  }
+
+  // 先强制终止所有可能运行的Python进程
+  try {
+    console.log('启动前先终止所有可能运行的Python进程');
+    if (process.platform === 'win32') {
+      // Windows系统
+      try {
+        require('child_process').execSync('taskkill /F /IM python.exe /T', { stdio: 'ignore' });
+        console.log('已终止所有Python进程');
+      } catch (e) {
+        console.error('终止Python进程失败:', e.message);
+      }
+    } else {
+      // Linux/Mac系统
+      try {
+        require('child_process').execSync('pkill -9 python', { stdio: 'ignore' });
+        console.log('已终止所有Python进程');
+      } catch (e) {
+        console.error('终止Python进程失败:', e.message);
+      }
+    }
+
+    // 等待一小段时间，确保进程已经完全终止
+    await new Promise(resolve => setTimeout(resolve, 1000));
+  } catch (execError) {
+    console.error('终止进程时出错:', execError.message);
+  }
+
+  // 确保采集器变量被重置
+  collectorProcess = null;
+
+  console.log(`开始启动雨量数据采集器 (用户: ${username})...`);
+  console.log(`用户名类型: ${typeof username}, 值: ${username}, 长度: ${username ? username.length : 0}`);
+
+  // 检查用户名是否包含特殊字符
+  if (username) {
+    for (let i = 0; i < username.length; i++) {
+      const charCode = username.charCodeAt(i);
+      console.log(`字符 '${username[i]}' 的编码: ${charCode}`);
+    }
+  }
 
   // 使用spawn而不是exec，以便于持续运行
+  console.log(`启动数据采集器，用户名参数: --username=${username}`);
+
+  // 确保用户名参数正确
+  let finalUsername = username ? username.trim() : 'admin';
+  // 强制使用当前用户名，不再使用默认值
+  console.log(`强制使用当前用户名: '${finalUsername}'`);
+
+  const usernameParam = `--username=${finalUsername}`;
+  console.log(`最终用户名参数: ${usernameParam}`);
+
+  // 在启动数据采集器前，先清除环境变量中的用户名
+  process.env.RAINFALL_USERNAME = finalUsername;
+  console.log(`设置环境变量 RAINFALL_USERNAME = ${process.env.RAINFALL_USERNAME}`);
+
   collectorProcess = spawn('python', [
     RAINFALL_COLLECTOR_SCRIPT,
     '--action=start',
-    `--username=${username}`,
+    usernameParam,
     '--interval=5',
     '--verbose'
-  ]);
+  ], {
+    env: { ...process.env, RAINFALL_USERNAME: finalUsername }
+  });
 
   collectorProcess.stdout.on('data', (data) => {
     console.log(`雨量采集器输出: ${data}`);
@@ -494,6 +561,11 @@ app.post('/api/auth/login', async (req, res) => {
         username: result.username
       };
 
+      // 详细输出用户信息和session信息
+      console.log(`用户 ${result.username} 登录成功，用户ID: ${result.user_id}`);
+      console.log('登录后的用户信息:', req.session.user);
+      console.log('登录后的完整session:', req.session);
+
       // 登录时不再自动启动数据采集器
       // 设置不重启标志
       shouldRestartCollector = false;
@@ -530,6 +602,11 @@ app.post('/api/auth/logout', async (req, res) => {
     const wasLoggedIn = req.session.user ? true : false;
     const username = req.session.user ? req.session.user.username : 'admin';
 
+    // 详细输出用户信息和session信息
+    console.log(`用户登出，用户名: ${username}`);
+    console.log('登出前的用户信息:', req.session.user);
+    console.log('登出前的完整session:', req.session);
+
     // 先强制停止数据采集器，然后再销毁session
     // 设置不重启标志
     shouldRestartCollector = false;
@@ -555,19 +632,25 @@ app.post('/api/auth/logout', async (req, res) => {
     }
 
     // 再次确认没有数据采集器在运行
-    // 尝试终止所有可能的Python进程
+    // 尝试终止数据采集器进程，不会清除数据库中的数据
     try {
+      // 只终止数据采集器进程，而不是所有Python进程
       if (process.platform === 'win32') {
-        // Windows系统
-        require('child_process').execSync('taskkill /F /IM python.exe /T', { stdio: 'ignore' });
+        // Windows系统 - 只终止数据采集器进程
+        try {
+          require('child_process').execSync(`taskkill /F /FI "WINDOWTITLE eq ${RAINFALL_COLLECTOR_SCRIPT}*" /T`, { stdio: 'ignore' });
+        } catch (e) {
+          // 如果上面的命令失败，尝试更精确的方式
+          require('child_process').execSync(`wmic process where "commandline like '%${RAINFALL_COLLECTOR_SCRIPT}%'" delete`, { stdio: 'ignore' });
+        }
       } else {
-        // Linux/Mac系统
+        // Linux/Mac系统 - 只终止数据采集器进程
         require('child_process').execSync(`pkill -f "${RAINFALL_COLLECTOR_SCRIPT}"`, { stdio: 'ignore' });
       }
-      console.log('已尝试终止所有相关Python进程');
+      console.log('已尝试终止数据采集器进程');
     } catch (execError) {
       // 忽略错误，因为可能没有找到匹配的进程
-      console.log('没有找到需要终止的Python进程或终止过程中出错');
+      console.log('没有找到需要终止的数据采集器进程或终止过程中出错');
     }
 
     // 销毁session
@@ -581,7 +664,7 @@ app.post('/api/auth/logout', async (req, res) => {
       });
     });
 
-    res.json({ message: '登出成功，所有数据采集器已停止' });
+    res.json({ message: '登出成功，数据采集器已停止，数据库中的雨量数据保持不变' });
   } catch (error) {
     console.error('登出过程出错:', error);
     res.status(500).json({ error: '登出失败' });
@@ -647,9 +730,20 @@ app.get('/api/status', (req, res) => {
 app.get('/api/rainfall/stats', async (req, res) => {
   try {
     const period = req.query.period || '10min';
-    // 使用登录用户的用户名，如果未登录则使用'admin'
-    const username = req.session.user ? req.session.user.username : 'admin';
-    console.log(`获取雨量统计数据，用户: ${username}, 时间粒度: ${period}`);
+    // 使用前端传递的用户名，而不是从 session 中获取
+    let username = req.query.username || (req.session.user ? req.session.user.username : 'admin');
+
+    // 详细输出用户信息
+    console.log(`获取雨量统计数据，传入的用户名: ${username}, 时间粒度: ${period}`);
+    console.log(`获取雨量统计数据，请求参数: ${JSON.stringify(req.query)}`);
+
+    // 确保用户名不为空
+    if (!username || username.trim() === '') {
+      username = 'admin';
+    } else {
+      username = username.trim();
+    }
+    console.log(`最终使用的用户名: '${username}'`);
 
     const result = await executePythonScript(RAINFALL_API_SCRIPT, 'stats', { username, period });
 
@@ -671,10 +765,23 @@ app.get('/api/rainfall/mock', async (req, res) => {
     // 使用默认用户名如果未登录
 
     const days = req.query.days || 7;
-    const username = req.session.user ? req.session.user.username : 'admin';
-    console.log(`初始化模拟数据，用户: ${username}`);
+    // 使用前端传递的用户名，而不是从 session 中获取
+    let username = req.query.username || (req.session.user ? req.session.user.username : 'admin');
 
-    // 先清除现有数据并初始化
+    // 详细输出用户信息
+    console.log(`初始化模拟数据，传入的用户名: ${username}`);
+    console.log(`初始化模拟数据，请求参数: ${JSON.stringify(req.query)}`);
+
+    // 确保用户名不为空
+    if (!username || username.trim() === '') {
+      username = 'admin';
+    } else {
+      username = username.trim();
+    }
+    console.log(`最终使用的用户名: '${username}'`);
+
+    // 初始化模拟数据，不再清除现有数据
+    console.log(`初始化模拟数据，保留用户 ${username} 的历史数据`);
     const result = await executePythonScript(RAINFALL_DB_SCRIPT, 'mock', { username, days });
 
     if (result.success) {
@@ -682,23 +789,9 @@ app.get('/api/rainfall/mock', async (req, res) => {
       shouldRestartCollector = true;
       console.log('设置重启标志为true，允许数据采集器自动重启');
 
-      // 如果有正在运行的数据采集器，先停止
-      if (collectorProcess) {
-        console.log(`停止现有数据采集器，准备重新启动`);
-        collectorProcess.kill();
-        // 不需要设置为null，因为在close事件中已经处理
-
-        // 等待一小段时间，确保进程已经完全终止
-        setTimeout(() => {
-          // 启动新的数据采集器，每5秒生成一个数据点
-          console.log(`启动新的数据采集器，用户: ${username}`);
-          startRainfallCollector(username);
-        }, 1000);
-      } else {
-        // 启动新的数据采集器，每5秒生成一个数据点
-        console.log(`启动新的数据采集器，用户: ${username}`);
-        startRainfallCollector(username);
-      }
+      // 直接启动新的数据采集器，它会先终止所有现有的Python进程
+      console.log(`准备启动新的数据采集器，用户: ${username}`);
+      await startRainfallCollector(username);
 
       res.json({
         success: true,
@@ -716,8 +809,20 @@ app.get('/api/rainfall/mock', async (req, res) => {
 // 停止数据采集器
 app.get('/api/rainfall/stop', async (req, res) => {
   try {
-    // 不再检查用户是否登录
-    const username = req.session.user ? req.session.user.username : 'admin';
+    // 使用前端传递的用户名，而不是从 session 中获取
+    let username = req.query.username || (req.session.user ? req.session.user.username : 'admin');
+
+    // 详细输出用户信息
+    console.log(`停止数据采集器，传入的用户名: ${username}`);
+    console.log(`停止数据采集器，请求参数: ${JSON.stringify(req.query)}`);
+
+    // 确保用户名不为空
+    if (!username || username.trim() === '') {
+      username = 'admin';
+    } else {
+      username = username.trim();
+    }
+    console.log(`最终使用的用户名: '${username}'`);
 
     // 设置不重启标志
     shouldRestartCollector = false;
@@ -743,24 +848,46 @@ app.get('/api/rainfall/stop', async (req, res) => {
     }
 
     // 再次确认没有数据采集器在运行
-    // 尝试终止所有可能的Python进程
+    // 尝试终止所有Python进程，确保数据采集器被终止
     try {
+      console.log('强制终止所有Python进程，确保数据采集器被终止');
       if (process.platform === 'win32') {
-        // Windows系统
-        require('child_process').execSync('taskkill /F /IM python.exe /T', { stdio: 'ignore' });
+        // Windows系统 - 终止所有Python进程
+        try {
+          // 先尝试使用taskkill终止python.exe
+          require('child_process').execSync('taskkill /F /IM python.exe /T', { stdio: 'ignore' });
+          console.log('已终止所有Python进程');
+        } catch (e) {
+          console.error('终止Python进程失败:', e.message);
+          // 如果失败，尝试其他方法
+          try {
+            require('child_process').execSync('tasklist /FI "IMAGENAME eq python.exe"', { encoding: 'utf8' });
+            console.log('当前运行的Python进程:');
+            console.log(require('child_process').execSync('tasklist /FI "IMAGENAME eq python.exe"', { encoding: 'utf8' }));
+          } catch (listError) {
+            console.error('无法列出Python进程:', listError.message);
+          }
+        }
       } else {
-        // Linux/Mac系统
-        require('child_process').execSync(`pkill -f "${RAINFALL_COLLECTOR_SCRIPT}"`, { stdio: 'ignore' });
+        // Linux/Mac系统 - 终止所有Python进程
+        try {
+          require('child_process').execSync('pkill -9 python', { stdio: 'ignore' });
+          console.log('已终止所有Python进程');
+        } catch (e) {
+          console.error('终止Python进程失败:', e.message);
+        }
       }
-      console.log('已尝试终止所有相关Python进程');
     } catch (execError) {
-      // 忽略错误，因为可能没有找到匹配的进程
-      console.log('没有找到需要终止的Python进程或终止过程中出错');
+      console.error('终止进程时出错:', execError.message);
     }
+
+    // 确保数据采集器变量被重置
+    collectorProcess = null;
+    console.log('数据采集器已强制停止，数据库中的雨量数据保持不变');
 
     res.json({
       success: true,
-      message: '数据采集器已强制停止'
+      message: '数据采集器已强制停止，数据库中的雨量数据保持不变'
     });
   } catch (error) {
     console.error('停止数据采集器错误:', error);
@@ -771,9 +898,20 @@ app.get('/api/rainfall/stop', async (req, res) => {
 // 获取首页实时雨量数据
 app.get('/api/rainfall/home', async (req, res) => {
   try {
-    // 使用登录用户的用户名，如果未登录则使用'admin'
-    const username = req.session.user ? req.session.user.username : 'admin';
-    console.log(`获取首页实时雨量数据，用户: ${username}`);
+    // 使用前端传递的用户名，而不是从 session 中获取
+    let username = req.query.username || (req.session.user ? req.session.user.username : 'admin');
+
+    // 详细输出用户信息
+    console.log(`获取首页实时雨量数据，传入的用户名: ${username}`);
+    console.log(`获取首页实时雨量数据，请求参数: ${JSON.stringify(req.query)}`);
+
+    // 确保用户名不为空
+    if (!username || username.trim() === '') {
+      username = 'admin';
+    } else {
+      username = username.trim();
+    }
+    console.log(`最终使用的用户名: '${username}'`);
 
     const result = await executePythonScript(RAINFALL_API_SCRIPT, 'home', { username });
 
@@ -793,25 +931,44 @@ app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, '../dist/index.html'));
 });
 
-// 启动前先清除可能存在的遗留Python进程
+// 启动前先清除可能存在的遗留数据采集器进程
+// 注意：这只是终止数据采集器进程，不会清除数据库中已存储的雨量数据
 async function cleanupBeforeStart() {
-  console.log('服务器启动前清除可能存在的遗留Python进程');
+  console.log('服务器启动前清除可能存在的遗留数据采集器进程');
+  console.log('注意：这只是终止数据采集器进程，不会清除数据库中已存储的雨量数据');
 
   // 设置不重启标志
   shouldRestartCollector = false;
 
   try {
+    console.log('强制终止所有Python进程，确保数据采集器被终止');
     if (process.platform === 'win32') {
-      // Windows系统
-      require('child_process').execSync('taskkill /F /IM python.exe /T', { stdio: 'ignore' });
+      // Windows系统 - 终止所有Python进程
+      try {
+        // 先尝试使用taskkill终止python.exe
+        require('child_process').execSync('taskkill /F /IM python.exe /T', { stdio: 'ignore' });
+        console.log('已终止所有Python进程');
+      } catch (e) {
+        console.error('终止Python进程失败:', e.message);
+        // 如果失败，尝试列出进程
+        try {
+          console.log('当前运行的Python进程:');
+          console.log(require('child_process').execSync('tasklist /FI "IMAGENAME eq python.exe"', { encoding: 'utf8' }));
+        } catch (listError) {
+          console.error('无法列出Python进程:', listError.message);
+        }
+      }
     } else {
-      // Linux/Mac系统
-      require('child_process').execSync(`pkill -f "${RAINFALL_COLLECTOR_SCRIPT}"`, { stdio: 'ignore' });
+      // Linux/Mac系统 - 终止所有Python进程
+      try {
+        require('child_process').execSync('pkill -9 python', { stdio: 'ignore' });
+        console.log('已终止所有Python进程');
+      } catch (e) {
+        console.error('终止Python进程失败:', e.message);
+      }
     }
-    console.log('已尝试终止所有相关Python进程');
   } catch (execError) {
-    // 忽略错误，因为可能没有找到匹配的进程
-    console.log('没有找到需要终止的Python进程或终止过程中出错');
+    console.error('终止进程时出错:', execError.message);
   }
 }
 

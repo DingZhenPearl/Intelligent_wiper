@@ -76,16 +76,19 @@ def periodic_aggregation(username='admin'):
     """
     global last_aggregate_time, running
 
+    log(f"Starting periodic aggregation thread for user: {username}")
+
     while running:
         now = datetime.now()
         # 每10分钟执行一次聚合
         if (now - last_aggregate_time).total_seconds() >= 600:
-            log(f"Performing periodic data aggregation, last time: {last_aggregate_time}")
+            log(f"Performing periodic data aggregation for user {username}, last time: {last_aggregate_time}")
             try:
                 aggregate_data(username)
                 last_aggregate_time = now
+                log(f"Data aggregation completed for user: {username}")
             except Exception as e:
-                log(f"Data aggregation failed: {str(e)}")
+                log(f"Data aggregation failed for user {username}: {str(e)}")
                 log(traceback.format_exc())
 
         # 休眠一分钟
@@ -102,11 +105,35 @@ def start_collection(username='admin', interval=5, use_real_data=False, verbose=
     """
     global running, last_aggregate_time
 
+    # 先检查环境变量中是否有用户名
+    import os
+    env_username = os.environ.get('RAINFALL_USERNAME')
+    if env_username:
+        log(f"从环境变量中获取到用户名: {env_username}")
+        username = env_username
+
+    # 详细输出用户名信息
+    log(f"开始数据采集，原始用户名: '{username}', 类型: {type(username)}")
+
+    # 检查用户名是否包含特殊字符
+    if username:
+        log(f"用户名长度: {len(username)}")
+        for i, char in enumerate(username):
+            log(f"字符 {i}: '{char}', 编码: {ord(char)}")
+
+    # 强制使用传入的用户名，不再使用默认值
+    if not username or username.strip() == '':
+        log("用户名不能为空，使用默认用户名: admin")
+        username = 'admin'
+    else:
+        username = username.strip()
+        log(f"强制使用传入的用户名: '{username}', 长度: {len(username)}")
+
     # 注册信号处理函数
     signal.signal(signal.SIGINT, signal_handler)
     signal.signal(signal.SIGTERM, signal_handler)
 
-    log(f"Starting {'real' if use_real_data else 'simulated'} data collection, interval: {interval} seconds")
+    log(f"Starting {'real' if use_real_data else 'simulated'} data collection for user: {username}, interval: {interval} seconds")
 
     # 启动定期聚合线程
     aggregation_thread = threading.Thread(target=lambda: periodic_aggregation(username))
@@ -131,7 +158,7 @@ def start_collection(username='admin', interval=5, use_real_data=False, verbose=
             )
 
             if verbose:
-                log(f"Collected data: {data['rainfall_value']} mm/h ({data['rainfall_level']}, {data['rainfall_percentage']}%)")
+                log(f"Collected data: {data['rainfall_value']} mm/h ({data['rainfall_level']}, {data['rainfall_percentage']}%), user: {username}")
                 if not result["success"]:
                     log(f"Data insertion failed: {result['error']}")
 
@@ -141,12 +168,13 @@ def start_collection(username='admin', interval=5, use_real_data=False, verbose=
         log(f"Error during data collection: {str(e)}")
         log(traceback.format_exc())
     finally:
-        log("Data collection stopped")
-        # 确保最后执行一次聚合
+        log(f"Data collection stopped for user: {username}")
+        # 确保最后执行一次聚合，传递正确的用户名
         try:
-            aggregate_data()
+            log(f"Performing final data aggregation for user: {username}")
+            aggregate_data(username)
         except Exception as e:
-            log(f"Final data aggregation failed: {str(e)}")
+            log(f"Final data aggregation failed for user {username}: {str(e)}")
 
 def collect_single_data(username='admin', use_real_data=False):
     """采集单次数据并返回
@@ -155,12 +183,39 @@ def collect_single_data(username='admin', use_real_data=False):
         username: 用户名，默认为'admin'
         use_real_data: 是否使用真实数据，如果为False则使用模拟数据
     """
+    # 先检查环境变量中是否有用户名
+    import os
+    env_username = os.environ.get('RAINFALL_USERNAME')
+    if env_username:
+        log(f"从环境变量中获取到用户名: {env_username}")
+        username = env_username
+
+    # 详细输出用户名信息
+    log(f"采集单次数据，原始用户名: '{username}', 类型: {type(username)}")
+
+    # 检查用户名是否包含特殊字符
+    if username:
+        log(f"用户名长度: {len(username)}")
+        for i, char in enumerate(username):
+            log(f"字符 {i}: '{char}', 编码: {ord(char)}")
+
+    # 强制使用传入的用户名，不再使用默认值
+    if not username or username.strip() == '':
+        log("用户名不能为空，使用默认用户名: admin")
+        username = 'admin'
+    else:
+        username = username.strip()
+        log(f"强制使用传入的用户名: '{username}', 长度: {len(username)}")
+
+    log(f"Collecting single data point for user: {username}")
     try:
         # 采集数据
         if use_real_data:
             data = collect_real_data()
         else:
             data = simulate_rainfall_data()
+
+        log(f"Generated data: {data['rainfall_value']} mm/h ({data['rainfall_level']}, {data['rainfall_percentage']}%) for user: {username}")
 
         # 插入数据库
         result = insert_raw_rainfall(
@@ -172,19 +227,22 @@ def collect_single_data(username='admin', use_real_data=False):
         )
 
         if result["success"]:
+            log(f"Successfully inserted data for user: {username}")
             return {
                 "success": True,
                 "data": {
                     "timestamp": data["timestamp"].strftime("%Y-%m-%d %H:%M:%S"),
                     "rainfall_value": data["rainfall_value"],
                     "rainfall_level": data["rainfall_level"],
-                    "rainfall_percentage": data["rainfall_percentage"]
+                    "rainfall_percentage": data["rainfall_percentage"],
+                    "username": username  # 添加用户名到返回数据中
                 }
             }
         else:
+            log(f"Failed to insert data for user: {username}, error: {result['error']}")
             return {"success": False, "error": result["error"]}
     except Exception as e:
-        log(f"Single data collection failed: {str(e)}")
+        log(f"Single data collection failed for user {username}: {str(e)}")
         return {"success": False, "error": str(e)}
 
 if __name__ == '__main__':
@@ -203,10 +261,37 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     try:
+        # 先检查环境变量中是否有用户名
+        import os
+        env_username = os.environ.get('RAINFALL_USERNAME')
+        if env_username:
+            log(f"从环境变量中获取到用户名: {env_username}")
+            args.username = env_username
+
+        # 确保用户名不为空
+        username = args.username
+        log(f"原始命令行参数中的用户名: '{username}', 类型: {type(username)}")
+
+        # 检查用户名是否包含特殊字符
+        if username:
+            log(f"用户名长度: {len(username)}")
+            for i, char in enumerate(username):
+                log(f"字符 {i}: '{char}', 编码: {ord(char)}")
+
+        # 强制使用传入的用户名，不再使用默认值
+        if not username or username.strip() == '':
+            log("命令行参数中的用户名不能为空，使用默认用户名: admin")
+            username = 'admin'
+        else:
+            username = username.strip()
+            log(f"强制使用传入的用户名: '{username}', 长度: {len(username)}")
+
         if args.action == 'start':
-            start_collection(args.username, args.interval, args.real, args.verbose)
+            log(f"开始数据采集，用户名: {username}")
+            start_collection(username, args.interval, args.real, args.verbose)
         elif args.action == 'single':
-            result = collect_single_data(args.username, args.real)
+            log(f"采集单次数据，用户名: {username}")
+            result = collect_single_data(username, args.real)
             print(json.dumps(result, ensure_ascii=False, default=str))
             sys.stdout.flush()
         else:

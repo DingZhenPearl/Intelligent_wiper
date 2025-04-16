@@ -254,7 +254,20 @@ export default {
         isMockDataLoading.value = true;
         mockDataMessage.value = '';
 
-        // 不再检查登录状态
+        // 显示localstorage中的用户信息
+        const userDataStr = localStorage.getItem('user');
+        console.log('[首页] localStorage中的用户信息:', userDataStr);
+        if (userDataStr) {
+          try {
+            const userData = JSON.parse(userDataStr);
+            console.log('[首页] 解析后的用户信息:', userData);
+            console.log('[首页] 当前用户名:', userData.username);
+          } catch (e) {
+            console.error('[首页] 解析用户信息出错:', e);
+          }
+        } else {
+          console.log('[首页] localStorage中没有用户信息');
+        }
 
         // 确保 days 是一个数字
         const daysValue = typeof days === 'number' ? days : 7;

@@ -74,21 +74,16 @@ def get_db_connection():
             raise
 
 def init_rainfall_tables():
-    """初始化雨量数据相关的表结构"""
+    """初始化雨量数据相关的表结构，如果表不存在则创建，保留现有数据"""
     conn = get_db_connection()
     try:
-        # 先删除现有的表，然后再创建新的表
-        with conn.cursor() as cursor:
-            # 删除现有的表
-            cursor.execute("DROP TABLE IF EXISTS rainfall_raw")
-            cursor.execute("DROP TABLE IF EXISTS rainfall_10min")
-            cursor.execute("DROP TABLE IF EXISTS rainfall_hourly")
-            cursor.execute("DROP TABLE IF EXISTS rainfall_daily")
-            cursor.execute("DROP TABLE IF EXISTS rainfall_monthly")
+        # 不再删除现有的表，只在表不存在时创建
+        log("初始化雨量数据表，保留现有数据")
 
         # 创建新的表
         with conn.cursor() as cursor:
             # 创建原始雨量数据表 (5秒一个数据点)
+            # 使用IF NOT EXISTS确保不会删除现有数据
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS rainfall_raw (
                     id BIGINT AUTO_INCREMENT PRIMARY KEY,
@@ -105,6 +100,7 @@ def init_rainfall_tables():
             ''')
 
             # 创建10分钟聚合数据表
+            # 使用IF NOT EXISTS确保不会删除现有数据
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS rainfall_10min (
                     id BIGINT AUTO_INCREMENT PRIMARY KEY,
@@ -123,6 +119,7 @@ def init_rainfall_tables():
             ''')
 
             # 创建小时聚合数据表
+            # 使用IF NOT EXISTS确保不会删除现有数据
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS rainfall_hourly (
                     id BIGINT AUTO_INCREMENT PRIMARY KEY,
@@ -142,6 +139,7 @@ def init_rainfall_tables():
             ''')
 
             # 创建日聚合数据表
+            # 使用IF NOT EXISTS确保不会删除现有数据
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS rainfall_daily (
                     id BIGINT AUTO_INCREMENT PRIMARY KEY,
@@ -160,6 +158,7 @@ def init_rainfall_tables():
             ''')
 
             # 创建月聚合数据表
+            # 使用IF NOT EXISTS确保不会删除现有数据
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS rainfall_monthly (
                     id BIGINT AUTO_INCREMENT PRIMARY KEY,
@@ -196,19 +195,42 @@ def insert_raw_rainfall(username, timestamp, rainfall_value, rainfall_level, rai
         rainfall_level: 雨量级别 ('none', 'light', 'medium', 'heavy')
         rainfall_percentage: 雨量百分比 (0-100)
     """
+    # 详细输出用户名信息
+    log(f"插入原始雨量数据，原始用户名: '{username}', 类型: {type(username)}")
+
+    # 检查用户名是否包含特殊字符
+    if username:
+        log(f"用户名长度: {len(username)}")
+        for i, char in enumerate(username):
+            log(f"字符 {i}: '{char}', 编码: {ord(char)}")
+
+    # 强制使用传入的用户名，不再使用默认值
+    if not username or username.strip() == '':
+        log("用户名不能为空，使用默认用户名: admin")
+        username = 'admin'
+    else:
+        username = username.strip()
+        log(f"强制使用传入的用户名: '{username}', 长度: {len(username)}")
+
     conn = get_db_connection()
     try:
         with conn.cursor() as cursor:
+            # 强制使用传入的用户名，确保数据库中存储的是正确的用户名
             sql = '''
                 INSERT INTO rainfall_raw
                 (username, timestamp, rainfall_value, rainfall_level, rainfall_percentage)
                 VALUES (%s, %s, %s, %s, %s)
             '''
+            log(f"执行SQL，参数: username='{username}', timestamp={timestamp}, rainfall_value={rainfall_value}, rainfall_level={rainfall_level}, rainfall_percentage={rainfall_percentage}")
+
+            # 再次确认用户名
+            log(f"最终插入数据库的用户名: '{username}'")
             cursor.execute(sql, (username, timestamp, rainfall_value, rainfall_level, rainfall_percentage))
         conn.commit()
+        log(f"原始雨量数据插入成功，用户名: '{username}'")
         return {"success": True, "message": "原始雨量数据插入成功"}
     except Exception as e:
-        log(f"原始雨量数据插入失败: {str(e)}")
+        log(f"原始雨量数据插入失败: {str(e)}, 用户名: '{username}'")
         return {"success": False, "error": str(e)}
     finally:
         conn.close()
@@ -231,41 +253,49 @@ def get_rainfall_level(value):
         return 'heavy', percentage
 
 def generate_mock_data(username='admin', days=7):
-    """清除现有数据并初始化一个起始数据点
+    """初始化一个起始数据点，不再清除现有数据
 
     参数:
         username: 用户名，默认为'admin'
         days: 参数保留但不再使用，仅用于兼容现有API
     """
+    # 详细输出用户名信息
+    log(f"初始化模拟数据，原始用户名: '{username}', 类型: {type(username)}")
+
+    # 检查用户名是否包含特殊字符
+    if username:
+        log(f"用户名长度: {len(username)}")
+        for i, char in enumerate(username):
+            log(f"字符 {i}: '{char}', 编码: {ord(char)}")
+
+    # 强制使用传入的用户名，不再使用默认值
+    if not username or username.strip() == '':
+        log("用户名不能为空，使用默认用户名: admin")
+        username = 'admin'
+    else:
+        username = username.strip()
+        log(f"强制使用传入的用户名: '{username}', 长度: {len(username)}")
+
     conn = get_db_connection()
     try:
-        # 清空指定用户的现有数据
-        with conn.cursor() as cursor:
-            cursor.execute("DELETE FROM rainfall_raw WHERE username = %s", (username,))
-            cursor.execute("DELETE FROM rainfall_10min WHERE username = %s", (username,))
-            cursor.execute("DELETE FROM rainfall_hourly WHERE username = %s", (username,))
-            cursor.execute("DELETE FROM rainfall_daily WHERE username = %s", (username,))
-            cursor.execute("DELETE FROM rainfall_monthly WHERE username = %s", (username,))
-        conn.commit()
+        # 不再清除现有数据，保留历史数据
+        log(f"初始化模拟数据，保留用户 {username} 的历史数据")
 
-        # 只生成一个初始数据点
-        current_time = datetime.now()
-        # 初始雨量值设为0
-        rainfall_value = 0.0
-        # 获取雨量级别和百分比
+        # 生成一个新的数据点，作为起始点
+        now = datetime.now()
+        rainfall_value = round(random.uniform(0, 5), 1)  # 生成一个0-5之间的随机值
         level, percentage = get_rainfall_level(rainfall_value)
 
-        log(f"Initializing mock data for user {username} at {current_time}")
+        log(f"生成新的起始数据点: {rainfall_value} mm/h ({level}, {percentage}%), 用户名: {username}")
 
-        # 插入初始数据点
+        # 插入原始数据表
         with conn.cursor() as cursor:
-            sql = '''
-                INSERT INTO rainfall_raw
-                (username, timestamp, rainfall_value, rainfall_level, rainfall_percentage)
+            cursor.execute("""
+                INSERT INTO rainfall_raw (username, timestamp, rainfall_value, rainfall_level, rainfall_percentage)
                 VALUES (%s, %s, %s, %s, %s)
-            '''
-            cursor.execute(sql, (username, current_time, rainfall_value, level, percentage))
-            conn.commit()
+            """, (username, now, rainfall_value, level, percentage))
+
+        conn.commit()
 
         # 不需要聚合数据，因为只有一个数据点
         # 数据采集器将负责后续数据的生成和聚合
@@ -284,6 +314,23 @@ def aggregate_data(username='admin'):
     参数:
         username: 用户名，默认为'admin'
     """
+    # 详细输出用户名信息
+    log(f"聚合数据，原始用户名: '{username}', 类型: {type(username)}")
+
+    # 检查用户名是否包含特殊字符
+    if username:
+        log(f"用户名长度: {len(username)}")
+        for i, char in enumerate(username):
+            log(f"字符 {i}: '{char}', 编码: {ord(char)}")
+
+    # 强制使用传入的用户名，不再使用默认值
+    if not username or username.strip() == '':
+        log("用户名不能为空，使用默认用户名: admin")
+        username = 'admin'
+    else:
+        username = username.strip()
+        log(f"强制使用传入的用户名: '{username}', 长度: {len(username)}")
+
     conn = get_db_connection()
     try:
         # 1. 聚合到10分钟表

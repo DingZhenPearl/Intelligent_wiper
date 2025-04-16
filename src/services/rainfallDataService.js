@@ -46,10 +46,26 @@ const rainfallDataService = {
     this.error.value[period] = null;
 
     try {
-      console.log(`[雨量数据服务] 获取${period}统计数据`);
+      // 从 localStorage 中获取用户名
+      let username = 'admin'; // 默认用户名
+      const userDataStr = localStorage.getItem('user');
 
-      // 发送API请求
-      const response = await get(`/api/rainfall/stats?period=${period}`);
+      if (userDataStr) {
+        try {
+          const userData = JSON.parse(userDataStr);
+          if (userData && userData.username) {
+            username = userData.username;
+            console.log(`[雨量数据服务] 获取${period}统计数据，当前用户名:`, username);
+          }
+        } catch (e) {
+          console.error('[雨量数据服务] 解析用户信息出错:', e);
+        }
+      }
+
+      console.log(`[雨量数据服务] 获取${period}统计数据，用户名: ${username}`);
+
+      // 发送API请求，直接在URL中传递用户名
+      const response = await get(`/api/rainfall/stats?period=${period}&username=${encodeURIComponent(username)}`);
 
       if (response.ok) {
         const data = await response.json();
@@ -94,10 +110,26 @@ const rainfallDataService = {
   // 获取首页实时雨量数据
   async fetchHomeData() {
     try {
-      console.log('[雨量数据服务] 获取首页实时雨量数据');
+      // 从 localStorage 中获取用户名
+      let username = 'admin'; // 默认用户名
+      const userDataStr = localStorage.getItem('user');
 
-      // 发送API请求
-      const response = await get('/api/rainfall/home');
+      if (userDataStr) {
+        try {
+          const userData = JSON.parse(userDataStr);
+          if (userData && userData.username) {
+            username = userData.username;
+            console.log('[雨量数据服务] 获取首页数据，当前用户名:', username);
+          }
+        } catch (e) {
+          console.error('[雨量数据服务] 解析用户信息出错:', e);
+        }
+      }
+
+      console.log(`[雨量数据服务] 获取首页实时雨量数据，用户名: ${username}`);
+
+      // 发送API请求，直接在URL中传递用户名
+      const response = await get(`/api/rainfall/home?username=${encodeURIComponent(username)}`);
 
       if (response.ok) {
         const data = await response.json();
@@ -147,12 +179,32 @@ const rainfallDataService = {
   // 初始化模拟数据并启动数据采集器，每5秒生成一个新数据点
   async generateMockData(days = 7) {
     try {
+      // 从 localStorage 中获取用户名
+      let username = 'admin'; // 默认用户名
+      const userDataStr = localStorage.getItem('user');
+      console.log('[雨量数据服务] localStorage中的用户信息:', userDataStr);
+
+      if (userDataStr) {
+        try {
+          const userData = JSON.parse(userDataStr);
+          console.log('[雨量数据服务] 解析后的用户信息:', userData);
+          if (userData && userData.username) {
+            username = userData.username;
+            console.log('[雨量数据服务] 当前用户名:', username);
+          }
+        } catch (e) {
+          console.error('[雨量数据服务] 解析用户信息出错:', e);
+        }
+      } else {
+        console.log('[雨量数据服务] localStorage中没有用户信息，使用默认用户名:', username);
+      }
+
       // 确保 days 是一个数字
       const daysValue = typeof days === 'number' ? days : 7;
-      console.log(`[雨量数据服务] 开始初始化模拟数据并启动数据采集器，天数: ${daysValue}`);
+      console.log(`[雨量数据服务] 开始初始化模拟数据并启动数据采集器，用户名: ${username}, 天数: ${daysValue}`);
 
-      // 发送API请求
-      const response = await get(`/api/rainfall/mock?days=${daysValue}`);
+      // 发送API请求，直接在URL中传递用户名
+      const response = await get(`/api/rainfall/mock?days=${daysValue}&username=${encodeURIComponent(username)}`);
 
       if (response.ok) {
         const data = await response.json();
@@ -182,10 +234,26 @@ const rainfallDataService = {
   // 停止数据采集器
   async stopDataCollector() {
     try {
-      console.log('[雨量数据服务] 停止数据采集器');
+      // 从 localStorage 中获取用户名
+      let username = 'admin'; // 默认用户名
+      const userDataStr = localStorage.getItem('user');
 
-      // 发送API请求
-      const response = await get('/api/rainfall/stop');
+      if (userDataStr) {
+        try {
+          const userData = JSON.parse(userDataStr);
+          if (userData && userData.username) {
+            username = userData.username;
+            console.log('[雨量数据服务] 停止数据采集器，当前用户名:', username);
+          }
+        } catch (e) {
+          console.error('[雨量数据服务] 解析用户信息出错:', e);
+        }
+      }
+
+      console.log(`[雨量数据服务] 停止数据采集器，用户名: ${username}`);
+
+      // 发送API请求，直接在URL中传递用户名
+      const response = await get(`/api/rainfall/stop?username=${encodeURIComponent(username)}`);
 
       if (response.ok) {
         const data = await response.json();

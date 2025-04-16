@@ -2,18 +2,18 @@
   <div class="login-container">
     <div class="login-card">
       <h1 class="app-title">智能雨刷系统</h1>
-      
+
       <div class="mode-switch">
-        <button 
+        <button
           :class="['switch-btn', { active: mode === 'login' }]"
           @click="mode = 'login'"
         >登录</button>
-        <button 
+        <button
           :class="['switch-btn', { active: mode === 'register' }]"
           @click="mode = 'register'"
         >注册</button>
       </div>
-      
+
       <!-- 登录表单 -->
       <form v-if="mode === 'login'" @submit.prevent="handleLogin" class="login-form">
         <div class="form-group">
@@ -45,7 +45,7 @@
         <div class="error-message" v-if="errorMessage">
           {{ errorMessage }}
         </div>
-        
+
         <!-- 添加记住密码选项 -->
         <div class="remember-me">
           <label class="checkbox-container">
@@ -53,10 +53,10 @@
             <span class="checkbox-text">记住密码</span>
           </label>
         </div>
-        
+
         <button type="submit" class="btn-submit">登录</button>
       </form>
-      
+
       <!-- 注册表单 -->
       <form v-else @submit.prevent="handleRegister" class="login-form">
         <div class="form-group">
@@ -103,11 +103,11 @@
         </div>
         <button type="submit" class="btn-submit">注册</button>
       </form>
-      
+
       <!-- 提示信息 -->
       <p class="footer-text">© 2023 智能雨刷系统 · 版权所有</p>
     </div>
-    
+
     <div class="background-decoration"></div>
   </div>
 </template>
@@ -128,7 +128,7 @@ export default {
     const confirmPassword = ref('')
     const errorMessage = ref('')
     const rememberPassword = ref(false)
-    
+
     // 从本地存储加载保存的登录信息
     onMounted(() => {
       // 检查用户是否已登录，如果已登录直接进入控制页面
@@ -147,7 +147,7 @@ export default {
           localStorage.removeItem('user')
         }
       }
-      
+
       // 检查是否有保存的登录信息
       const savedCredentials = localStorage.getItem('saved_credentials')
       if (savedCredentials) {
@@ -163,48 +163,61 @@ export default {
         }
       }
     })
-    
+
     const handleLogin = async () => {
       try {
         errorMessage.value = ''
-        
+
         // 严格的表单验证
         if (!username.value || username.value.trim() === '') {
           errorMessage.value = '用户名不能为空'
           return
         }
-        
+
         if (!password.value || password.value.trim() === '') {
           errorMessage.value = '密码不能为空'
           return
         }
-        
+
         // 准备登录数据
         const loginData = {
           username: username.value.trim(),
           password: password.value.trim()
         }
-        
+
         console.log('准备登录:', {
           username: loginData.username,
           passwordLength: loginData.password.length,
           isNative: isNative()
         })
-        
+
         // 发送登录请求
         const response = await post('/api/auth/login', loginData)
-        
+
         console.log('登录响应:', response)
-        
+
         if (response.ok) {
           const data = await response.json()
           console.log('登录成功, 用户数据:', data)
-          
+
           // 存储用户信息
-          localStorage.setItem('user', JSON.stringify({
+          const userData = {
             user_id: data.user_id,
             username: data.username
-          }))
+          };
+          console.log('[登录页面] 存储到localStorage的用户信息:', userData);
+          localStorage.setItem('user', JSON.stringify(userData));
+
+          // 确认存储后的数据
+          const storedUserData = localStorage.getItem('user');
+          console.log('[登录页面] 存储后立即从 localStorage 读取的用户信息:', storedUserData);
+          try {
+            const parsedUserData = JSON.parse(storedUserData);
+            console.log('[登录页面] 解析后的用户信息:', parsedUserData);
+            console.log('[登录页面] 存储的用户名:', parsedUserData.username);
+          } catch (e) {
+            console.error('[登录页面] 解析存储的用户信息出错:', e);
+          }
 
           // 处理记住密码功能
           if (rememberPassword.value) {
@@ -216,15 +229,15 @@ export default {
             // 如果不记住密码，则清除之前保存的凭证
             localStorage.removeItem('saved_credentials')
           }
-          
+
           router.push('/home')
         } else {
           const errorData = await response.json()
           console.error('登录失败:', errorData)
-          
+
           errorMessage.value = errorData.error || (
-            response.status === 500 
-              ? '服务器内部错误，请稍后重试' 
+            response.status === 500
+              ? '服务器内部错误，请稍后重试'
               : '登录失败，请检查用户名和密码'
           )
         }
@@ -239,16 +252,16 @@ export default {
         errorMessage.value = '两次输入的密码不一致'
         return
       }
-      
+
       try {
         errorMessage.value = ''
-        
+
         // 使用API服务发送注册请求
         const response = await post('/api/auth/register', {
           username: username.value,
           password: password.value
         })
-        
+
         const data = await response.json()
 
         if (response.ok) {
@@ -291,7 +304,7 @@ export default {
   padding: min(4vw, 30px); // 使用视口宽度的百分比，但设置上限
   position: relative;
   overflow: hidden;
-  
+
   .background-decoration {
     position: absolute;
     top: -10%;
@@ -315,7 +328,7 @@ export default {
     box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
     position: relative;
     z-index: 1;
-    
+
     .app-title {
       text-align: center;
       margin-bottom: max(3vw, 30px);
@@ -324,7 +337,7 @@ export default {
       color: #6200ee;
     }
   }
-  
+
   .mode-switch {
     display: flex;
     margin-bottom: clamp(20px, 3vw, 40px); // 响应式下边距
@@ -368,10 +381,10 @@ export default {
         font-weight: 400;
         font-size: clamp(14px, 1vw + 0.5rem, 22px); // 响应式字体大小
       }
-      
+
       .input-wrapper {
         position: relative;
-        
+
         .input-icon {
           position: absolute;
           left: clamp(3px, 0.5vw, 8px);
@@ -384,11 +397,11 @@ export default {
           background-repeat: no-repeat;
           background-position: center;
           color: #6200ee;
-          
+
           &.user-icon {
             background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%236200ee'%3E%3Cpath d='M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z'%3E%3C/path%3E%3C/svg%3E");
           }
-          
+
           &.lock-icon {
             background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%236200ee'%3E%3Cpath d='M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z'%3E%3C/path%3E%3C/svg%3E");
           }
@@ -396,7 +409,7 @@ export default {
 
         input {
           width: 100%;
-          padding: clamp(12px, 1.8vw, 24px) clamp(10px, 1.5vw, 22px) 
+          padding: clamp(12px, 1.8vw, 24px) clamp(10px, 1.5vw, 22px)
                   clamp(8px, 1.2vw, 18px) clamp(32px, 4vw, 55px); // 响应式内边距
           border: none;
           border-bottom: 2px solid #e0e0e0;
@@ -411,7 +424,7 @@ export default {
             border-bottom-width: clamp(2px, 0.3vw, 4px);
             padding-bottom: calc(clamp(8px, 1.2vw, 18px) - 1px);
           }
-          
+
           &:not(:placeholder-shown) {
             border-bottom-color: #6200ee;
           }
@@ -427,7 +440,7 @@ export default {
           background-color: #6200ee;
           transition: width 0.3s ease;
         }
-        
+
         input:focus + &::after {
           width: 100%;
         }
@@ -449,20 +462,20 @@ export default {
       align-items: center;
       margin-top: calc(var(--spacing-md) - 5px);
       margin-bottom: calc(var(--spacing-md) - 5px);
-      
+
       .checkbox-container {
         display: flex;
         align-items: center;
         cursor: pointer;
         user-select: none;
-        
+
         input[type="checkbox"] {
           margin-right: 8px;
           width: 16px;
           height: 16px;
           accent-color: var(--primary-color);
         }
-        
+
         .checkbox-text {
           font-size: clamp(14px, 0.9vw + 0.4rem, 18px);
           color: #666;
@@ -490,7 +503,7 @@ export default {
         background: #7928f5;
         box-shadow: 0 3px 6px rgba(0, 0, 0, 0.16), 0 3px 6px rgba(0, 0, 0, 0.23);
       }
-      
+
       &:active {
         background: #5000d1;
         box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
@@ -498,14 +511,14 @@ export default {
       }
     }
   }
-  
+
   .footer-text {
     text-align: center;
     margin-top: clamp(20px, 3vw, 36px);
     font-size: clamp(12px, 0.8vw + 0.3rem, 18px);
     color: #757575;
     position: relative;
-    
+
     .config-icon {
       position: absolute;
       right: 0;
@@ -514,7 +527,7 @@ export default {
       cursor: pointer;
       font-size: 20px;
       opacity: 0.6;
-      
+
       &:hover {
         opacity: 1;
       }
