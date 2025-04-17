@@ -176,8 +176,11 @@ export default {
           const h = time.getHours();
           const m = time.getMinutes();
           const s = time.getSeconds();
+          // 使用更紧凑的格式，但保留完整信息便于处理
           labels.push(`${h}:${m < 10 ? '0' + m : m}:${s < 10 ? '0' + s : s}`);
         }
+
+        console.log(`生成了10分钟视图的 ${labels.length} 个时间标签`);
 
         chartOption.value.xAxis = {
           type: 'category',
@@ -191,10 +194,21 @@ export default {
             }
           },
           axisLabel: {
-            interval: function(_, value) {
-              // 每30秒显示一个标签
+            interval: function(index, value) {
+              // 获取当前标签的分钟值
               const parts = value.split(':');
-              return parseInt(parts[2]) % 30 === 0;
+              const currentMinute = parts[1];
+
+              // 如果是第一个标签，显示
+              if (index === 0) return true;
+
+              // 获取前一个标签的分钟值
+              const prevValue = labels[index - 1];
+              const prevParts = prevValue.split(':');
+              const prevMinute = prevParts[1];
+
+              // 如果当前分钟与前一个不同，则显示标签
+              return currentMinute !== prevMinute;
             },
             formatter: function(value) {
               // 只显示小时和分钟
@@ -202,7 +216,9 @@ export default {
               return `${parts[0]}:${parts[1]}`;
             },
             showMinLabel: true,
-            showMaxLabel: true
+            showMaxLabel: true,
+            // 增加标签间距，避免重叠
+            margin: 8
           },
           axisPointer: {
             label: {
@@ -616,11 +632,14 @@ export default {
 
           // 根据当前视图调整显示格式
           if (activePeriod.value === 0) {
-            // 10分钟内视图 - 只显示时间
-            return date.getHours() + ':' +
-                  (date.getMinutes() < 10 ? '0' : '') + date.getMinutes() +
-                  (params.name.split(':').length > 2 ? ':' + (date.getSeconds() < 10 ? '0' : '') + date.getSeconds() : '') +
-                  ' - 雨量: ' + params.value[1] + ' ' + unit;
+            // 10分钟内视图 - 使用更清晰的格式
+            const hours = date.getHours();
+            const minutes = date.getMinutes();
+            const seconds = date.getSeconds();
+            const formattedMinutes = minutes < 10 ? '0' + minutes : minutes;
+            const formattedSeconds = seconds < 10 ? '0' + seconds : seconds;
+
+            return `${hours}:${formattedMinutes}:${formattedSeconds} - 雨量: ${params.value[1]} ${unit}`;
           } else if (activePeriod.value === 1) {
             // 一小时内视图 - 显示小时和分钟
             return date.getHours() + ':' +
