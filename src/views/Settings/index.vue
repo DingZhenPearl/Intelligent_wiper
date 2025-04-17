@@ -1,7 +1,7 @@
 <template>
   <div class="settings">
     <h2>设置界面</h2>
-    
+
     <!-- 个人信息 -->
     <div class="section">
       <h3>个人信息</h3>
@@ -9,11 +9,7 @@
         <img :src="userAvatar" alt="用户头像" class="avatar">
         <div class="info-item">
           <label>用户名:</label>
-          <span>张三</span>
-        </div>
-        <div class="info-item">
-          <label>邮箱:</label>
-          <span>zhangsan@example.com</span>
+          <span>{{ username }}</span>
         </div>
       </div>
     </div>
@@ -67,9 +63,10 @@
 </template>
 
 <script>
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { post } from '@/services/api'  // 导入API服务
+import authService from '@/services/authService'  // 导入认证服务
 
 export default {
   name: 'SettingsPage',
@@ -77,6 +74,15 @@ export default {
     const router = useRouter()
     const uploadFrequency = ref('1')
     const userAvatar = ref('/src/assets/images/default-avatar.png')
+    const username = ref('未登录')
+
+    // 在组件挂载时获取用户信息
+    onMounted(() => {
+      const currentUser = authService.getCurrentUser()
+      if (currentUser && currentUser.username) {
+        username.value = currentUser.username
+      }
+    })
 
     const saveSettings = () => {
       // TODO: 实现保存设置的逻辑
@@ -87,13 +93,13 @@ export default {
       try {
         // 1. 调用服务器登出API
         await post('/api/auth/logout')
-        
+
         // 2. 只清除本地存储中的用户会话信息
         localStorage.removeItem('user')
-        
+
         // 注意：不再清除saved_credentials，保留记住的密码
         console.log('用户已登出，但保留了记住的登录凭据')
-        
+
         // 3. 导航到登录页面
         router.push('/login')
       } catch (error) {
@@ -107,6 +113,7 @@ export default {
     return {
       uploadFrequency,
       userAvatar,
+      username,
       saveSettings,
       logout
     }
@@ -152,7 +159,7 @@ export default {
     .info-item {
       margin: var(--spacing-sm) 0;
       font-size: var(--font-size-lg);
-      
+
       label {
         color: #666;
         margin-right: var(--spacing-sm);
