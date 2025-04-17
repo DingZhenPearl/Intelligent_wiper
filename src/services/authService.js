@@ -34,13 +34,22 @@ const authService = {
       console.log('[认证服务] 登出前的localStorage中没有用户信息');
     }
 
-    // 清除本地存储
+    // 检查并显示数据采集器状态
+    const collectorRunning = localStorage.getItem('collectorRunning');
+    const homePagePollingActive = localStorage.getItem('homePagePollingActive');
+    console.log(`[认证服务] 登出前的数据采集器状态: ${collectorRunning}, 轮询状态: ${homePagePollingActive}`);
+
+    // 重置所有相关状态
     localStorage.removeItem('user');
-    console.log('[认证服务] 已清除localStorage中的user项');
+    localStorage.removeItem('collectorRunning');
+    localStorage.removeItem('homePagePollingActive');
+    console.log('[认证服务] 已清除localStorage中的所有相关状态');
 
     // 清除后再次检查
     const afterClearUserData = localStorage.getItem('user');
-    console.log('[认证服务] 清除后的localStorage中的用户信息:', afterClearUserData);
+    const afterClearCollectorRunning = localStorage.getItem('collectorRunning');
+    const afterClearHomePagePollingActive = localStorage.getItem('homePagePollingActive');
+    console.log(`[认证服务] 清除后的状态: 用户=${afterClearUserData}, 采集器=${afterClearCollectorRunning}, 轮询=${afterClearHomePagePollingActive}`);
 
     // 重定向到登录页面
     router.push('/login');

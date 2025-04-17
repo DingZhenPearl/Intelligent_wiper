@@ -373,7 +373,11 @@ export default {
     onMounted(async () => {
       console.log('首页组件已挂载');
 
-      // 不再检查登录状态
+      // 检查用户登录状态
+      const userDataStr = localStorage.getItem('user');
+      console.log(`[首页] localStorage中的用户信息: ${userDataStr}`);
+      const isLoggedIn = !!userDataStr;
+      console.log(`[首页] 用户登录状态: ${isLoggedIn ? '已登录' : '未登录'}`);
 
       // 检查localStorage中的轮询状态
       const homePagePollingActive = localStorage.getItem('homePagePollingActive');
@@ -394,14 +398,19 @@ export default {
           isDataPollingActive.value = statusResult.isRunning;
           console.log(`[首页] 检查到数据采集器状态: ${isDataPollingActive.value ? '运行中' : '已停止'}`);
 
-          // 如果数据采集器正在运行，或者localStorage中的轮询状态为活动，启动数据轮询
-          if (isDataPollingActive.value || homePagePollingActive === 'true') {
-            console.log('[首页] 数据采集器正在运行或者之前的轮询状态为活动，启动数据轮询');
+          // 如果数据采集器正在运行，启动数据轮询
+          if (isDataPollingActive.value) {
+            console.log('[首页] 数据采集器正在运行，启动数据轮询');
             // 强制启动数据轮询，不考虑当前状态
             startServiceDataCheck();
             backendMessage.value = '数据采集器正在运行中';
           } else {
-            console.log('[首页] 数据采集器未运行且之前的轮询状态为非活动，只获取一次数据');
+            // 数据采集器已停止，确保状态一致
+            console.log('[首页] 数据采集器已停止，重置所有状态');
+            isDataPollingActive.value = false;
+            localStorage.setItem('homePagePollingActive', 'false');
+            localStorage.setItem('collectorRunning', 'false');
+
             // 只获取一次数据，不启动轮询
             fetchRainfallFromBackend();
             backendMessage.value = '点击按钮开始收集数据';
@@ -409,30 +418,28 @@ export default {
         } else {
           console.error(`[首页] 检查数据采集器状态失败: ${statusResult.error}`);
 
-          // 即使检查失败，也根据localStorage中的状态决定是否启动轮询
-          if (homePagePollingActive === 'true' || collectorRunning === 'true') {
-            console.log('[首页] 检查失败但localStorage中的状态为活动，启动数据轮询');
-            startServiceDataCheck();
-            backendMessage.value = '数据采集器可能正在运行，已启动数据更新';
-          } else {
-            // 只获取一次数据，不启动轮询
-            fetchRainfallFromBackend();
-            backendMessage.value = '点击按钮开始收集数据';
-          }
-        }
-      } catch (error) {
-        console.error(`[首页] 检查数据采集器状态错误: ${error}`);
+          // 假设数据采集器已停止，重置所有状态
+          console.log('[首页] 检查失败，假设数据采集器已停止，重置所有状态');
+          isDataPollingActive.value = false;
+          localStorage.setItem('homePagePollingActive', 'false');
+          localStorage.setItem('collectorRunning', 'false');
 
-        // 即使出错，也根据localStorage中的状态决定是否启动轮询
-        if (homePagePollingActive === 'true' || collectorRunning === 'true') {
-          console.log('[首页] 检查出错但localStorage中的状态为活动，启动数据轮询');
-          startServiceDataCheck();
-          backendMessage.value = '数据采集器可能正在运行，已启动数据更新';
-        } else {
           // 只获取一次数据，不启动轮询
           fetchRainfallFromBackend();
           backendMessage.value = '点击按钮开始收集数据';
         }
+      } catch (error) {
+        console.error(`[首页] 检查数据采集器状态错误: ${error}`);
+
+        // 假设数据采集器已停止，重置所有状态
+        console.log('[首页] 检查出错，假设数据采集器已停止，重置所有状态');
+        isDataPollingActive.value = false;
+        localStorage.setItem('homePagePollingActive', 'false');
+        localStorage.setItem('collectorRunning', 'false');
+
+        // 只获取一次数据，不启动轮询
+        fetchRainfallFromBackend();
+        backendMessage.value = '点击按钮开始收集数据';
       }
     });
 

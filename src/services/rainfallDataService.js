@@ -332,19 +332,27 @@ const rainfallDataService = {
   // 检查数据采集器状态
   async checkCollectorStatus() {
     try {
+      // 检查用户登录状态
+      const userDataStr = localStorage.getItem('user');
+      if (!userDataStr) {
+        console.log('[雨量数据服务] 用户未登录，数据采集器应该已停止');
+        // 用户未登录，数据采集器应该已停止
+        this.updateCollectorStatus(false);
+        return {
+          success: true,
+          isRunning: false
+        };
+      }
+
       // 从 localStorage 中获取用户名
       let username = 'admin'; // 默认用户名
-      const userDataStr = localStorage.getItem('user');
-
-      if (userDataStr) {
-        try {
-          const userData = JSON.parse(userDataStr);
-          if (userData && userData.username) {
-            username = userData.username;
-          }
-        } catch (e) {
-          console.error('[雨量数据服务] 解析用户信息出错:', e);
+      try {
+        const userData = JSON.parse(userDataStr);
+        if (userData && userData.username) {
+          username = userData.username;
         }
+      } catch (e) {
+        console.error('[雨量数据服务] 解析用户信息出错:', e);
       }
 
       console.log(`[雨量数据服务] 检查数据采集器状态，用户名: ${username}`);
@@ -355,6 +363,28 @@ const rainfallDataService = {
 
       // 获取一次数据，更新数据显示
       try {
+        // 尝试从服务器获取状态信息
+        console.log(`[雨量数据服务] 尝试从服务器获取状态信息...`);
+        const response = await get(`/api/status`);
+        if (response.ok) {
+          const statusData = await response.json();
+          console.log(`[雨量数据服务] 服务器状态信息:`, statusData);
+
+          // 如果服务器返回了采集器状态，使用该状态
+          if (statusData && statusData.collector && statusData.collector.isRunning !== undefined) {
+            const serverCollectorRunning = statusData.collector.isRunning;
+            console.log(`[雨量数据服务] 服务器返回的采集器状态: ${serverCollectorRunning ? '运行中' : '已停止'}`);
+
+            // 更新本地状态与服务器保持一致
+            this.updateCollectorStatus(serverCollectorRunning);
+            return {
+              success: true,
+              isRunning: serverCollectorRunning
+            };
+          }
+        }
+
+        // 如果无法从服务器获取状态，尝试获取首页数据
         const homeDataResult = await this.fetchHomeData();
         console.log(`[雨量数据服务] 获取首页数据结果:`, homeDataResult);
 
@@ -370,19 +400,39 @@ const rainfallDataService = {
           if (diffSeconds < 10) {
             console.log('[雨量数据服务] 根据数据时间判断数据采集器正在运行');
             this.updateCollectorStatus(true);
+            return {
+              success: true,
+              isRunning: true
+            };
+          } else {
+            console.log('[雨量数据服务] 根据数据时间判断数据采集器已停止');
+            this.updateCollectorStatus(false);
+            return {
+              success: true,
+              isRunning: false
+            };
           }
+        } else {
+          console.log('[雨量数据服务] 无法获取有效的数据点时间，假设数据采集器已停止');
+          this.updateCollectorStatus(false);
+          return {
+            success: true,
+            isRunning: false
+          };
         }
       } catch (fetchError) {
-        console.error('[雨量数据服务] 获取首页数据错误:', fetchError);
+        console.error('[雨量数据服务] 获取数据错误:', fetchError);
+        // 出错时假设数据采集器已停止
+        this.updateCollectorStatus(false);
+        return {
+          success: true,
+          isRunning: false
+        };
       }
-
-      // 返回当前状态
-      return {
-        success: true,
-        isRunning: this.isCollectorRunning.value
-      };
     } catch (error) {
       console.error('[雨量数据服务] 检查数据采集器状态错误:', error);
+      // 出错时假设数据采集器已停止
+      this.updateCollectorStatus(false);
       return { success: false, error: error.message };
     }
   }
