@@ -18,15 +18,23 @@ const rainfallService = {
   // 更新次数
   updateCount: ref(0),
 
+  // 全局定时器状态
+  pollingActive: ref(false),
+
+  // 上次更新时间戳，用于检测数据是否在更新
+  lastUpdateTimestamp: ref(0),
+
   // 更新雨量数据的方法
   updateRainfallData(rainfallValue, level, percentage) {
     this.currentRainfall.value = rainfallValue;
     this.rainfallLevel.value = level;
     this.rainfallPercentage.value = percentage;
-    this.lastUpdateTime.value = new Date();
-    this.updateCount.value++;
 
     const now = new Date();
+    this.lastUpdateTime.value = now;
+    this.lastUpdateTimestamp.value = now.getTime();
+    this.updateCount.value++;
+
     console.log(`[雨量服务] 更新雨量数据 #${this.updateCount.value}: ${rainfallValue} mm/h (${level.text}, ${percentage}%) (时间: ${now.getHours()}:${now.getMinutes()}:${now.getSeconds()})`);
   },
 
