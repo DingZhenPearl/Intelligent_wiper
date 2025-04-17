@@ -96,6 +96,17 @@ export default {
 
     // 更新图表数据
     const updateChartData = () => {
+      // 如果是10分钟视图，使用调整后的时间戳
+      if (activePeriod.value === 0 && chartData.value.length > 0) {
+        console.log('使用调整后的时间戳显示10分钟视图数据');
+
+        // 检查数据中是否有adjustedDate字段
+        const hasAdjustedDate = Object.prototype.hasOwnProperty.call(chartData.value[0], 'adjustedDate');
+        if (hasAdjustedDate) {
+          console.log('检测到adjustedDate字段，使用调整后的时间戳');
+        }
+      }
+
       chartOption.value.series[0].data = chartData.value;
     };
 

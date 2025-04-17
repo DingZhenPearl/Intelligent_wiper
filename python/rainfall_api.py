@@ -50,18 +50,33 @@ def get_statistics_data(username='admin', period='10min'):
                 # 转换为前端所需格式
                 formatted_data = []
                 for item in result["data"]:
+                    # 将时间调整到最近的整5秒
+                    original_timestamp = item["timestamp"]
+                    seconds = original_timestamp.second
+                    # 计算最近的整5秒
+                    rounded_seconds = round(seconds / 5) * 5
+                    if rounded_seconds == 60:  # 处理进位情况
+                        rounded_timestamp = original_timestamp.replace(second=0)
+                        rounded_timestamp = rounded_timestamp + timedelta(minutes=1)
+                    else:
+                        rounded_timestamp = original_timestamp.replace(second=rounded_seconds)
+
+                    # 记录调整前后的时间戳信息
+                    log(f"调整时间戳: {original_timestamp.strftime('%H:%M:%S')} -> {rounded_timestamp.strftime('%H:%M:%S')}")
+
                     formatted_data.append({
                         "value": [
-                            item["timestamp"].strftime("%H:%M:%S"),
+                            rounded_timestamp.strftime("%H:%M:%S"),
                             item["rainfall_value"]
                         ],
-                        "originalDate": item["timestamp"].strftime("%Y-%m-%d %H:%M:%S"),
+                        "originalDate": original_timestamp.strftime("%Y-%m-%d %H:%M:%S"),
+                        "adjustedDate": rounded_timestamp.strftime("%Y-%m-%d %H:%M:%S"),
                         "timeKey": {
-                            "second": item["timestamp"].strftime("%H:%M:%S"),
-                            "minute": item["timestamp"].strftime("%H:%M"),
-                            "tenMinute": f"{item['timestamp'].hour}:{item['timestamp'].minute // 10 * 10:02d}",
-                            "hour": f"{item['timestamp'].hour}:00",
-                            "day": f"{item['timestamp'].month}/{item['timestamp'].day}"
+                            "second": rounded_timestamp.strftime("%H:%M:%S"),
+                            "minute": rounded_timestamp.strftime("%H:%M"),
+                            "tenMinute": f"{rounded_timestamp.hour}:{rounded_timestamp.minute // 10 * 10:02d}",
+                            "hour": f"{rounded_timestamp.hour}:00",
+                            "day": f"{rounded_timestamp.month}/{rounded_timestamp.day}"
                         },
                         "rainfallValue": item["rainfall_value"],
                         "unit": "mm/h"
