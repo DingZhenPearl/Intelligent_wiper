@@ -11,12 +11,13 @@
         :class="{ active: activePeriod === index }"
         @click="changePeriod(index)"
       >
-        {{ period.label }}
+        <span class="time-btn-icon">{{ getTimeIcon(index) }}</span>
+        <span class="time-btn-label">{{ period.label }}</span>
       </button>
     </div>
 
-    <!-- 添加本小时雨量显示 -->
-    <div v-if="activePeriod === 0" class="hour-rainfall">
+    <!-- 添加本小时雨量显示，只在小时视图中显示 -->
+    <div v-if="activePeriod === 1" class="hour-rainfall">
       <div class="rainfall-card">
         <h3>{{ currentHourDisplay }}时累计雨量</h3>
         <div class="rainfall-value">{{ currentHourTotal }} <span>mm</span></div>
@@ -645,6 +646,17 @@ export default {
       console.log("组件已卸载");
     });
 
+    // 获取时间图标
+    const getTimeIcon = (index) => {
+      switch (index) {
+        case 0: return '⏱️'; // 10分钟内
+        case 1: return '🕐'; // 一小时内
+        case 2: return '📅'; // 一天内
+        case 3: return '📊'; // 总数据
+        default: return '⏱️';
+      }
+    };
+
     return {
       chartOption,
       timePeriods,
@@ -652,7 +664,8 @@ export default {
       changePeriod,
       currentHourTotal,
       currentHourDisplay,
-      chart: chartRef
+      chart: chartRef,
+      getTimeIcon
     }
   }
 }
@@ -675,28 +688,90 @@ export default {
   .time-selector {
     display: flex;
     justify-content: center; /* 居中对齐 */
-    margin: 0 auto var(--spacing-md) auto; /* 下方添加间距 */
+    margin: 0 auto var(--spacing-lg) auto; /* 增加下方间距 */
     width: 100%;
     max-width: 800px;
-    gap: var(--spacing-sm);
+    gap: var(--spacing-md); /* 按钮间距 */
+    padding: var(--spacing-sm); /* 添加内边距 */
+    background-color: rgba(0, 0, 0, 0.03); /* 轻微背景色 */
+    border-radius: var(--border-radius-lg); /* 圆角 */
 
     .time-btn {
       flex: 1;
-      padding: var(--spacing-sm);
-      background-color: var(--color-bg-secondary);
-      border: 1px solid var(--color-border);
-      border-radius: var(--border-radius);
-      font-size: var(--font-size-sm);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: var(--spacing-md) var(--spacing-sm); /* 内边距 */
+      min-height: 90px; /* 固定最小高度 */
+      background-color: white; /* 白色背景 */
+      border: 2px solid var(--color-border); /* 边框 */
+      border-radius: var(--border-radius-lg); /* 更大的圆角 */
+      font-size: var(--font-size-lg); /* 更大字体 */
+      font-weight: 600; /* 更粗字体 */
       cursor: pointer;
       transition: all 0.3s ease;
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1); /* 更明显的阴影 */
+      position: relative; /* 用于添加指示器 */
+      overflow: hidden; /* 确保指示器不超出按钮 */
+      color: var(--color-text); /* 文本颜色 */
 
-      &:hover {
-        background-color: var(--color-primary-light);
+      /* 按钮图标 */
+      .time-btn-icon {
+        font-size: 2rem; /* 更大的图标 */
+        margin-bottom: var(--spacing-sm); /* 增加间距 */
       }
 
+      /* 按钮文本 */
+      .time-btn-label {
+        text-align: center;
+        font-weight: 600; /* 加粗文本 */
+      }
+
+      /* 悬停效果 */
+      &:hover {
+        background-color: var(--color-primary-light);
+        transform: translateY(-3px); /* 更明显的上浮效果 */
+        box-shadow: 0 6px 12px rgba(0, 0, 0, 0.2); /* 更强的阴影 */
+        border-color: var(--color-primary); /* 边框颜色变化 */
+      }
+
+      /* 活跃状态 */
       &.active {
-        background-color: var(--color-primary);
+        background: linear-gradient(135deg, var(--color-primary), var(--color-primary-dark)); /* 渐变背景 */
         color: white;
+        border-color: var(--color-primary-dark); /* 深色边框 */
+        box-shadow: 0 6px 12px rgba(var(--color-primary-rgb), 0.4); /* 更强的彩色阴影 */
+        transform: translateY(-2px); /* 轻微上浮 */
+
+        /* 底部指示器 */
+        &::after {
+          content: '';
+          position: absolute;
+          bottom: 0;
+          left: 0;
+          width: 100%;
+          height: 5px; /* 更粗的指示器 */
+          background-color: var(--color-primary-dark);
+        }
+
+        /* 添加顶部标记 */
+        &::before {
+          content: '✓';
+          position: absolute;
+          top: 5px;
+          right: 5px;
+          font-size: 14px;
+          background-color: white;
+          color: var(--color-primary-dark);
+          width: 20px;
+          height: 20px;
+          border-radius: 50%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+        }
       }
     }
   }
@@ -706,29 +781,48 @@ export default {
     margin-bottom: var(--spacing-md);
 
     .rainfall-card {
-      background-color: var(--color-bg-secondary);
-      border-radius: var(--border-radius);
-      padding: var(--spacing-sm);
+      background: linear-gradient(135deg, var(--color-bg-secondary), white); /* 渐变背景 */
+      border-radius: var(--border-radius-lg); /* 更大的圆角 */
+      padding: var(--spacing-md); /* 增加内边距 */
       text-align: center;
-      max-width: 200px;
+      max-width: 250px; /* 增加宽度 */
       margin: 0 auto;
-      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15); /* 增强阴影 */
+      border: 1px solid rgba(0, 0, 0, 0.05); /* 添加边框 */
+      position: relative; /* 用于添加装饰元素 */
+      overflow: hidden; /* 防止装饰元素溢出 */
+
+      /* 装饰元素 - 左上角水滴图标 */
+      &::before {
+        content: '💧'; /* 水滴emoji */
+        position: absolute;
+        top: 5px;
+        left: 5px;
+        font-size: 18px;
+        opacity: 0.5;
+      }
 
       h3 {
-        margin: 0 0 var(--spacing-xs);
+        margin: 0 0 var(--spacing-sm); /* 增加间距 */
         font-size: var(--font-size-md);
         color: var(--color-text-secondary);
+        font-weight: 600; /* 加粗 */
       }
 
       .rainfall-value {
-        font-size: var(--font-size-xl);
+        font-size: 2.2rem; /* 更大的字体 */
         font-weight: bold;
         color: var(--color-primary);
+        text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.1); /* 添加文本阴影 */
+        display: flex;
+        align-items: baseline;
+        justify-content: center;
 
         span {
           font-size: var(--font-size-md);
           font-weight: normal;
           color: var(--color-text-secondary);
+          margin-left: 5px; /* 添加间距 */
         }
       }
     }
@@ -754,10 +848,46 @@ export default {
 
     .time-selector {
       flex-wrap: wrap;
+      gap: var(--spacing-sm); /* 减小间距 */
+      padding: var(--spacing-xs); /* 减小内边距 */
 
       .time-btn {
-        font-size: var(--font-size-xs);
-        padding: var(--spacing-xs);
+        min-width: calc(50% - var(--spacing-sm)); /* 确保每行最多两个按钮 */
+        margin-bottom: var(--spacing-sm);
+        padding: var(--spacing-sm) var(--spacing-xs);
+        min-height: 70px; /* 减小高度 */
+
+        .time-btn-icon {
+          font-size: 1.5rem; /* 缩小图标，但保持可见 */
+          margin-bottom: var(--spacing-xs);
+        }
+
+        .time-btn-label {
+          font-size: var(--font-size-sm);
+        }
+
+        /* 移动端上的活跃状态 */
+        &.active::before {
+          width: 16px; /* 缩小标记 */
+          height: 16px;
+          font-size: 10px;
+          top: 3px;
+          right: 3px;
+        }
+      }
+    }
+
+    /* 移动端上的本小时雨量显示 */
+    .hour-rainfall .rainfall-card {
+      max-width: 180px;
+      padding: var(--spacing-xs);
+
+      h3 {
+        font-size: var(--font-size-sm);
+      }
+
+      .rainfall-value {
+        font-size: var(--font-size-lg);
       }
     }
 
