@@ -534,6 +534,7 @@ export default {
     }
   }
 
+  /* 移动端样式 - 保持不变 */
   @media screen and (max-width: 380px) {
     padding: 10px;
 
@@ -544,6 +545,183 @@ export default {
 
     .form-group .input-wrapper input {
       font-size: 16px; // 确保在小屏设备上不会自动缩放
+    }
+  }
+
+  /* 浏览器中的样式优化 */
+  @media screen and (min-width: 768px) {
+    .login-card {
+      max-width: 800px; /* 显著增大最大宽度 */
+      padding: 60px;
+      border-radius: 12px;
+      box-shadow: 0 15px 30px rgba(0, 0, 0, 0.15);
+
+      .app-title {
+        font-size: 42px; /* 显著增大字体大小 */
+        margin-bottom: 50px;
+      }
+    }
+
+    .mode-switch {
+      margin-bottom: 50px;
+
+      .switch-btn {
+        padding: 20px 30px;
+        font-size: 22px; /* 显著增大字体大小 */
+        border-radius: 8px;
+      }
+    }
+
+    .login-form {
+      .form-group {
+        margin-bottom: 45px;
+
+        label {
+          font-size: 22px; /* 显著增大字体大小 */
+          margin-bottom: 15px;
+        }
+
+        .input-wrapper {
+          .input-icon {
+            width: 32px; /* 显著增大图标大小 */
+            height: 32px;
+            left: 15px;
+          }
+
+          input {
+            padding: 22px 20px 18px 60px; /* 显著增大内边距 */
+            font-size: 22px; /* 显著增大字体大小 */
+            border-bottom-width: 3px;
+          }
+        }
+      }
+
+      .error-message {
+        font-size: 18px;
+        padding: 12px;
+        margin-bottom: 20px;
+      }
+
+      .remember-me {
+        margin: 25px 0;
+
+        .checkbox-container {
+          input[type="checkbox"] {
+            width: 22px; /* 显著增大复选框大小 */
+            height: 22px;
+            margin-right: 12px;
+          }
+
+          .checkbox-text {
+            font-size: 20px;
+          }
+        }
+      }
+
+      .btn-submit {
+        padding: 22px;
+        font-size: 22px;
+        border-radius: 8px;
+        margin-top: 45px;
+        letter-spacing: 1px;
+      }
+    }
+  }
+
+  /* 大屏幕浏览器优化 */
+  @media screen and (min-width: 1200px) {
+    .login-card {
+      max-width: 900px; /* 显著增大宽度 */
+      padding: 70px;
+    }
+
+    /* 优化背景装饰 */
+    .background-decoration {
+      background-size: 40px 40px; /* 显著增大背景图案大小 */
+      opacity: 0.6; /* 降低不透明度，使其更加美观 */
+    }
+
+    /* 大屏幕上的元素进一步增大 */
+    .app-title {
+      font-size: 48px !important;
+      margin-bottom: 60px !important;
+    }
+
+    .mode-switch .switch-btn {
+      padding: 24px 36px;
+      font-size: 24px;
+    }
+
+    .login-form {
+      .form-group {
+        margin-bottom: 55px;
+
+        label {
+          font-size: 24px;
+          margin-bottom: 18px;
+        }
+      }
+
+      .input-wrapper {
+        .input-icon {
+          width: 36px;
+          height: 36px;
+          left: 18px;
+        }
+
+        input {
+          padding: 26px 24px 22px 70px;
+          font-size: 24px;
+          border-bottom-width: 3px;
+        }
+      }
+
+      .remember-me .checkbox-container {
+        .checkbox-text {
+          font-size: 22px;
+        }
+
+        input[type="checkbox"] {
+          width: 24px;
+          height: 24px;
+          margin-right: 14px;
+        }
+      }
+
+      .btn-submit {
+        padding: 26px;
+        font-size: 24px;
+        margin-top: 55px;
+        letter-spacing: 1.5px;
+      }
+    }
+  }
+
+  /* 超大屏幕优化 */
+  @media screen and (min-width: 1600px) {
+    .login-card {
+      max-width: 1000px; /* 超大屏幕上的最大宽度 */
+      padding: 80px;
+    }
+
+    .app-title {
+      font-size: 52px !important;
+    }
+
+    /* 增强视觉效果 */
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
+  }
+
+  /* 添加浏览器特定的悬停效果 */
+  @media (hover: hover) and (pointer: fine) {
+    .btn-submit:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 8px 16px rgba(98, 0, 238, 0.25);
+    }
+
+    .switch-btn:hover:not(.active) {
+      background: rgba(98, 0, 238, 0.15);
+      transform: translateY(-2px);
     }
   }
 }
