@@ -96,6 +96,15 @@ export default {
 
     // 更新图表数据
     const updateChartData = () => {
+      // 打印当前视图和数据长度
+      console.log(`当前视图: ${activePeriod.value}, 数据长度: ${chartData.value.length}`);
+
+      // 如果是全部视图，打印第一个数据点进行调试
+      if (activePeriod.value === 3 && chartData.value.length > 0) {
+        console.log('全部视图第一个数据点:', chartData.value[0]);
+        console.log('全部视图第一个数据点的value:', chartData.value[0].value);
+      }
+
       // 如果是10分钟视图，使用调整后的时间戳
       if (activePeriod.value === 0 && chartData.value.length > 0) {
         console.log('使用调整后的时间戳显示10分钟视图数据');
@@ -107,7 +116,43 @@ export default {
         }
       }
 
-      chartOption.value.series[0].data = chartData.value;
+      // 处理数据并更新图表
+      if (activePeriod.value === 3) { // 全部视图需要特殊处理
+        // 确保日期格式正确
+        const processedData = chartData.value.map(item => {
+          // 尝试将日期字符串转换为日期对象
+          try {
+            // 如果是字符串，尝试解析
+            if (typeof item.value[0] === 'string') {
+              const parts = item.value[0].split('/');
+              if (parts.length === 2) {
+                const month = parseInt(parts[0]);
+                const day = parseInt(parts[1]);
+                const date = new Date();
+                date.setMonth(month - 1);
+                date.setDate(day);
+                date.setHours(0, 0, 0, 0);
+
+                // 创建新的数据点
+                return {
+                  ...item,
+                  value: [date, item.value[1]]
+                };
+              }
+            }
+            return item;
+          } catch (e) {
+            console.error('处理日期出错:', e);
+            return item;
+          }
+        });
+
+        console.log('处理后的全部视图数据:', processedData);
+        chartOption.value.series[0].data = processedData;
+      } else {
+        // 其他视图直接使用原始数据
+        chartOption.value.series[0].data = chartData.value;
+      }
     };
 
     // 更新X轴配置
@@ -326,9 +371,10 @@ export default {
         }
 
         chartOption.value.xAxis = {
-          type: 'category',
-          data: labels,
+          type: 'time',  // 使用时间类型
           boundaryGap: false,
+          min: startTime.getTime(),
+          max: today.getTime(),
           splitLine: {
             show: true,
             lineStyle: {
@@ -337,6 +383,10 @@ export default {
             }
           },
           axisLabel: {
+            formatter: function(value) {
+              const date = new Date(value);
+              return `${date.getMonth() + 1}/${date.getDate()}`;
+            },
             interval: 2, // 每3天显示一个标签
             showMinLabel: true,
             showMaxLabel: true
@@ -344,7 +394,8 @@ export default {
           axisPointer: {
             label: {
               formatter: function (params) {
-                return params.value;
+                const date = new Date(params.value);
+                return `${date.getMonth() + 1}/${date.getDate()}`;
               }
             }
           },
@@ -359,7 +410,7 @@ export default {
             },
             data: [
               {
-                xAxis: `${today.getMonth() + 1}/${today.getDate()}`,
+                xAxis: today.getTime(),
                 label: {
                   formatter: '今天',
                   position: 'start'
@@ -421,9 +472,11 @@ export default {
               }
             }];
           } else {
-            // 总数据视图
+            // 总数据视图 - 使用时间戳
+            const today = new Date(now);
+            today.setHours(0, 0, 0, 0);
             markLineData = [{
-              xAxis: `${now.getMonth() + 1}/${now.getDate()}`,
+              xAxis: today.getTime(),
               label: {
                 formatter: '今天',
                 position: 'start'

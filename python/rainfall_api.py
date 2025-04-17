@@ -103,22 +103,56 @@ def get_statistics_data(username='admin', period='10min'):
             if result["success"]:
                 # 转换为前端所需格式
                 formatted_data = []
-                for item in result["data"]:
-                    formatted_data.append({
-                        "value": [
-                            item["timestamp"].strftime("%H:%M"),
-                            item["avg_rainfall"]
-                        ],
-                        "originalDate": item["timestamp"].strftime("%Y-%m-%d %H:%M:%S"),
-                        "timeKey": {
-                            "minute": item["timestamp"].strftime("%H:%M"),
-                            "tenMinute": f"{item['timestamp'].hour}:{item['timestamp'].minute // 10 * 10:02d}",
-                            "hour": f"{item['timestamp'].hour}:00",
-                            "day": f"{item['timestamp'].month}/{item['timestamp'].day}"
-                        },
-                        "rainfallValue": item["avg_rainfall"],
-                        "unit": "mm/h"
-                    })
+
+                # 生成过去1小时的每10分钟的时间点
+                time_slots = []
+                slot_start = start_time.replace(minute=start_time.minute // 10 * 10, second=0, microsecond=0)
+                log(f"一小时视图: 开始时间 = {slot_start.strftime('%H:%M')}, 结束时间 = {now.strftime('%H:%M')}")
+                while slot_start <= now:
+                    time_slots.append(slot_start)
+                    slot_start += timedelta(minutes=10)
+                log(f"一小时视图: 生成了 {len(time_slots)} 个时间点")
+
+                # 对每个时间点处理
+                for slot in time_slots:
+                    # 查找该时间点的数据
+                    # 将时间戳的秒和微秒设为0进行比较
+                    slot_data = [item for item in result["data"] if item["timestamp"].replace(second=0, microsecond=0) == slot]
+                    log(f"一小时视图: 时间点 {slot.strftime('%H:%M')} 找到 {len(slot_data)} 个数据点")
+
+                    if slot_data:  # 如果有数据，使用实际数据
+                        item = slot_data[0]  # 取第一个数据点
+                        formatted_data.append({
+                            "value": [
+                                item["timestamp"].strftime("%H:%M"),
+                                item["avg_rainfall"]
+                            ],
+                            "originalDate": item["timestamp"].strftime("%Y-%m-%d %H:%M:%S"),
+                            "timeKey": {
+                                "minute": item["timestamp"].strftime("%H:%M"),
+                                "tenMinute": f"{item['timestamp'].hour}:{item['timestamp'].minute // 10 * 10:02d}",
+                                "hour": f"{item['timestamp'].hour}:00",
+                                "day": f"{item['timestamp'].month}/{item['timestamp'].day}"
+                            },
+                            "rainfallValue": item["avg_rainfall"],
+                            "unit": "mm/h"
+                        })
+                    else:  # 如果没有数据，显示为0
+                        formatted_data.append({
+                            "value": [
+                                slot.strftime("%H:%M"),
+                                0.0
+                            ],
+                            "originalDate": slot.strftime("%Y-%m-%d %H:%M:%S"),
+                            "timeKey": {
+                                "minute": slot.strftime("%H:%M"),
+                                "tenMinute": f"{slot.hour}:{slot.minute // 10 * 10:02d}",
+                                "hour": f"{slot.hour}:00",
+                                "day": f"{slot.month}/{slot.day}"
+                            },
+                            "rainfallValue": 0.0,
+                            "unit": "mm/h"
+                        })
 
                 # 获取当前小时累计雨量
                 hour_data = get_current_hour_data(username)
@@ -141,20 +175,52 @@ def get_statistics_data(username='admin', period='10min'):
             if result["success"]:
                 # 转换为前端所需格式
                 formatted_data = []
-                for item in result["data"]:
-                    formatted_data.append({
-                        "value": [
-                            item["timestamp"].strftime("%H:00"),
-                            item["avg_rainfall"]
-                        ],
-                        "originalDate": item["timestamp"].strftime("%Y-%m-%d %H:%M:%S"),
-                        "timeKey": {
-                            "hour": f"{item['timestamp'].hour}:00",
-                            "day": f"{item['timestamp'].month}/{item['timestamp'].day}"
-                        },
-                        "rainfallValue": item["avg_rainfall"],
-                        "unit": "mm/h"
-                    })
+
+                # 生成过去24小时的每小时的时间点
+                time_slots = []
+                slot_start = start_time.replace(minute=0, second=0, microsecond=0)
+                log(f"一天视图: 开始时间 = {slot_start.strftime('%Y-%m-%d %H:%M')}, 结束时间 = {now.strftime('%Y-%m-%d %H:%M')}")
+                while slot_start <= now:
+                    time_slots.append(slot_start)
+                    slot_start += timedelta(hours=1)
+                log(f"一天视图: 生成了 {len(time_slots)} 个时间点")
+
+                # 对每个时间点处理
+                for slot in time_slots:
+                    # 查找该时间点的数据
+                    # 将时间戳的分钟、秒和微秒设为0进行比较
+                    slot_data = [item for item in result["data"] if item["timestamp"].replace(minute=0, second=0, microsecond=0) == slot]
+                    log(f"一天视图: 时间点 {slot.strftime('%H:00')} 找到 {len(slot_data)} 个数据点")
+
+                    if slot_data:  # 如果有数据，使用实际数据
+                        item = slot_data[0]  # 取第一个数据点
+                        formatted_data.append({
+                            "value": [
+                                item["timestamp"].strftime("%H:00"),
+                                item["avg_rainfall"]
+                            ],
+                            "originalDate": item["timestamp"].strftime("%Y-%m-%d %H:%M:%S"),
+                            "timeKey": {
+                                "hour": f"{item['timestamp'].hour}:00",
+                                "day": f"{item['timestamp'].month}/{item['timestamp'].day}"
+                            },
+                            "rainfallValue": item["avg_rainfall"],
+                            "unit": "mm/h"
+                        })
+                    else:  # 如果没有数据，显示为0
+                        formatted_data.append({
+                            "value": [
+                                slot.strftime("%H:00"),
+                                0.0
+                            ],
+                            "originalDate": slot.strftime("%Y-%m-%d %H:%M:%S"),
+                            "timeKey": {
+                                "hour": f"{slot.hour}:00",
+                                "day": f"{slot.month}/{slot.day}"
+                            },
+                            "rainfallValue": 0.0,
+                            "unit": "mm/h"
+                        })
 
                 return {
                     "success": True,
@@ -173,19 +239,51 @@ def get_statistics_data(username='admin', period='10min'):
             if result["success"]:
                 # 转换为前端所需格式
                 formatted_data = []
-                for item in result["data"]:
-                    formatted_data.append({
-                        "value": [
-                            item["date"].strftime("%m/%d"),
-                            item["total_rainfall"]
-                        ],
-                        "originalDate": item["date"].strftime("%Y-%m-%d"),
-                        "timeKey": {
-                            "day": f"{item['date'].month}/{item['date'].day}"
-                        },
-                        "rainfallValue": item["total_rainfall"],
-                        "unit": "mm/天"
-                    })
+
+                # 生成过去30天的每天的时间点
+                time_slots = []
+                slot_start = start_time.replace(hour=0, minute=0, second=0, microsecond=0)
+                log(f"全部视图: 开始时间 = {slot_start.strftime('%Y-%m-%d')}, 结束时间 = {now.strftime('%Y-%m-%d')}")
+                while slot_start <= now:
+                    time_slots.append(slot_start)
+                    slot_start += timedelta(days=1)
+                log(f"全部视图: 生成了 {len(time_slots)} 个时间点")
+
+                # 对每个时间点处理
+                for slot in time_slots:
+                    # 查找该时间点的数据
+                    slot_date = slot.date()
+                    # 注意：item["date"]已经是date类型，不需要再调用date()方法
+                    slot_data = [item for item in result["data"] if item["date"] == slot_date]
+                    log(f"全部视图: 时间点 {slot_date.strftime('%Y-%m-%d')} 找到 {len(slot_data)} 个数据点")
+
+                    if slot_data:  # 如果有数据，使用实际数据
+                        item = slot_data[0]  # 取第一个数据点
+                        formatted_data.append({
+                            "value": [
+                                item["date"].strftime("%m/%d"),
+                                item["total_rainfall"]
+                            ],
+                            "originalDate": item["date"].strftime("%Y-%m-%d"),
+                            "timeKey": {
+                                "day": f"{item['date'].month}/{item['date'].day}"
+                            },
+                            "rainfallValue": item["total_rainfall"],
+                            "unit": "mm/天"
+                        })
+                    else:  # 如果没有数据，显示为0
+                        formatted_data.append({
+                            "value": [
+                                slot.strftime("%m/%d"),
+                                0.0
+                            ],
+                            "originalDate": slot.strftime("%Y-%m-%d"),
+                            "timeKey": {
+                                "day": f"{slot.month}/{slot.day}"
+                            },
+                            "rainfallValue": 0.0,
+                            "unit": "mm/天"
+                        })
 
                 return {
                     "success": True,
