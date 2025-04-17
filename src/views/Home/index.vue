@@ -122,35 +122,82 @@ export default {
 
     // 停止数据轮询和数据采集器
     const stopServiceDataCheck = async () => {
+      console.log('[Home] 开始停止数据采集器和轮询...');
+
+      // 显示正在停止的消息
+      backendMessage.value = '正在停止数据采集器...';
+      mockDataMessage.value = '正在停止数据采集器...';
+      mockDataSuccess.value = true;
+
       // 停止前端数据轮询
       if (dataPollingInterval.value) {
         console.log('[Home] 停止前端数据轮询');
         clearInterval(dataPollingInterval.value);
         dataPollingInterval.value = null;
-        isDataPollingActive.value = false;
+        console.log('[Home] 前端数据轮询已停止');
+      } else {
+        console.log('[Home] 没有正在运行的前端数据轮询');
       }
 
       try {
-        // 不再检查登录状态
+        // 从 localStorage 中获取用户名
+        let username = 'admin'; // 默认用户名
+        const userDataStr = localStorage.getItem('user');
+        if (userDataStr) {
+          try {
+            const userData = JSON.parse(userDataStr);
+            if (userData && userData.username) {
+              username = userData.username;
+            }
+          } catch (e) {
+            console.error('[Home] 解析用户信息出错:', e);
+          }
+        }
+        console.log(`[Home] 停止数据采集器，用户名: ${username}`);
 
         // 调用后端 API 停止数据采集器
         console.log('[Home] 调用后端 API 停止数据采集器');
         const result = await rainfallDataService.stopDataCollector();
+        console.log('[Home] 停止数据采集器API返回结果:', result);
 
         if (result.success) {
+          // 设置数据采集器状态为非活动
+          isDataPollingActive.value = false;
+          console.log('[Home] 数据采集器状态已设置为非活动');
+
           // 设置提示消息
           backendMessage.value = '数据采集已停止，点击按钮开始收集数据';
+          mockDataMessage.value = '数据采集器已停止';
           console.log(`[Home] 停止数据采集器成功: ${result.message}`);
 
           // 获取最新状态
           fetchRainfallFromBackend();
+
+          // 5秒后清除消息
+          setTimeout(() => {
+            mockDataMessage.value = '';
+          }, 5000);
         } else {
           console.error(`[Home] 停止数据采集器失败: ${result.error}`);
           backendMessage.value = `停止数据采集器失败: ${result.error || '未知错误'}`;
+          mockDataMessage.value = `停止数据采集器失败: ${result.error || '未知错误'}`;
+          mockDataSuccess.value = false;
+
+          // 5秒后清除错误消息
+          setTimeout(() => {
+            mockDataMessage.value = '';
+          }, 5000);
         }
       } catch (error) {
         console.error('[Home] 停止数据采集器错误:', error);
         backendMessage.value = `停止数据采集器错误: ${error.message || '未知错误'}`;
+        mockDataMessage.value = `停止数据采集器错误: ${error.message || '未知错误'}`;
+        mockDataSuccess.value = false;
+
+        // 5秒后清除错误消息
+        setTimeout(() => {
+          mockDataMessage.value = '';
+        }, 5000);
       }
     };
 
@@ -316,16 +363,49 @@ export default {
     };
 
     // 生命周期钩子
-    onMounted(() => {
+    onMounted(async () => {
       console.log('首页组件已挂载');
 
       // 不再检查登录状态
 
-      // 只获取一次数据，不启动轮询
-      fetchRainfallFromBackend();
+      // 检查localStorage中的数据采集器状态
+      const storedStatus = localStorage.getItem('collectorRunning');
+      console.log(`[首页] 页面加载时localStorage中的数据采集器状态: ${storedStatus}`);
 
-      // 设置初始提示消息
-      backendMessage.value = '点击按钮开始收集数据';
+      // 检查数据采集器状态
+      try {
+        console.log('[首页] 开始检查数据采集器状态...');
+        const statusResult = await rainfallDataService.checkCollectorStatus();
+        console.log('[首页] 检查数据采集器状态结果:', statusResult);
+
+        if (statusResult.success) {
+          // 更新数据采集器状态
+          isDataPollingActive.value = statusResult.isRunning;
+          console.log(`[首页] 检查到数据采集器状态: ${isDataPollingActive.value ? '运行中' : '已停止'}`);
+
+          // 如果数据采集器正在运行，启动数据轮询
+          if (isDataPollingActive.value) {
+            console.log('[首页] 数据采集器正在运行，启动数据轮询');
+            startServiceDataCheck();
+            backendMessage.value = '数据采集器正在运行中';
+          } else {
+            console.log('[首页] 数据采集器未运行，只获取一次数据');
+            // 只获取一次数据，不启动轮询
+            fetchRainfallFromBackend();
+            backendMessage.value = '点击按钮开始收集数据';
+          }
+        } else {
+          console.error(`[首页] 检查数据采集器状态失败: ${statusResult.error}`);
+          // 只获取一次数据，不启动轮询
+          fetchRainfallFromBackend();
+          backendMessage.value = '点击按钮开始收集数据';
+        }
+      } catch (error) {
+        console.error(`[首页] 检查数据采集器状态错误: ${error}`);
+        // 只获取一次数据，不启动轮询
+        fetchRainfallFromBackend();
+        backendMessage.value = '点击按钮开始收集数据';
+      }
     });
 
     onUnmounted(() => {

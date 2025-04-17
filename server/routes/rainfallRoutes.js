@@ -103,8 +103,10 @@ router.get('/stop', async (req, res) => {
     }
     console.log(`最终使用的用户名: '${username}'`);
 
-    // 停止数据采集器
-    await stopRainfallCollector();
+    // 停止数据采集器，传递用户名
+    console.log(`调用stopRainfallCollector函数，用户名: ${username}`);
+    const result = await stopRainfallCollector(username);
+    console.log(`stopRainfallCollector函数返回结果:`, result);
 
     res.json({
       success: true,

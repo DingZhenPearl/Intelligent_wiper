@@ -54,7 +54,7 @@ async function startRainfallCollector(username = 'admin') {
   console.log(`最终用户名参数: ${usernameParam}`);
 
   const scriptPath = path.join(__dirname, '..', config.paths.RAINFALL_COLLECTOR_SCRIPT);
-  
+
   collectorProcess = spawn('python', [
     scriptPath,
     '--action=start',
@@ -103,21 +103,38 @@ async function startRainfallCollector(username = 'admin') {
 
 /**
  * 停止雨量数据采集器
+ * @param {string} username - 用户名，默认为'admin'
  * @returns {Promise<void>}
  */
-async function stopRainfallCollector() {
+async function stopRainfallCollector(username = 'admin') {
+  console.log(`开始停止雨量数据采集器，用户名: ${username}`);
+
   // 设置不重启标志
   shouldRestartCollector = false;
   console.log('设置不重启标志，确保数据采集器不会自动重启');
 
   // 如果有正在运行的数据采集器，强制停止
   if (collectorProcess) {
-    console.log(`强制停止数据采集器`);
+    console.log(`强制停止数据采集器进程`);
 
-    // 使用SIGKILL信号强制终止进程
+    // 在Windows环境下使用更可靠的方式终止进程
     try {
-      collectorProcess.kill('SIGKILL');
-      console.log('已发送SIGKILL信号终止数据采集器');
+      // 先尝试使用标准的kill方法
+      collectorProcess.kill();
+      console.log('已发送终止信号给数据采集器进程');
+
+      // 等待一小段时间
+      await new Promise(resolve => setTimeout(resolve, 500));
+
+      // 如果进程还在运行，尝试使用SIGKILL
+      if (collectorProcess) {
+        try {
+          collectorProcess.kill('SIGKILL');
+          console.log('已发送SIGKILL信号终止数据采集器');
+        } catch (killError) {
+          console.error('使用SIGKILL终止数据采集器时出错:', killError);
+        }
+      }
     } catch (killError) {
       console.error('终止数据采集器时出错:', killError);
     }
@@ -127,14 +144,20 @@ async function stopRainfallCollector() {
 
     // 确保进程引用被清除
     collectorProcess = null;
+  } else {
+    console.log('没有找到正在运行的数据采集器进程');
   }
 
   // 再次确认没有数据采集器在运行
+  console.log('开始终止所有Python进程...');
   await terminateAllPythonProcesses();
+  console.log('所有Python进程已终止');
 
   // 确保数据采集器变量被重置
   collectorProcess = null;
-  console.log('数据采集器已强制停止，数据库中的雨量数据保持不变');
+  console.log(`数据采集器已强制停止，用户 ${username} 的数据库中的雨量数据保持不变`);
+
+  return { success: true, message: '数据采集器已停止' };
 }
 
 /**
