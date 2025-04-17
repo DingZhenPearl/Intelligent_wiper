@@ -236,20 +236,35 @@ def insert_raw_rainfall(username, timestamp, rainfall_value, rainfall_level, rai
         conn.close()
 
 def get_rainfall_level(value):
-    """根据雨量值获取雨量级别"""
+    """根据雨量值获取雨量级别
+
+    各个雨量级别的范围：
+    - none: < 0.3 mm/h
+    - light: 0.3-2.2 mm/h
+    - medium: 2.2-4.0 mm/h
+    - heavy: 4.0-33 mm/h
+
+    各个级别的百分比范围均匀分布：
+    - none: 0-25%
+    - light: 26-50%
+    - medium: 51-75%
+    - heavy: 76-100%
+    """
     if value < 0.3:
-        return 'none', 0
+        # 将范围 0-0.3 映射到 0-25
+        percentage = round(min(value, 0.3) * 25 / 0.3)
+        return 'none', percentage
     elif value >= 0.3 and value <= 2.2:
-        # 将范围 0.3-2.2 映射到 1-25
-        percentage = round(1 + (value - 0.3) * (25 - 1) / (2.2 - 0.3))
+        # 将范围 0.3-2.2 映射到 26-50
+        percentage = round(26 + (value - 0.3) * (50 - 26) / (2.2 - 0.3))
         return 'light', percentage
     elif value > 2.2 and value <= 4.0:
-        # 将范围 2.2-4.0 映射到 26-50
-        percentage = round(26 + (value - 2.2) * (50 - 26) / (4.0 - 2.2))
+        # 将范围 2.2-4.0 映射到 51-75
+        percentage = round(51 + (value - 2.2) * (75 - 51) / (4.0 - 2.2))
         return 'medium', percentage
     else:
-        # 将范围 4.0-33 映射到 51-100
-        percentage = round(51 + min(value, 33) - 4.0) * (100 - 51) / (33 - 4.0)
+        # 将范围 4.0-33 映射到 76-100
+        percentage = round(76 + (min(value, 33) - 4.0) * (100 - 76) / (33 - 4.0))
         return 'heavy', percentage
 
 def generate_mock_data(username='admin', days=7):
@@ -283,7 +298,20 @@ def generate_mock_data(username='admin', days=7):
 
         # 生成一个新的数据点，作为起始点
         now = datetime.now()
-        rainfall_value = round(random.uniform(0, 5), 1)  # 生成一个0-5之间的随机值
+
+        # 随机选择一个雨量级别，概率相等
+        rain_type = random.choice(['none', 'light', 'medium', 'heavy'])
+
+        # 根据选择的级别生成对应范围内的随机值
+        if rain_type == 'none':
+            rainfall_value = round(random.uniform(0, 0.29), 1)
+        elif rain_type == 'light':
+            rainfall_value = round(random.uniform(0.3, 2.2), 1)
+        elif rain_type == 'medium':
+            rainfall_value = round(random.uniform(2.21, 4.0), 1)
+        else:  # heavy
+            rainfall_value = round(random.uniform(4.01, 33.0), 1)
+
         level, percentage = get_rainfall_level(rainfall_value)
 
         log(f"生成新的起始数据点: {rainfall_value} mm/h ({level}, {percentage}%), 用户名: {username}")

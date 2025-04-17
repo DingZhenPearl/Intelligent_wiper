@@ -39,18 +39,44 @@ def signal_handler(sig, frame):
     running = False
 
 def simulate_rainfall_data():
-    """模拟生成雨量数据"""
+    """模拟生成雨量数据
+
+    生成的数据将均匀分布在各个雨量级别中：
+    - none: < 0.3 mm/h
+    - light: 0.3-2.2 mm/h
+    - medium: 2.2-4.0 mm/h
+    - heavy: 4.0-33 mm/h
+    """
     global last_value
 
-    # 生成合理的随机变化
-    change = (random.random() * 4 - 2) * 0.1
-    last_value = max(0, min(33, last_value + change))
+    # 随机决定是否生成一个全新的值，而不是基于上一个值的微小变化
+    # 这样可以确保各个雨量级别的概率相等
+    if random.random() < 0.3:  # 30%的概率生成全新的值
+        # 随机选择一个雨量级别，概率相等
+        rain_type = random.choice(['none', 'light', 'medium', 'heavy'])
+
+        # 根据选择的级别生成对应范围内的随机值
+        if rain_type == 'none':
+            last_value = random.uniform(0, 0.29)
+        elif rain_type == 'light':
+            last_value = random.uniform(0.3, 2.2)
+        elif rain_type == 'medium':
+            last_value = random.uniform(2.21, 4.0)
+        else:  # heavy
+            last_value = random.uniform(4.01, 33.0)
+    else:
+        # 70%的概率保持微小变化，以确保数据的连续性
+        change = (random.random() * 4 - 2) * 0.1
+        last_value = max(0, min(33, last_value + change))
 
     # 计算雨量值，保留一位小数
     rainfall_value = round(last_value, 1)
 
     # 获取雨量级别和百分比
     level, percentage = get_rainfall_level(rainfall_value)
+
+    # 记录日志，方便调试
+    log(f"Generated rainfall data: {rainfall_value} mm/h, level: {level}, percentage: {percentage}%")
 
     return {
         "timestamp": datetime.now(),
