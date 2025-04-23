@@ -27,6 +27,12 @@ const routes = [
     meta: { requiresAuth: true }
   },
   {
+    path: '/weather',
+    name: 'Weather',
+    component: () => import('../views/Weather/index.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
     path: '/',
     redirect: () => {
       // 检查是否已登录，决定重定向到哪里
@@ -46,10 +52,10 @@ const router = createRouter({
 router.beforeEach((to, from, next) => {
   // 检查用户是否已登录
   const isLoggedIn = localStorage.getItem('user') !== null
-  
+
   // 检查将要进入的路由是否需要认证
   const requiresAuth = to.matched.some(record => record.meta.requiresAuth)
-  
+
   if (requiresAuth && !isLoggedIn) {
     // 如果需要认证但未登录，重定向到登录页面
     next('/login')

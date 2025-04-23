@@ -4,7 +4,7 @@
     <div class="main-content">
       <router-view />
     </div>
-    
+
     <!-- 底部导航栏，在登录页面不显示 -->
     <nav class="bottom-nav" v-if="!isLoginPage">
       <router-link to="/home" class="nav-item">
@@ -19,6 +19,10 @@
         <span class="icon">⚙️</span>
         <span>状态与设置</span>
       </router-link>
+      <router-link to="/weather" class="nav-item">
+        <span class="icon">🌤️</span>
+        <span>天气预报</span>
+      </router-link>
     </nav>
   </div>
 </template>
@@ -32,7 +36,7 @@ export default {
   setup() {
     const route = useRoute()
     const isLoginPage = computed(() => route.path === '/login')
-    
+
     return {
       isLoginPage
     }
@@ -71,7 +75,7 @@ export default {
   justify-content: space-around;
   background-color: white;
   padding: var(--spacing-xs) 0 var(--spacing-md);
-  box-shadow: 0 -2px var(--spacing-sm) rgba(0, 0, 0, 0.1); 
+  box-shadow: 0 -2px var(--spacing-sm) rgba(0, 0, 0, 0.1);
   z-index: 100;
   height: auto;
   width: 100%; /* 确保全宽 */
@@ -86,7 +90,7 @@ export default {
   font-size: var(--font-size-sm);
   padding: var(--spacing-xs) 0;
   transition: color 0.3s;
-  width: 33%;
+  width: 25%;
 }
 
 .nav-item .icon {
@@ -106,18 +110,18 @@ export default {
     max-width: 90%;
     margin: 0 auto;
   }
-  
+
   .bottom-nav {
     width: 90%; /* 改为百分比宽度 */
     /* left 和 transform 已在基础样式中设置 */
     border-radius: var(--border-radius-lg) var(--border-radius-lg) 0 0;
     padding: var(--spacing-xs) 0 var(--spacing-md);
   }
-  
+
   .nav-item {
     font-size: var(--font-size-md);
   }
-  
+
   .nav-item .icon {
     font-size: var(--font-size-xl);
   }
@@ -127,7 +131,7 @@ export default {
   .main-content {
     max-width: 85%;
   }
-  
+
   .bottom-nav {
     width: 85%; /* 大屏幕稍微窄一些 */
     max-width: 1600px; /* 设置最大宽度防止在超宽屏幕上过宽 */
@@ -138,7 +142,7 @@ export default {
   .main-content {
     max-width: 80%;
   }
-  
+
   .bottom-nav {
     width: 80%; /* 在更大的屏幕上进一步减小比例 */
   }

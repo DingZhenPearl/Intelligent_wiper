@@ -8,6 +8,7 @@ const errorHandler = require('./middleware/errorHandler');
 const authRoutes = require('./routes/authRoutes');
 const rainfallRoutes = require('./routes/rainfallRoutes');
 const statusRoutes = require('./routes/statusRoutes');
+const weatherRoutes = require('./routes/weatherRoutes');
 
 // 创建Express应用
 const app = express();
@@ -37,6 +38,7 @@ app.use(session({
 app.use('/api/auth', authRoutes);
 app.use('/api/rainfall', rainfallRoutes);
 app.use('/api/status', statusRoutes);
+app.use('/api/weather', weatherRoutes);
 
 // 处理所有前端路由 - 必须放在所有API路由之后
 app.get('*', (req, res) => {
