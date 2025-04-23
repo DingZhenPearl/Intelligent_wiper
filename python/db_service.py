@@ -20,7 +20,7 @@ db_config = {
     "port": 3306,
     "user": "root",
     "password": "mwYgR7#*X2",
-    "database": "wx_to_vue_db"
+    "database": "intelligent_wiper_db"
 }
 
 def get_db_connection():
@@ -52,7 +52,7 @@ def get_db_connection():
                 cursor.execute(f"CREATE DATABASE IF NOT EXISTS {db_config['database']}")
             temp_conn.commit()
             temp_conn.close()
-            
+
             # 重新尝试连接
             connection = pymysql.connect(
                 host=db_config['host'],
@@ -94,9 +94,9 @@ def register_user(username, password):
     """注册新用户"""
     if not username or not password:
         return {"success": False, "error": "用户名和密码不能为空"}
-    
+
     hashed_password = generate_password_hash(password)
-    
+
     conn = get_db_connection()
     try:
         with conn.cursor() as cursor:
@@ -116,11 +116,11 @@ def register_user(username, password):
 def authenticate_user(username, password):
     """验证用户登录"""
     log(f"尝试验证用户: {username}")
-    
+
     if not username or not password:
         log("用户名或密码为空")
         return {"success": False, "error": "用户名和密码不能为空"}
-    
+
     try:
         # 测试数据库连接
         conn = get_db_connection()
@@ -131,19 +131,19 @@ def authenticate_user(username, password):
                 if not cursor.fetchone():
                     log("用户表不存在，初始化数据库...")
                     init_db()
-                    
+
                 cursor.execute('SELECT * FROM users WHERE username = %s', (username,))
                 user = cursor.fetchone()
-                
+
                 if not user:
                     log(f"用户不存在: {username}")
                     return {"success": False, "error": "用户名或密码错误"}
-                
+
                 # 检查密码是否匹配
                 try:
                     password_match = check_password_hash(user['password'], password)
                     log(f"密码验证结果: {password_match}")
-                    
+
                     if password_match:
                         return {
                             "success": True,
@@ -165,7 +165,7 @@ def authenticate_user(username, password):
                             "username": user['username']
                         }
                     return {"success": False, "error": "密码验证错误"}
-                
+
         except Exception as query_err:
             log(f"查询数据库时发生错误: {str(query_err)}")
             log(traceback.format_exc())
@@ -182,13 +182,13 @@ def get_user_by_id(user_id):
     """通过ID获取用户信息"""
     if not user_id:
         return {"success": False, "error": "用户ID不能为空"}
-    
+
     conn = get_db_connection()
     try:
         with conn.cursor() as cursor:
             cursor.execute('SELECT id, username, created_at FROM users WHERE id = %s', (user_id,))
             user = cursor.fetchone()
-            
+
             if user:
                 return {
                     "success": True,
@@ -204,16 +204,16 @@ def get_user_by_id(user_id):
 if __name__ == '__main__':
     try:
         parser = argparse.ArgumentParser(description='数据库服务')
-        parser.add_argument('--action', choices=['init', 'register', 'login', 'get_user'], 
+        parser.add_argument('--action', choices=['init', 'register', 'login', 'get_user'],
                             required=True, help='执行的操作')
         parser.add_argument('--username', help='用户名')
         parser.add_argument('--password', help='密码')
         parser.add_argument('--user_id', help='用户ID')
-        
+
         args = parser.parse_args()
-        
+
         log(f"执行操作: {args.action}")
-        
+
         if args.action == 'init':
             result = init_db()
         elif args.action == 'register':
@@ -234,11 +234,11 @@ if __name__ == '__main__':
                 result = get_user_by_id(args.user_id)
         else:
             result = {"success": False, "error": "未知操作"}
-        
+
         # 以标准JSON格式输出结果，确保使用 utf-8 编码
         print(json.dumps(result, ensure_ascii=False))
         sys.stdout.flush()  # 确保输出被立即刷新
-        
+
     except Exception as e:
         log(f"脚本执行错误: {str(e)}")
         log(traceback.format_exc())

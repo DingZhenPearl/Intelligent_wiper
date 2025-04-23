@@ -24,7 +24,7 @@ db_config = {
     "port": 3306,
     "user": "root",
     "password": "mwYgR7#*X2",
-    "database": "wx_to_vue_db"
+    "database": "intelligent_wiper_db"
 }
 
 def get_db_connection():

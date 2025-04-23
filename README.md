@@ -1,4 +1,4 @@
-# wx_to_vue
+# Intelligent-Wiper
 
 ## Project setup
 ```
