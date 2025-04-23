@@ -67,9 +67,7 @@
       <div class="current-weather">
         <h2>{{ cityInfo.name }} {{ cityInfo.adm2 ? `(${cityInfo.adm2})` : '' }} 当前天气</h2>
         <div class="weather-info">
-          <div class="weather-icon">
-            <img :src="getWeatherIconUrl(nowWeather.now.icon)" :alt="nowWeather.now.text" class="qweather-icon" />
-          </div>
+          <WeatherIcon :iconCode="nowWeather.now.icon" size="large" class="current-weather-icon" />
           <div class="weather-details">
             <p class="temperature">{{ nowWeather.now.temp }}°C</p>
             <p class="weather-desc">{{ nowWeather.now.text }}</p>
@@ -193,9 +191,7 @@
             class="forecast-item"
           >
             <div class="forecast-date">{{ formatDate(day.fxDate) }}</div>
-            <div class="forecast-icon">
-              <img :src="getWeatherIconUrl(day.iconDay)" :alt="day.textDay" class="qweather-icon" />
-            </div>
+            <WeatherIcon :iconCode="day.iconDay" size="small" class="forecast-weather-icon" />
             <div class="forecast-temp">{{ day.tempMin }}°C ~ {{ day.tempMax }}°C</div>
             <div class="forecast-desc">{{ day.textDay }}</div>
             <div class="forecast-wind">{{ day.windDirDay }} {{ day.windScaleDay }}级</div>
@@ -214,9 +210,13 @@
 <script>
 import { ref, onMounted, computed } from 'vue';
 import weatherService from '@/services/weatherService';
+import WeatherIcon from '@/components/WeatherIcon.vue';
 
 export default {
   name: 'WeatherView',
+  components: {
+    WeatherIcon
+  },
   setup() {
     // 响应式状态
     const cityName = ref('绵阳');
@@ -287,10 +287,7 @@ export default {
       }
     };
 
-    // 获取天气图标URL
-    const getWeatherIconUrl = (iconCode) => {
-      return `https://dev.qweather.com/assets/images/icons/${iconCode}.svg`;
-    };
+
 
     // 生成折线图的点坐标
     const getLinePoints = () => {
@@ -423,7 +420,7 @@ export default {
       lastUpdateTime,
       getWeatherData,
       selectCity,
-      getWeatherIconUrl,
+
       getRainColor,
       getLinePoints,
       getAreaPath,
@@ -680,11 +677,8 @@ export default {
         justify-content: center;
         margin-bottom: var(--spacing-lg);
 
-        .weather-icon {
-          .qweather-icon {
-            width: 80px;
-            height: 80px;
-          }
+        .current-weather-icon {
+          margin-right: var(--spacing-lg);
         }
 
         .weather-details {
@@ -891,13 +885,8 @@ export default {
             text-align: center;
           }
 
-          .forecast-icon {
+          .forecast-weather-icon {
             margin: var(--spacing-xs) 0;
-
-            .qweather-icon {
-              width: 48px;
-              height: 48px;
-            }
           }
 
           .forecast-temp {
