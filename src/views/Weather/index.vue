@@ -11,7 +11,7 @@
             type="text"
             id="city"
             v-model="cityName"
-            placeholder="输入城市名称"
+            placeholder="输入城市名称或点击定位"
             @keyup.enter="getWeatherData"
           />
           <button
@@ -22,6 +22,14 @@
             <span class="material-icons">close</span>
           </button>
         </div>
+        <button
+          class="location-btn"
+          @click="getLocationWeather"
+          :disabled="isLoading"
+          :title="'使用当前位置'"
+        >
+          <span class="icon material-icons">my_location</span>
+        </button>
         <button
           class="search-btn"
           @click="getWeatherData"
@@ -55,10 +63,62 @@
     <!-- 错误信息 -->
     <div v-if="hasError && !isLoading" class="error-message">
       <p>{{ errorMessage }}</p>
-      <button @click="getWeatherData" class="retry-btn">
-        <span class="icon material-icons">refresh</span>
-        重试
-      </button>
+
+      <!-- 地理位置权限错误的特殊处理 -->
+      <div v-if="errorMessage.includes('地理位置') || errorMessage.includes('拒绝')" class="permission-help">
+        <p>浏览器没有显示地理位置权限请求或权限被拒绝：</p>
+
+        <div class="permission-steps">
+          <div class="step">
+            <div class="step-number">1</div>
+            <div class="step-content">
+              <h4>尝试点击下面的按钮触发权限请求</h4>
+              <button @click="requestLocationPermission" class="permission-btn">
+                <span class="icon material-icons">location_searching</span>
+                请求地理位置权限
+              </button>
+            </div>
+          </div>
+
+          <div class="step">
+            <div class="step-number">2</div>
+            <div class="step-content">
+              <h4>如果没有看到权限请求对话框，请手动检查浏览器设置</h4>
+              <ol>
+                <li>点击地址栏左侧的锁图标或信息图标</li>
+                <li>在弹出的菜单中找到“位置”权限</li>
+                <li>将其设置为“允许”</li>
+                <li>刷新页面并再次尝试</li>
+              </ol>
+            </div>
+          </div>
+
+          <div class="step">
+            <div class="step-number">3</div>
+            <div class="step-content">
+              <h4>如果您使用的是本地开发环境</h4>
+              <p>浏览器可能会限制非HTTPS环境下的地理位置功能。请尝试：</p>
+              <ul>
+                <li>在Chrome中访问 <code>chrome://flags/#unsafely-treat-insecure-origin-as-secure</code></li>
+                <li>添加您的本地开发URL并启用该选项</li>
+                <li>重启浏览器后再次尝试</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="buttons-container">
+        <button @click="getWeatherData" class="retry-btn">
+          <span class="icon material-icons">refresh</span>
+          重试
+        </button>
+
+        <button @click="cityName = '绵阳'; getWeatherData(false)" class="default-city-btn">
+          <span class="icon material-icons">location_city</span>
+          使用默认城市
+        </button>
+      </div>
     </div>
 
     <!-- 天气数据 -->
@@ -219,10 +279,11 @@ export default {
   },
   setup() {
     // 响应式状态
-    const cityName = ref('绵阳');
+    const cityName = ref('');
     const isLoading = ref(false);
     const errorMessage = ref(null);
     const lastUpdateTime = ref(null);
+    const isUsingLocation = ref(false);
 
     // 热门城市列表
     const popularCities = [
@@ -254,6 +315,63 @@ export default {
       return minutelyWeather.value.minutely.some(minute => parseFloat(minute.precip) > 0);
     });
 
+    // 请求地理位置权限
+    const requestLocationPermission = () => {
+      if (navigator.geolocation) {
+        console.log('手动触发地理位置权限请求...');
+        navigator.geolocation.getCurrentPosition(
+          () => {
+            console.log('成功获取地理位置权限！');
+            // 权限获取成功后获取天气数据
+            getLocationWeather();
+          },
+          (error) => {
+            console.error('权限请求失败:', error.message);
+            errorMessage.value = `地理位置权限请求失败: ${error.message}`;
+          },
+          { timeout: 10000, maximumAge: 60000, enableHighAccuracy: true }
+        );
+      } else {
+        errorMessage.value = '您的浏览器不支持地理位置功能';
+      }
+    };
+
+    // 获取当前位置天气
+    const getLocationWeather = async () => {
+      isLoading.value = true;
+      errorMessage.value = null;
+      isUsingLocation.value = true;
+      cityName.value = ''; // 清空城市名称输入
+
+      try {
+        const result = await weatherService.fetchWeatherByLocation();
+
+        if (!result.success) {
+          errorMessage.value = result.error || '获取天气数据失败';
+          // 如果定位失败，默认使用绵阳
+          if (!cityName.value) {
+            cityName.value = '绵阳';
+            await getWeatherData(false);
+          }
+        } else {
+          // 更新最后更新时间
+          lastUpdateTime.value = new Date();
+          // 如果成功获取到城市信息，更新城市名称显示
+          if (cityInfo.value && cityInfo.value.name) {
+            cityName.value = cityInfo.value.name;
+          }
+        }
+      } catch (err) {
+        console.error('获取当前位置天气错误:', err);
+        errorMessage.value = err.message || '网络错误';
+        // 如果定位失败，默认使用绵阳
+        cityName.value = '绵阳';
+        await getWeatherData(false);
+      } finally {
+        isLoading.value = false;
+      }
+    };
+
     // 选择热门城市
     const selectCity = (city) => {
       cityName.value = city;
@@ -261,14 +379,19 @@ export default {
     };
 
     // 获取天气数据
-    const getWeatherData = async () => {
-      if (!cityName.value) {
+    const getWeatherData = async (updateLocation = true) => {
+      if (!cityName.value && updateLocation) {
+        // 如果没有城市名称，尝试使用定位
+        await getLocationWeather();
+        return;
+      } else if (!cityName.value) {
         errorMessage.value = '请输入城市名称';
         return;
       }
 
       isLoading.value = true;
       errorMessage.value = null;
+      isUsingLocation.value = false;
 
       try {
         const result = await weatherService.fetchAllWeatherData(cityName.value);
@@ -402,7 +525,8 @@ export default {
 
     // 组件挂载时获取数据
     onMounted(() => {
-      getWeatherData();
+      // 尝试获取当前位置的天气数据
+      getLocationWeather();
     });
 
     return {
@@ -419,6 +543,8 @@ export default {
       popularCities,
       lastUpdateTime,
       getWeatherData,
+      getLocationWeather,
+      requestLocationPermission,
       selectCity,
 
       getRainColor,
@@ -504,6 +630,44 @@ export default {
           .material-icons {
             font-size: 18px;
           }
+        }
+      }
+
+      .location-btn {
+        height: 48px;
+        width: 48px;
+        background-color: #039be5; /* 浅蓝色 */
+        color: white;
+        border: none;
+        border-radius: 8px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.3s ease;
+        box-shadow: 0 3px 6px rgba(0, 0, 0, 0.2);
+        margin-right: var(--spacing-xs);
+
+        &:hover:not(:disabled) {
+          background-color: #0288d1;
+          box-shadow: 0 4px 8px rgba(0, 0, 0, 0.25);
+          transform: translateY(-1px);
+        }
+
+        &:active:not(:disabled) {
+          background-color: #0277bd;
+          transform: translateY(1px);
+          box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+        }
+
+        &:disabled {
+          background-color: #78909c;
+          cursor: not-allowed;
+          box-shadow: none;
+        }
+
+        .icon {
+          font-size: 20px;
         }
       }
 
@@ -627,7 +791,7 @@ export default {
   .error-message {
     background-color: #fff5f5;
     border: 1px solid #ffebeb;
-    border-radius: 4px;
+    border-radius: 8px;
     padding: var(--spacing-md);
     margin: var(--spacing-lg) 0;
     text-align: center;
@@ -635,23 +799,161 @@ export default {
     p {
       color: #e53e3e;
       margin-bottom: var(--spacing-md);
+      font-weight: 500;
     }
 
-    .retry-btn {
-      background-color: #e53e3e;
+    .permission-help {
+      background-color: #f8f9fa;
+      border-radius: 6px;
+      padding: var(--spacing-md);
+      margin-bottom: var(--spacing-md);
+      text-align: left;
+
+      p {
+        color: #333;
+        font-weight: 500;
+        margin-bottom: var(--spacing-sm);
+      }
+
+      .permission-steps {
+        display: flex;
+        flex-direction: column;
+        gap: var(--spacing-md);
+
+        .step {
+          display: flex;
+          gap: var(--spacing-md);
+          align-items: flex-start;
+
+          .step-number {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 28px;
+            height: 28px;
+            background-color: #0277bd;
+            color: white;
+            border-radius: 50%;
+            font-weight: bold;
+            flex-shrink: 0;
+          }
+
+          .step-content {
+            flex: 1;
+
+            h4 {
+              margin: 0 0 var(--spacing-xs) 0;
+              color: #333;
+              font-size: var(--font-size-md);
+            }
+
+            p {
+              margin: 0 0 var(--spacing-xs) 0;
+            }
+
+            ol, ul {
+              margin: var(--spacing-xs) 0;
+              padding-left: var(--spacing-lg);
+
+              li {
+                color: #555;
+                margin-bottom: var(--spacing-xs);
+                line-height: 1.5;
+              }
+            }
+
+            code {
+              background-color: #e0e0e0;
+              padding: 2px 4px;
+              border-radius: 3px;
+              font-family: monospace;
+              font-size: 90%;
+              word-break: break-all;
+            }
+          }
+        }
+      }
+
+      .permission-btn {
+        background-color: #0288d1;
+        color: white;
+        border: none;
+        border-radius: 6px;
+        padding: var(--spacing-sm) var(--spacing-md);
+        font-size: var(--font-size-md);
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: var(--spacing-xs);
+        margin: var(--spacing-sm) 0;
+        transition: all 0.3s ease;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+
+        &:hover {
+          background-color: #0277bd;
+          transform: translateY(-1px);
+          box-shadow: 0 3px 6px rgba(0, 0, 0, 0.15);
+        }
+
+        &:active {
+          transform: translateY(1px);
+          box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+        }
+
+        .icon {
+          font-size: var(--font-size-lg);
+        }
+      }
+    }
+
+    .buttons-container {
+      display: flex;
+      justify-content: center;
+      gap: var(--spacing-md);
+      flex-wrap: wrap;
+    }
+
+    .retry-btn, .default-city-btn {
       color: white;
       border: none;
-      border-radius: 4px;
+      border-radius: 6px;
       padding: var(--spacing-sm) var(--spacing-md);
       font-size: var(--font-size-md);
       cursor: pointer;
       display: flex;
       align-items: center;
       gap: var(--spacing-xs);
-      margin: 0 auto;
+      transition: all 0.3s ease;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+
+      &:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 3px 6px rgba(0, 0, 0, 0.15);
+      }
+
+      &:active {
+        transform: translateY(1px);
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+      }
 
       .icon {
         font-size: var(--font-size-lg);
+      }
+    }
+
+    .retry-btn {
+      background-color: #e53e3e;
+
+      &:hover {
+        background-color: #c53030;
+      }
+    }
+
+    .default-city-btn {
+      background-color: #4299e1;
+
+      &:hover {
+        background-color: #3182ce;
       }
     }
   }
@@ -922,6 +1224,29 @@ export default {
 }
 
 @media (max-width: 600px) {
+  .error-message {
+    .permission-help {
+      .permission-steps {
+        .step {
+          flex-direction: column;
+
+          .step-number {
+            margin-bottom: var(--spacing-xs);
+          }
+        }
+      }
+    }
+
+    .buttons-container {
+      flex-direction: column;
+      gap: var(--spacing-sm);
+
+      button {
+        width: 100%;
+      }
+    }
+  }
+
   .weather-container {
     .city-selector {
       .search-container {
@@ -933,10 +1258,18 @@ export default {
           max-width: none;
         }
 
+        .location-btn, .search-btn {
+          margin-top: var(--spacing-xs);
+        }
+
+        .location-btn {
+          width: 100%;
+          margin-right: 0;
+        }
+
         .search-btn {
           width: 100%;
           justify-content: center;
-          margin-top: var(--spacing-xs);
         }
       }
 

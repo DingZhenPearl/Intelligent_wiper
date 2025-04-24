@@ -11,16 +11,32 @@ const { maskSensitiveInfo } = require('./securityUtils');
 function handlePythonStderr(stderr) {
   if (!stderr) return;
 
-  // 将stderr输出分行处理
-  const lines = stderr.split('\n');
-  for (const line of lines) {
-    if (line.trim()) {
-      // 如果是LOG开头，则视为日志而非错误
-      if (line.includes('LOG:')) {
-        console.log(`Python脚本日志: ${line.trim()}`);
-      } else {
-        console.error(`Python脚本错误: ${line.trim()}`);
+  // 尝试使用 UTF-8 解码
+  try {
+    // 将stderr输出分行处理
+    const lines = stderr.split('\n');
+    for (const line of lines) {
+      if (line.trim()) {
+        // 如果是LOG开头，则视为日志而非错误
+        if (line.includes('LOG:')) {
+          console.log(`Python脚本日志: ${line.trim()}`);
+        } else {
+          console.error(`Python脚本错误: ${line.trim()}`);
+        }
       }
+    }
+  } catch (e) {
+    // 如果解码失败，尝试使用 Buffer 处理
+    console.error('处理Python stderr时出错:', e);
+    console.error('原始stderr内容:', stderr);
+
+    try {
+      // 尝试将内容转换为 UTF-8
+      const buffer = Buffer.from(stderr, 'binary');
+      const utf8Text = buffer.toString('utf8');
+      console.log('转换后的stderr内容:', utf8Text);
+    } catch (convErr) {
+      console.error('转换stderr内容失败:', convErr);
     }
   }
 }
@@ -56,7 +72,13 @@ function executePythonScript(scriptPath, action, params = {}) {
       pythonPath: 'python', // 根据环境可能需要修改为'python3'
       scriptPath: path.dirname(scriptPath),
       args: args,
-      // 不指定编码，使用默认编码
+      // 指定编码为 UTF-8
+      encoding: 'utf8',
+      // 设置环境变量，确保Python使用UTF-8编码
+      env: {
+        ...process.env,
+        PYTHONIOENCODING: 'utf-8'
+      },
       stderrParser: line => {
         // 收集stderr输出
         if (!options.stderr) options.stderr = '';
@@ -111,7 +133,16 @@ function executePythonScript(scriptPath, action, params = {}) {
       console.log('使用exec方法执行Python脚本...');
       const command = `python "${scriptPath}" ${args.join(' ')}`;
 
-      exec(command, (error, stdout, stderr) => {
+      // 设置环境变量，确保Python使用UTF-8编码
+      const execOptions = {
+        env: {
+          ...process.env,
+          PYTHONIOENCODING: 'utf-8'
+        },
+        encoding: 'utf8'
+      };
+
+      exec(command, execOptions, (error, stdout, stderr) => {
         // 使用新的函数处理stderr
         handlePythonStderr(stderr);
 

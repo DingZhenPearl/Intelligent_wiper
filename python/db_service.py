@@ -6,13 +6,30 @@ import traceback
 from werkzeug.security import generate_password_hash, check_password_hash
 import io
 
-# 设置 stdout 编码为 utf-8
+# 设置 stdout 和 stderr 编码为 utf-8
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
 
 # 添加日志记录
 def log(message):
-    print(f"LOG: {message}", file=sys.stderr)
-    sys.stderr.flush()  # 确保日志立即输出
+    try:
+        # 确保消息是字符串
+        if not isinstance(message, str):
+            message = str(message)
+        # 使用 utf-8 编码输出日志
+        print(f"LOG: {message}", file=sys.stderr)
+        sys.stderr.flush()  # 确保日志立即输出
+    except Exception as e:
+        # 如果出现编码错误，尝试使用 ASCII 编码
+        print(f"LOG: [编码错误] {str(e)}", file=sys.stderr)
+        try:
+            # 尝试将消息转换为 ASCII
+            ascii_message = message.encode('ascii', 'replace').decode('ascii')
+            print(f"LOG: {ascii_message}", file=sys.stderr)
+        except:
+            # 如果仍然失败，输出一个通用消息
+            print("LOG: [无法显示日志消息]", file=sys.stderr)
+        sys.stderr.flush()
 
 # 直接在代码中定义数据库配置
 db_config = {

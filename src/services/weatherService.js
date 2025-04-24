@@ -2,8 +2,17 @@
 import { ref } from 'vue';
 import { get } from './api';
 
+// 地理位置状态
+const locationStatus = ref({
+  isLocating: false,
+  error: null,
+  position: null
+});
+
 // 创建一个单例服务，用于获取和缓存天气数据
 const weatherService = {
+  // 地理位置状态
+  locationStatus,
   // 实时天气数据
   nowWeather: ref(null),
 
@@ -42,18 +51,26 @@ const weatherService = {
 
   /**
    * 获取城市信息
-   * @param {string} cityName - 城市名称，默认为"绵阳"
+   * @param {string} cityName - 城市名称，如果提供经纬度则可为空
+   * @param {number} longitude - 经度，可选
+   * @param {number} latitude - 纬度，可选
    * @returns {Promise<Object>} - 包含城市信息的Promise
    */
-  async fetchCityInfo(cityName = '绵阳') {
+  async fetchCityInfo(cityName = '绵阳', longitude = null, latitude = null) {
     try {
       this.loading.value.city = true;
       this.error.value.city = null;
 
-      console.log(`[天气服务] 开始获取城市信息，城市名称: ${cityName}`);
+      let url;
 
-      // 构建API请求URL
-      const url = `/api/weather/city?location=${encodeURIComponent(cityName)}`;
+      // 如果提供了经纬度，优先使用经纬度查询
+      if (longitude !== null && latitude !== null) {
+        console.log(`[天气服务] 开始获取城市信息，经度: ${longitude}, 纬度: ${latitude}`);
+        url = `/api/weather/city?location=${longitude},${latitude}`;
+      } else {
+        console.log(`[天气服务] 开始获取城市信息，城市名称: ${cityName}`);
+        url = `/api/weather/city?location=${encodeURIComponent(cityName)}`;
+      }
 
       // 发送请求
       const response = await get(url);
@@ -303,6 +320,138 @@ const weatherService = {
       };
     } finally {
       this.loading.value.forecast = false;
+    }
+  },
+
+  /**
+   * 获取当前地理位置
+   * @returns {Promise<Object>} - 包含地理位置信息的Promise
+   */
+  async getCurrentLocation() {
+    return new Promise((resolve, reject) => {
+      // 检查浏览器是否支持地理位置 API
+      if (!navigator.geolocation) {
+        const error = '您的浏览器不支持地理位置';
+        this.locationStatus.value.error = error;
+        reject(new Error(error));
+        return;
+      }
+
+      // 更新定位状态
+      this.locationStatus.value.isLocating = true;
+      this.locationStatus.value.error = null;
+
+      console.log('即将请求地理位置权限...');
+
+      // 检查浏览器是否支持安全上下文
+      if (window.isSecureContext === false) {
+        console.warn('当前不是安全上下文（非HTTPS），地理位置功能可能受限');
+      }
+
+      // 获取当前位置
+      navigator.geolocation.getCurrentPosition(
+        // 成功回调
+        (position) => {
+          const { latitude, longitude } = position.coords;
+          console.log(`[天气服务] 获取地理位置成功: 经度 ${longitude}, 纬度 ${latitude}`);
+
+          // 更新位置信息
+          this.locationStatus.value.position = { latitude, longitude };
+          this.locationStatus.value.isLocating = false;
+
+          resolve({ latitude, longitude });
+        },
+        // 错误回调
+        (error) => {
+          let errorMessage = '';
+
+          switch (error.code) {
+            case error.PERMISSION_DENIED:
+              errorMessage = '用户拒绝了地理位置请求，请在浏览器设置中允许使用地理位置';
+              break;
+            case error.POSITION_UNAVAILABLE:
+              errorMessage = '位置信息不可用，请检查您的设备定位服务是否开启';
+              break;
+            case error.TIMEOUT:
+              errorMessage = '获取用户位置超时，请检查您的网络连接并重试';
+              break;
+            default:
+              errorMessage = '获取位置时发生未知错误，请尝试手动输入城市名称';
+          }
+
+          console.error(`[天气服务] 获取地理位置失败: ${errorMessage}`);
+
+          // 更新错误信息
+          this.locationStatus.value.error = errorMessage;
+          this.locationStatus.value.isLocating = false;
+
+          reject(new Error(errorMessage));
+        },
+        // 选项
+        {
+          enableHighAccuracy: true, // 高精度
+          timeout: 10000,           // 10 秒超时
+          maximumAge: 300000        // 5 分钟缓存
+        }
+      );
+    });
+  },
+
+  /**
+   * 根据地理位置获取天气数据
+   * @returns {Promise<Object>} - 包含天气数据的Promise
+   */
+  async fetchWeatherByLocation() {
+    try {
+      // 获取当前位置
+      const { latitude, longitude } = await this.getCurrentLocation();
+
+      // 先获取城市信息
+      const cityResult = await this.fetchCityInfo(null, longitude, latitude);
+
+      if (!cityResult.success) {
+        return cityResult; // 返回错误
+      }
+
+      const locationId = this.cityInfo.value.id;
+
+      // 并行获取实时天气、预报和分钟级降水数据
+      const [nowResult, forecastResult, minutelyResult] = await Promise.all([
+        this.fetchNowWeather(locationId),
+        this.fetchForecastWeather(locationId),
+        this.fetchMinutelyWeather({ locationId, lon: longitude, lat: latitude })
+      ]);
+
+      // 检查结果
+      if (!nowResult.success) {
+        return nowResult; // 返回实时天气错误
+      }
+
+      if (!forecastResult.success) {
+        return forecastResult; // 返回预报错误
+      }
+
+      // 分钟级降水数据失败不影响整体显示，只记录错误
+      if (!minutelyResult.success) {
+        console.warn('[天气服务] 获取分钟级降水数据失败:', minutelyResult.error);
+      }
+
+      // 所有数据获取成功
+      return {
+        success: true,
+        data: {
+          city: this.cityInfo.value,
+          now: this.nowWeather.value,
+          forecast: this.forecastWeather.value,
+          minutely: this.minutelyWeather.value
+        }
+      };
+    } catch (error) {
+      console.error('[天气服务] 根据地理位置获取天气数据错误:', error);
+      return {
+        success: false,
+        error: error.message || '获取天气数据错误'
+      };
     }
   },
 
