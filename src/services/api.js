@@ -1,10 +1,18 @@
 import { isNative } from '../utils/platform';
 import { CapacitorHttp } from '@capacitor/core';
 
-// 设置固定的API基础URL
+// 动态获取API基础URL
 const getBaseUrl = () => {
-  // 使用固定服务器地址，不再从localStorage获取
-  return 'http://10.29.101.231:3000';
+  if (isNative()) {
+    // 原生应用中使用固定地址
+    // 注意：在生产环境中，这应该是您的实际服务器地址
+    return 'http://10.29.101.231:3000';
+  } else {
+    // Web环境中，使用当前页面的协议和主机
+    const protocol = window.location.protocol;
+    const host = window.location.host;
+    return `${protocol}//${host}`;
+  }
 };
 
 // 格式化响应对象，使其与fetch API返回格式一致
@@ -22,7 +30,7 @@ const formatResponse = (capResponse) => {
 // 处理错误情况
 const handleApiError = (error, url) => {
   console.error(`API请求失败: ${url}`, error);
-  
+
   // 创建一个类似fetch的错误响应
   return {
     ok: false,
@@ -42,13 +50,14 @@ const apiRequest = async (endpoint, options = {}) => {
   // 确保endpoint总是以单斜杠开头
   const normalizedEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
   const url = `${baseUrl}${normalizedEndpoint}`;
-  
+
+  console.log(`API基础URL: ${baseUrl}`);
   console.log(`发起API请求: ${url}`, {
     method: options.method || 'GET',
     headers: options.headers,
     isNative: isNative()
   });
-  
+
   try {
     if (isNative()) {
       // 在原生APP中使用CapacitorHttp
@@ -64,7 +73,7 @@ const apiRequest = async (endpoint, options = {}) => {
           },
           data: options.body ? JSON.parse(options.body) : undefined
         });
-        
+
         console.log('CapacitorHttp响应:', response);
         return formatResponse(response);
       } catch (nativeError) {
@@ -80,13 +89,13 @@ const apiRequest = async (endpoint, options = {}) => {
           headers: options.headers,
           body: options.body
         });
-        
+
         // 确保请求头包含Content-Type
         const headers = {
           'Content-Type': 'application/json',
           ...(options.headers || {})
         };
-        
+
         const response = await fetch(url, {
           ...options,
           headers,
@@ -94,7 +103,7 @@ const apiRequest = async (endpoint, options = {}) => {
           cache: 'no-cache',
           credentials: 'include'
         });
-        
+
         console.log('Web请求响应:', response);
         return response;
       } catch (webError) {
@@ -118,10 +127,10 @@ export const post = (endpoint, data = {}, headers = {}) => {
     data,
     isNative: isNative()
   });
-  
+
   // 确保body数据格式正确
   const body = JSON.stringify(data);
-  
+
   return apiRequest(endpoint, {
     method: 'POST',
     headers: {
