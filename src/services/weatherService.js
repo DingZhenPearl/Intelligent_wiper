@@ -6,7 +6,8 @@ import { get } from './api';
 const locationStatus = ref({
   isLocating: false,
   error: null,
-  position: null
+  position: null,
+  ipLocation: null
 });
 
 // 创建一个单例服务，用于获取和缓存天气数据
@@ -324,77 +325,155 @@ const weatherService = {
   },
 
   /**
-   * 获取当前地理位置
-   * @returns {Promise<Object>} - 包含地理位置信息的Promise
+   * 通过IP地址获取位置信息
+   * @returns {Promise<Object>} - 包含IP地址位置信息的Promise
    */
-  async getCurrentLocation() {
-    return new Promise((resolve, reject) => {
-      // 检查浏览器是否支持地理位置 API
-      if (!navigator.geolocation) {
-        const error = '您的浏览器不支持地理位置';
-        this.locationStatus.value.error = error;
-        reject(new Error(error));
-        return;
-      }
+  async getLocationByIp() {
+    try {
+      console.log('[天气服务] 开始通过IP地址获取位置信息');
 
       // 更新定位状态
       this.locationStatus.value.isLocating = true;
       this.locationStatus.value.error = null;
 
-      console.log('即将请求地理位置权限...');
+      // 调用IP定位API
+      const response = await get('/api/iplocation');
 
-      // 检查浏览器是否支持安全上下文
-      if (window.isSecureContext === false) {
-        console.warn('当前不是安全上下文（非HTTPS），地理位置功能可能受限');
-      }
+      if (response.ok) {
+        const result = await response.json();
 
-      // 获取当前位置
-      navigator.geolocation.getCurrentPosition(
-        // 成功回调
-        (position) => {
-          const { latitude, longitude } = position.coords;
-          console.log(`[天气服务] 获取地理位置成功: 经度 ${longitude}, 纬度 ${latitude}`);
+        if (result.success && result.data) {
+          console.log('[天气服务] 通过IP地址获取位置信息成功:', result.data);
 
-          // 更新位置信息
-          this.locationStatus.value.position = { latitude, longitude };
-          this.locationStatus.value.isLocating = false;
+          // 如果返回了经纬度信息
+          if (result.data.ll && result.data.ll.length === 2) {
+            const [latitude, longitude] = result.data.ll;
 
-          resolve({ latitude, longitude });
-        },
-        // 错误回调
-        (error) => {
-          let errorMessage = '';
+            // 更新位置信息
+            this.locationStatus.value.ipLocation = {
+              ip: result.data.ip,
+              city: result.data.city,
+              region: result.data.region,
+              country: result.data.country,
+              latitude,
+              longitude
+            };
 
-          switch (error.code) {
-            case error.PERMISSION_DENIED:
-              errorMessage = '用户拒绝了地理位置请求，请在浏览器设置中允许使用地理位置';
-              break;
-            case error.POSITION_UNAVAILABLE:
-              errorMessage = '位置信息不可用，请检查您的设备定位服务是否开启';
-              break;
-            case error.TIMEOUT:
-              errorMessage = '获取用户位置超时，请检查您的网络连接并重试';
-              break;
-            default:
-              errorMessage = '获取位置时发生未知错误，请尝试手动输入城市名称';
+            this.locationStatus.value.isLocating = false;
+
+            return { latitude, longitude };
+          } else if (result.data.city) {
+            // 如果只返回了城市信息但没有经纬度，也可以使用
+            this.locationStatus.value.ipLocation = {
+              ip: result.data.ip,
+              city: result.data.city,
+              region: result.data.region,
+              country: result.data.country
+            };
+
+            this.locationStatus.value.isLocating = false;
+
+            // 返回城市名称，后续可以通过城市名称查询
+            return { cityName: result.data.city };
+          } else {
+            throw new Error('IP定位返回的数据不完整');
           }
-
-          console.error(`[天气服务] 获取地理位置失败: ${errorMessage}`);
-
-          // 更新错误信息
-          this.locationStatus.value.error = errorMessage;
-          this.locationStatus.value.isLocating = false;
-
-          reject(new Error(errorMessage));
-        },
-        // 选项
-        {
-          enableHighAccuracy: true, // 高精度
-          timeout: 10000,           // 10 秒超时
-          maximumAge: 300000        // 5 分钟缓存
+        } else {
+          throw new Error(result.error || 'IP定位失败');
         }
-      );
-    });
+      } else {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'IP定位请求失败');
+      }
+    } catch (error) {
+      console.error('[天气服务] 通过IP地址获取位置信息错误:', error);
+      this.locationStatus.value.error = error.message;
+      this.locationStatus.value.isLocating = false;
+      throw error;
+    }
+  },
+
+  /**
+   * 获取当前地理位置
+   * @returns {Promise<Object>} - 包含地理位置信息的Promise
+   */
+  async getCurrentLocation() {
+    try {
+      // 首先尝试通过IP地址获取位置
+      console.log('[天气服务] 尝试通过IP地址获取位置');
+      return await this.getLocationByIp();
+    } catch (ipError) {
+      console.warn('[天气服务] 通过IP地址获取位置失败，尝试使用浏览器地理位置API:', ipError.message);
+
+      // IP定位失败后，尝试使用浏览器地理位置API
+      return new Promise((resolve, reject) => {
+        // 检查浏览器是否支持地理位置 API
+        if (!navigator.geolocation) {
+          const error = '您的浏览器不支持地理位置';
+          this.locationStatus.value.error = error;
+          reject(new Error(error));
+          return;
+        }
+
+        // 更新定位状态
+        this.locationStatus.value.isLocating = true;
+        this.locationStatus.value.error = null;
+
+        console.log('即将请求地理位置权限...');
+
+        // 检查浏览器是否支持安全上下文
+        if (window.isSecureContext === false) {
+          console.warn('当前不是安全上下文（非HTTPS），地理位置功能可能受限');
+        }
+
+        // 获取当前位置
+        navigator.geolocation.getCurrentPosition(
+          // 成功回调
+          (position) => {
+            const { latitude, longitude } = position.coords;
+            console.log(`[天气服务] 获取地理位置成功: 经度 ${longitude}, 纬度 ${latitude}`);
+
+            // 更新位置信息
+            this.locationStatus.value.position = { latitude, longitude };
+            this.locationStatus.value.isLocating = false;
+
+            resolve({ latitude, longitude });
+          },
+          // 错误回调
+          (error) => {
+            let errorMessage = '';
+
+            switch (error.code) {
+              case error.PERMISSION_DENIED:
+                errorMessage = '用户拒绝了地理位置请求，请在浏览器设置中允许使用地理位置';
+                break;
+              case error.POSITION_UNAVAILABLE:
+                errorMessage = '位置信息不可用，请检查您的设备定位服务是否开启';
+                break;
+              case error.TIMEOUT:
+                errorMessage = '获取用户位置超时，请检查您的网络连接并重试';
+                break;
+              default:
+                errorMessage = '获取位置时发生未知错误，请尝试手动输入城市名称';
+            }
+
+            console.error(`[天气服务] 获取地理位置失败: ${errorMessage}`);
+
+            // 更新错误信息
+            this.locationStatus.value.error = errorMessage;
+            this.locationStatus.value.isLocating = false;
+
+            reject(new Error(errorMessage));
+          },
+          // 选项
+          {
+            enableHighAccuracy: true, // 高精度
+            timeout: 10000,           // 10 秒超时
+            maximumAge: 300000        // 5 分钟缓存
+          }
+        );
+      });
+    }
   },
 
   /**
@@ -403,8 +482,18 @@ const weatherService = {
    */
   async fetchWeatherByLocation() {
     try {
-      // 获取当前位置
-      const { latitude, longitude } = await this.getCurrentLocation();
+      // 获取当前位置（优先使用IP定位）
+      const locationInfo = await this.getCurrentLocation();
+
+      // 如果返回的是城市名称而不是经纬度（IP定位只返回了城市名称）
+      if (locationInfo.cityName && !locationInfo.latitude) {
+        console.log(`[天气服务] 使用IP定位获取到城市名称: ${locationInfo.cityName}，直接获取该城市的天气数据`);
+        // 直接使用城市名称获取天气数据
+        return await this.fetchAllWeatherData(locationInfo.cityName);
+      }
+
+      // 如果获取到了经纬度，使用经纬度获取城市信息
+      const { latitude, longitude } = locationInfo;
 
       // 先获取城市信息
       const cityResult = await this.fetchCityInfo(null, longitude, latitude);
