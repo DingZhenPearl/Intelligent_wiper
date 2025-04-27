@@ -449,6 +449,152 @@ public class NativeLocationManager {
     }
 
     /**
+     * 请求单次位置更新（用于NativeLocationBridge）
+     * @param enableHighAccuracy 是否启用高精度定位
+     * @param timeout 超时时间（毫秒）
+     * @param callbackId 回调ID
+     * @param callback 位置回调
+     */
+    public void getCurrentPosition(final boolean enableHighAccuracy, final int timeout, final String callbackId, final LocationResultCallback callback) {
+        if (!hasLocationPermission()) {
+            callback.onError("没有定位权限");
+            return;
+        }
+
+        if (!isLocationServiceEnabled()) {
+            callback.onError("定位服务未启用");
+            return;
+        }
+
+        // 创建位置监听器
+        LocationListener locationListener = new LocationListener() {
+            @Override
+            public void onLocationChanged(Location location) {
+                Log.d(TAG, "位置已更新: " + location);
+
+                // 移除监听器
+                for (String provider : PROVIDERS) {
+                    try {
+                        locationManager.removeUpdates(this);
+                    } catch (SecurityException e) {
+                        Log.e(TAG, "移除位置更新时出错: " + provider, e);
+                    } catch (Exception e) {
+                        Log.e(TAG, "移除位置更新时发生异常: " + provider, e);
+                    }
+                }
+
+                // 返回位置信息
+                JSObject result = locationToJSObject(location);
+                callback.onSuccess(result);
+
+                // 从监听器映射中移除
+                locationListeners.remove(callbackId);
+            }
+
+            @Override
+            public void onStatusChanged(String provider, int status, Bundle extras) {
+                Log.d(TAG, "提供者状态已更改: " + provider + ", 状态: " + status);
+            }
+
+            @Override
+            public void onProviderEnabled(String provider) {
+                Log.d(TAG, "提供者已启用: " + provider);
+            }
+
+            @Override
+            public void onProviderDisabled(String provider) {
+                Log.d(TAG, "提供者已禁用: " + provider);
+            }
+        };
+
+        // 保存监听器
+        locationListeners.put(callbackId, locationListener);
+
+        // 尝试获取最后已知位置
+        JSObject lastLocation = getLastKnownLocation();
+        if (lastLocation != null) {
+            Log.d(TAG, "使用最后已知位置");
+            callback.onSuccess(lastLocation);
+            return;
+        }
+
+        // 请求位置更新
+        boolean requestSent = false;
+        for (String provider : PROVIDERS) {
+            try {
+                if (locationManager.isProviderEnabled(provider)) {
+                    // 对于高精度请求，只使用GPS提供者
+                    if (enableHighAccuracy && !provider.equals(LocationManager.GPS_PROVIDER)) {
+                        continue;
+                    }
+
+                    Log.d(TAG, "请求位置更新: " + provider);
+                    locationManager.requestLocationUpdates(
+                            provider,
+                            DEFAULT_MIN_TIME,
+                            DEFAULT_MIN_DISTANCE,
+                            locationListener,
+                            Looper.getMainLooper()
+                    );
+                    requestSent = true;
+                }
+            } catch (SecurityException e) {
+                Log.e(TAG, "请求位置更新时出错: " + provider, e);
+            } catch (Exception e) {
+                Log.e(TAG, "请求位置更新时发生异常: " + provider, e);
+            }
+        }
+
+        if (!requestSent) {
+            callback.onError("无法请求位置更新，没有可用的提供者");
+            locationListeners.remove(callbackId);
+        }
+
+        // 设置超时
+        if (timeout > 0) {
+            new android.os.Handler(Looper.getMainLooper()).postDelayed(() -> {
+                // 检查回调是否已经被调用
+                if (locationListeners.containsKey(callbackId)) {
+                    Log.d(TAG, "位置请求超时");
+
+                    // 移除监听器
+                    LocationListener listener = locationListeners.get(callbackId);
+                    if (listener != null) {
+                        for (String provider : PROVIDERS) {
+                            try {
+                                locationManager.removeUpdates(listener);
+                            } catch (SecurityException e) {
+                                Log.e(TAG, "移除位置更新时出错: " + provider, e);
+                            } catch (Exception e) {
+                                Log.e(TAG, "移除位置更新时发生异常: " + provider, e);
+                            }
+                        }
+
+                        // 从监听器映射中移除
+                        locationListeners.remove(callbackId);
+                    }
+
+                    // 尝试获取最后已知位置作为备用
+                    JSObject lastKnownLocation = getLastKnownLocation();
+                    if (lastKnownLocation != null) {
+                        callback.onSuccess(lastKnownLocation);
+                    } else {
+                        callback.onError("获取位置超时");
+                    }
+                }
+            }, timeout);
+        }
+    }
+
+    /**
+     * 位置结果回调接口
+     */
+    public interface LocationResultCallback {
+        void onSuccess(JSObject location);
+        void onError(String error);
+    }
+
+    /**
      * 判断新位置是否比当前位置更好
      * @param location 新位置
      * @param currentBestLocation 当前最佳位置

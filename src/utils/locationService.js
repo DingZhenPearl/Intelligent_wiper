@@ -1,12 +1,7 @@
 // src/utils/locationService.js
 import { isNative, isAndroid, isIOS } from './platform';
 import { App } from '@capacitor/app';
-import {
-  safeCheckPermissions,
-  safeRequestPermissions,
-  safeGetCurrentPosition,
-  safeIsLocationEnabled
-} from './geolocationWrapper';
+import NativeLocation from './nativeLocation';
 
 // 权限状态事件监听器
 let permissionListenersInitialized = false;
@@ -124,27 +119,22 @@ const logPlatformInfo = () => {
  */
 export const checkLocationPermission = async () => {
   try {
-    if (isNative()) {
-      console.log('[位置服务] 在原生环境中检查定位权限...');
+    if (isNative() && isAndroid()) {
+      console.log('[位置服务] 在Android原生环境中检查定位权限...');
 
       // 记录平台信息
       logPlatformInfo();
 
       try {
-        // 使用安全包装器检查权限
-        console.log('[位置服务] 使用安全包装器检查权限...');
-        const permissionStatus = await safeCheckPermissions();
+        // 使用原生定位检查权限
+        console.log('[位置服务] 使用原生定位检查权限...');
+        const permissionStatus = await NativeLocation.checkLocationPermission();
         console.log('[位置服务] 定位权限状态:', JSON.stringify(permissionStatus));
 
-        // 检查返回的权限状态是否有效
-        if (!permissionStatus || typeof permissionStatus.location === 'undefined') {
-          console.warn('[位置服务] 权限状态返回无效:', permissionStatus);
-          return { granted: false, status: 'unknown', error: '权限状态返回无效' };
-        }
-
         const result = {
-          granted: permissionStatus.location === 'granted',
-          status: permissionStatus.location
+          granted: permissionStatus.hasPermission,
+          status: permissionStatus.hasPermission ? 'granted' : 'denied',
+          isEnabled: permissionStatus.isEnabled
         };
 
         console.log('[位置服务] 权限检查结果:', JSON.stringify(result));
@@ -180,8 +170,8 @@ export const checkLocationPermission = async () => {
  */
 export const requestLocationPermission = async () => {
   try {
-    if (isNative()) {
-      console.log('[位置服务] 在原生环境中请求定位权限...');
+    if (isNative() && isAndroid()) {
+      console.log('[位置服务] 在Android原生环境中请求定位权限...');
 
       // 记录平台信息
       logPlatformInfo();
@@ -189,31 +179,32 @@ export const requestLocationPermission = async () => {
       try {
         // 先检查当前权限状态
         console.log('[位置服务] 先检查当前权限状态...');
-        const currentStatus = await safeCheckPermissions();
+        const currentStatus = await NativeLocation.checkLocationPermission();
         console.log('[位置服务] 当前权限状态:', JSON.stringify(currentStatus));
 
         // 如果已经有权限，直接返回
-        if (currentStatus.location === 'granted') {
+        if (currentStatus.hasPermission) {
           console.log('[位置服务] 已经有定位权限，无需再次请求');
           return {
             granted: true,
-            status: 'granted'
+            status: 'granted',
+            isEnabled: currentStatus.isEnabled
           };
         }
 
         // 请求权限
-        console.log('[位置服务] 使用安全包装器请求权限...');
-        const permissionStatus = await safeRequestPermissions();
-        console.log('[位置服务] 定位权限请求结果:', JSON.stringify(permissionStatus));
+        console.log('[位置服务] 使用原生定位请求权限...');
+        await NativeLocation.requestLocationPermission();
 
         // 再次检查权限状态，确保权限已更新
         console.log('[位置服务] 再次检查权限状态...');
-        const newStatus = await safeCheckPermissions();
+        const newStatus = await NativeLocation.checkLocationPermission();
         console.log('[位置服务] 更新后的权限状态:', JSON.stringify(newStatus));
 
         return {
-          granted: newStatus.location === 'granted',
-          status: newStatus.location
+          granted: newStatus.hasPermission,
+          status: newStatus.hasPermission ? 'granted' : 'denied',
+          isEnabled: newStatus.isEnabled
         };
       } catch (permError) {
         console.error('[位置服务] 请求权限时发生错误:', permError);
@@ -306,15 +297,8 @@ export const getCurrentPosition = async (options = {}) => {
 
         // 检查位置服务是否开启（非Android平台）
         if (!isAndroid()) {
-          const locationEnabled = await safeIsLocationEnabled();
-          if (!locationEnabled) {
-            console.error('[位置服务] 位置服务未开启');
-            return {
-              success: false,
-              error: '位置服务未开启，请在设备设置中开启位置服务',
-              code: 'LOCATION_DISABLED'
-            };
-          }
+          // 在非Android平台上，我们暂时假设位置服务已开启
+          console.log('[位置服务] 非Android平台，跳过检查位置服务状态');
         }
 
         // 默认选项
@@ -329,10 +313,10 @@ export const getCurrentPosition = async (options = {}) => {
         console.log('[位置服务] 定位选项:', JSON.stringify(positionOptions));
 
         // 获取位置
-        console.log('[位置服务] 使用安全包装器获取位置...');
+        console.log('[位置服务] 使用原生定位获取位置...');
         try {
-          // 使用安全包装器获取位置
-          const position = await safeGetCurrentPosition(positionOptions);
+          // 使用原生定位获取位置
+          const position = await NativeLocation.getCurrentPosition(positionOptions);
           console.log('[位置服务] 原生定位成功:', JSON.stringify(position));
 
           if (!position || !position.coords) {

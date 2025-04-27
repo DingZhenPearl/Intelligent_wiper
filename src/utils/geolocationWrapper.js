@@ -1,5 +1,5 @@
 // src/utils/geolocationWrapper.js
-import CustomGeolocation from './customGeolocation';
+import Geolocation from './geolocation';
 
 /**
  * 安全地检查位置权限
@@ -8,7 +8,7 @@ import CustomGeolocation from './customGeolocation';
 export const safeCheckPermissions = async () => {
   try {
     console.log('[GeolocationWrapper] 检查位置权限...');
-    const result = await CustomGeolocation.checkPermissions();
+    const result = await Geolocation.checkPermissions();
     console.log('[GeolocationWrapper] 权限状态:', result);
     return result;
   } catch (error) {
@@ -24,7 +24,7 @@ export const safeCheckPermissions = async () => {
 export const safeRequestPermissions = async () => {
   try {
     console.log('[GeolocationWrapper] 请求位置权限...');
-    const result = await CustomGeolocation.requestPermissions({
+    const result = await Geolocation.requestPermissions({
       permissions: ['location']
     });
     console.log('[GeolocationWrapper] 权限请求结果:', result);
@@ -55,7 +55,7 @@ export const safeGetCurrentPosition = async (options = {}) => {
     const positionOptions = { ...defaultOptions, ...options };
     console.log('[GeolocationWrapper] 位置选项:', positionOptions);
 
-    const position = await CustomGeolocation.getCurrentPosition(positionOptions);
+    const position = await Geolocation.getCurrentPosition(positionOptions);
     console.log('[GeolocationWrapper] 获取位置成功:', position);
     return position;
   } catch (error) {
@@ -74,7 +74,7 @@ export const safeIsLocationEnabled = async () => {
 
     // 尝试调用checkPermissions，如果位置服务未开启，会抛出异常
     try {
-      await CustomGeolocation.checkPermissions();
+      await Geolocation.checkPermissions();
       console.log('[GeolocationWrapper] 位置服务已开启');
       return true;
     } catch (error) {

@@ -24,12 +24,13 @@ public class MainActivity extends BridgeActivity {
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        // 注册自定义插件
-        registerPlugin(CustomGeolocationPlugin.class);
-
         // 初始化时打印日志，便于调试
         Log.d(TAG, "MainActivity onCreate");
-        Log.d(TAG, "已注册自定义Geolocation插件，替代默认插件");
+
+        // 注册原生定位桥接器
+        getBridge().getWebView().getSettings().setJavaScriptEnabled(true);
+        getBridge().getWebView().addJavascriptInterface(new NativeLocationBridge(this), "NativeLocation");
+        Log.d(TAG, "已注册原生定位桥接器");
 
         // 主动检查并请求位置权限
         checkAndRequestLocationPermissions();
@@ -38,7 +39,7 @@ public class MainActivity extends BridgeActivity {
     /**
      * 检查并请求位置权限
      */
-    private void checkAndRequestLocationPermissions() {
+    public void checkAndRequestLocationPermissions() {
         Log.d(TAG, "检查位置权限状态");
 
         boolean fineLocationGranted = ContextCompat.checkSelfPermission(this,
