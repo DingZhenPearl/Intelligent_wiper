@@ -1,6 +1,8 @@
 // src/services/weatherService.js
 import { ref } from 'vue';
 import { get } from './api';
+import { isNative } from '../utils/platform';
+import * as locationService from '../utils/locationService';
 
 // 地理位置状态
 const locationStatus = ref({
@@ -337,17 +339,22 @@ const weatherService = {
       this.locationStatus.value.error = null;
 
       // 调用IP定位API
+      console.log('[天气服务] 发送请求到 /api/iplocation');
       const response = await get('/api/iplocation');
+      console.log('[天气服务] 收到IP定位API响应:', response);
 
       if (response.ok) {
+        console.log('[天气服务] IP定位API响应状态码:', response.status);
         const result = await response.json();
+        console.log('[天气服务] IP定位API响应数据:', JSON.stringify(result));
 
         if (result.success && result.data) {
-          console.log('[天气服务] 通过IP地址获取位置信息成功:', result.data);
+          console.log('[天气服务] 通过IP地址获取位置信息成功:', JSON.stringify(result.data));
 
           // 如果返回了经纬度信息
           if (result.data.ll && result.data.ll.length === 2) {
             const [latitude, longitude] = result.data.ll;
+            console.log(`[天气服务] 解析经纬度: [${latitude}, ${longitude}]`);
 
             // 更新位置信息
             this.locationStatus.value.ipLocation = {
@@ -361,9 +368,12 @@ const weatherService = {
 
             this.locationStatus.value.isLocating = false;
 
+            console.log(`[天气服务] IP定位成功，获取到经纬度: 经度 ${longitude}, 纬度 ${latitude}`);
             return { latitude, longitude };
           } else if (result.data.city) {
             // 如果只返回了城市信息但没有经纬度，也可以使用
+            console.log(`[天气服务] 只获取到城市信息，没有经纬度: ${result.data.city}`);
+
             this.locationStatus.value.ipLocation = {
               ip: result.data.ip,
               city: result.data.city,
@@ -373,23 +383,43 @@ const weatherService = {
 
             this.locationStatus.value.isLocating = false;
 
+            console.log(`[天气服务] IP定位成功，获取到城市名称: ${result.data.city}`);
             // 返回城市名称，后续可以通过城市名称查询
             return { cityName: result.data.city };
           } else {
-            throw new Error('IP定位返回的数据不完整');
+            console.warn('[天气服务] IP定位返回的数据不完整，使用默认城市（绵阳）');
+            console.log('[天气服务] 返回的数据:', JSON.stringify(result.data));
+            this.locationStatus.value.isLocating = false;
+            return { cityName: '绵阳' };
           }
         } else {
-          throw new Error(result.error || 'IP定位失败');
+          console.warn('[天气服务] IP定位失败，使用默认城市（绵阳）:', result.error);
+          console.log('[天气服务] 完整响应:', JSON.stringify(result));
+          this.locationStatus.value.isLocating = false;
+          return { cityName: '绵阳' };
         }
       } else {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'IP定位请求失败');
+        console.warn('[天气服务] IP定位请求失败，状态码:', response.status);
+        let errorData;
+        try {
+          errorData = await response.json();
+          console.warn('[天气服务] 错误响应数据:', JSON.stringify(errorData));
+        } catch (e) {
+          console.warn('[天气服务] 无法解析错误响应:', e);
+          errorData = { error: '无法解析错误响应' };
+        }
+
+        console.warn('[天气服务] IP定位请求失败，使用默认城市（绵阳）:', errorData.error);
+        this.locationStatus.value.isLocating = false;
+        return { cityName: '绵阳' };
       }
     } catch (error) {
       console.error('[天气服务] 通过IP地址获取位置信息错误:', error);
-      this.locationStatus.value.error = error.message;
+      console.error('[天气服务] 错误堆栈:', error.stack);
+      console.warn('[天气服务] 使用默认城市（绵阳）');
+      this.locationStatus.value.error = null; // 清除错误，因为我们会使用默认城市
       this.locationStatus.value.isLocating = false;
-      throw error;
+      return { cityName: '绵阳' };
     }
   },
 
@@ -398,81 +428,96 @@ const weatherService = {
    * @returns {Promise<Object>} - 包含地理位置信息的Promise
    */
   async getCurrentLocation() {
+    // 更新定位状态
+    this.locationStatus.value.isLocating = true;
+    this.locationStatus.value.error = null;
+
     try {
-      // 首先尝试通过IP地址获取位置
-      console.log('[天气服务] 尝试通过IP地址获取位置');
-      return await this.getLocationByIp();
-    } catch (ipError) {
-      console.warn('[天气服务] 通过IP地址获取位置失败，尝试使用浏览器地理位置API:', ipError.message);
+      // 在原生环境中，优先使用设备定位
+      if (isNative()) {
+        console.log('[天气服务] 原生环境，优先尝试使用设备定位');
 
-      // IP定位失败后，尝试使用浏览器地理位置API
-      return new Promise((resolve, reject) => {
-        // 检查浏览器是否支持地理位置 API
-        if (!navigator.geolocation) {
-          const error = '您的浏览器不支持地理位置';
-          this.locationStatus.value.error = error;
-          reject(new Error(error));
-          return;
+        try {
+          // 先检查权限
+          const permissionResult = await locationService.checkLocationPermission();
+          console.log('[天气服务] 定位权限状态:', permissionResult);
+
+          // 如果已经有权限，直接获取位置
+          if (permissionResult.status === 'granted') {
+            console.log('[天气服务] 已有定位权限，直接获取位置');
+
+            // 获取位置
+            const positionResult = await locationService.getCurrentPosition({
+              enableHighAccuracy: true,
+              timeout: 10000
+            });
+
+            if (positionResult.success) {
+              const { latitude, longitude } = positionResult.coords;
+              console.log(`[天气服务] 设备定位成功: 经度 ${longitude}, 纬度 ${latitude}`);
+
+              // 更新位置信息
+              this.locationStatus.value.position = { latitude, longitude };
+              this.locationStatus.value.isLocating = false;
+
+              return { latitude, longitude };
+            } else {
+              console.warn('[天气服务] 设备定位失败，尝试IP定位:', positionResult.error);
+            }
+          } else {
+            console.log('[天气服务] 没有定位权限，尝试IP定位');
+          }
+        } catch (deviceError) {
+          console.error('[天气服务] 设备定位出错，尝试IP定位:', deviceError);
         }
+      } else {
+        console.log('[天气服务] Web环境，尝试浏览器定位');
 
-        // 更新定位状态
-        this.locationStatus.value.isLocating = true;
-        this.locationStatus.value.error = null;
+        try {
+          // 检查浏览器是否支持安全上下文
+          if (window.isSecureContext === false) {
+            console.warn('[天气服务] 当前不是安全上下文（非HTTPS），地理位置功能可能受限');
+          }
 
-        console.log('即将请求地理位置权限...');
+          const positionResult = await locationService.getCurrentPosition({
+            enableHighAccuracy: true,
+            timeout: 10000,
+            maximumAge: 300000
+          });
 
-        // 检查浏览器是否支持安全上下文
-        if (window.isSecureContext === false) {
-          console.warn('当前不是安全上下文（非HTTPS），地理位置功能可能受限');
-        }
-
-        // 获取当前位置
-        navigator.geolocation.getCurrentPosition(
-          // 成功回调
-          (position) => {
-            const { latitude, longitude } = position.coords;
-            console.log(`[天气服务] 获取地理位置成功: 经度 ${longitude}, 纬度 ${latitude}`);
+          if (positionResult.success) {
+            const { latitude, longitude } = positionResult.coords;
+            console.log(`[天气服务] 浏览器定位成功: 经度 ${longitude}, 纬度 ${latitude}`);
 
             // 更新位置信息
             this.locationStatus.value.position = { latitude, longitude };
             this.locationStatus.value.isLocating = false;
 
-            resolve({ latitude, longitude });
-          },
-          // 错误回调
-          (error) => {
-            let errorMessage = '';
-
-            switch (error.code) {
-              case error.PERMISSION_DENIED:
-                errorMessage = '用户拒绝了地理位置请求，请在浏览器设置中允许使用地理位置';
-                break;
-              case error.POSITION_UNAVAILABLE:
-                errorMessage = '位置信息不可用，请检查您的设备定位服务是否开启';
-                break;
-              case error.TIMEOUT:
-                errorMessage = '获取用户位置超时，请检查您的网络连接并重试';
-                break;
-              default:
-                errorMessage = '获取位置时发生未知错误，请尝试手动输入城市名称';
-            }
-
-            console.error(`[天气服务] 获取地理位置失败: ${errorMessage}`);
-
-            // 更新错误信息
-            this.locationStatus.value.error = errorMessage;
-            this.locationStatus.value.isLocating = false;
-
-            reject(new Error(errorMessage));
-          },
-          // 选项
-          {
-            enableHighAccuracy: true, // 高精度
-            timeout: 10000,           // 10 秒超时
-            maximumAge: 300000        // 5 分钟缓存
+            return { latitude, longitude };
+          } else {
+            console.warn('[天气服务] 浏览器定位失败，尝试IP定位:', positionResult.error);
           }
-        );
-      });
+        } catch (browserError) {
+          console.warn('[天气服务] 浏览器定位出错，尝试IP定位:', browserError);
+        }
+      }
+
+      // 如果设备定位或浏览器定位失败，尝试IP定位
+      console.log('[天气服务] 尝试通过IP地址获取位置');
+      const ipLocation = await this.getLocationByIp();
+      console.log('[天气服务] IP定位结果:', ipLocation);
+
+      this.locationStatus.value.isLocating = false;
+      return ipLocation;
+    } catch (error) {
+      console.error(`[天气服务] 获取地理位置失败: ${error.message}`);
+      console.warn('[天气服务] 使用默认城市（绵阳）');
+
+      // 更新状态
+      this.locationStatus.value.error = null; // 清除错误，因为我们会使用默认城市
+      this.locationStatus.value.isLocating = false;
+
+      return { cityName: '绵阳' };
     }
   },
 
@@ -482,8 +527,12 @@ const weatherService = {
    */
   async fetchWeatherByLocation() {
     try {
+      console.log('[天气服务] 开始根据地理位置获取天气数据');
+
       // 获取当前位置（优先使用IP定位）
+      console.log('[天气服务] 调用getCurrentLocation()获取当前位置');
       const locationInfo = await this.getCurrentLocation();
+      console.log('[天气服务] 获取到位置信息:', JSON.stringify(locationInfo));
 
       // 如果返回的是城市名称而不是经纬度（IP定位只返回了城市名称）
       if (locationInfo.cityName && !locationInfo.latitude) {
@@ -494,17 +543,22 @@ const weatherService = {
 
       // 如果获取到了经纬度，使用经纬度获取城市信息
       const { latitude, longitude } = locationInfo;
+      console.log(`[天气服务] 使用经纬度获取城市信息: 经度 ${longitude}, 纬度 ${latitude}`);
 
       // 先获取城市信息
       const cityResult = await this.fetchCityInfo(null, longitude, latitude);
+      console.log('[天气服务] 获取城市信息结果:', JSON.stringify(cityResult));
 
       if (!cityResult.success) {
+        console.error('[天气服务] 获取城市信息失败:', cityResult.error);
         return cityResult; // 返回错误
       }
 
       const locationId = this.cityInfo.value.id;
+      console.log(`[天气服务] 获取到城市ID: ${locationId}`);
 
       // 并行获取实时天气、预报和分钟级降水数据
+      console.log('[天气服务] 开始并行获取天气数据');
       const [nowResult, forecastResult, minutelyResult] = await Promise.all([
         this.fetchNowWeather(locationId),
         this.fetchForecastWeather(locationId),
@@ -513,10 +567,12 @@ const weatherService = {
 
       // 检查结果
       if (!nowResult.success) {
+        console.error('[天气服务] 获取实时天气数据失败:', nowResult.error);
         return nowResult; // 返回实时天气错误
       }
 
       if (!forecastResult.success) {
+        console.error('[天气服务] 获取天气预报数据失败:', forecastResult.error);
         return forecastResult; // 返回预报错误
       }
 
@@ -526,6 +582,7 @@ const weatherService = {
       }
 
       // 所有数据获取成功
+      console.log('[天气服务] 成功获取所有天气数据');
       return {
         success: true,
         data: {

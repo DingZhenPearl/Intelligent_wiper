@@ -42,6 +42,28 @@ corsMiddleware.forEach(middleware => app.use(middleware));
 // 解析JSON请求体
 app.use(express.json());
 
+// 请求日志中间件
+app.use((req, res, next) => {
+  const start = Date.now();
+  console.log(`[${new Date().toISOString()}] ${req.method} ${req.url} - 开始请求`);
+
+  // 记录请求头
+  console.log(`请求头: ${JSON.stringify(req.headers)}`);
+
+  // 记录请求体（如果有）
+  if (req.body && Object.keys(req.body).length > 0) {
+    console.log(`请求体: ${JSON.stringify(req.body)}`);
+  }
+
+  // 捕获响应完成事件
+  res.on('finish', () => {
+    const duration = Date.now() - start;
+    console.log(`[${new Date().toISOString()}] ${req.method} ${req.url} - 完成请求 - 状态: ${res.statusCode} - 耗时: ${duration}ms`);
+  });
+
+  next();
+});
+
 // 配置session
 app.use(session({
   secret: config.server.secret_key,

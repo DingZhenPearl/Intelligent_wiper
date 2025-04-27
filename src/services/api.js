@@ -6,12 +6,16 @@ const getBaseUrl = () => {
   if (isNative()) {
     // 原生应用中使用固定地址
     // 注意：在生产环境中，这应该是您的实际服务器地址
-    return 'http://10.29.101.231:3000';
+    const nativeBaseUrl = 'http://10.29.101.231:3000';
+    console.log(`[API] 原生环境使用固定服务器地址: ${nativeBaseUrl}`);
+    return nativeBaseUrl;
   } else {
     // Web环境中，使用当前页面的协议和主机
     const protocol = window.location.protocol;
     const host = window.location.host;
-    return `${protocol}//${host}`;
+    const webBaseUrl = `${protocol}//${host}`;
+    console.log(`[API] Web环境使用当前页面地址: ${webBaseUrl}`);
+    return webBaseUrl;
   }
 };
 
@@ -46,24 +50,32 @@ const handleApiError = (error, url) => {
 
 // API请求核心函数
 const apiRequest = async (endpoint, options = {}) => {
-  const baseUrl = getBaseUrl();
-  // 确保endpoint总是以单斜杠开头
-  const normalizedEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
-  const url = `${baseUrl}${normalizedEndpoint}`;
-
-  console.log(`API基础URL: ${baseUrl}`);
-  console.log(`发起API请求: ${url}`, {
-    method: options.method || 'GET',
-    headers: options.headers,
-    isNative: isNative()
-  });
-
   try {
+    console.log(`[API] 开始处理API请求: ${endpoint}`);
+    console.log(`[API] 请求选项:`, JSON.stringify(options));
+    console.log(`[API] 运行环境: ${isNative() ? '原生应用' : 'Web浏览器'}`);
+
+    const baseUrl = getBaseUrl();
+    // 确保endpoint总是以单斜杠开头
+    const normalizedEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+    const url = `${baseUrl}${normalizedEndpoint}`;
+
+    console.log(`[API] API基础URL: ${baseUrl}`);
+    console.log(`[API] 完整请求URL: ${url}`);
+    console.log(`[API] 请求方法: ${options.method || 'GET'}`);
+    console.log(`[API] 请求头:`, JSON.stringify(options.headers || {}));
+
+    if (options.body) {
+      console.log(`[API] 请求体:`, options.body.substring(0, 1000) + (options.body.length > 1000 ? '...(截断)' : ''));
+    }
+
     if (isNative()) {
       // 在原生APP中使用CapacitorHttp
       try {
-        console.log('使用CapacitorHttp发送请求');
-        const response = await CapacitorHttp.request({
+        console.log('[API] 使用CapacitorHttp发送请求');
+
+        // 准备请求配置
+        const requestConfig = {
           url,
           method: options.method || 'GET',
           headers: {
@@ -72,23 +84,36 @@ const apiRequest = async (endpoint, options = {}) => {
             ...(options.headers || {})
           },
           data: options.body ? JSON.parse(options.body) : undefined
-        });
+        };
 
-        console.log('CapacitorHttp响应:', response);
-        return formatResponse(response);
+        console.log('[API] CapacitorHttp请求配置:', JSON.stringify(requestConfig));
+
+        // 发送请求
+        console.log('[API] 正在发送CapacitorHttp请求...');
+        const response = await CapacitorHttp.request(requestConfig);
+
+        console.log('[API] CapacitorHttp响应状态码:', response.status);
+        console.log('[API] CapacitorHttp响应头:', JSON.stringify(response.headers));
+        console.log('[API] CapacitorHttp响应数据:', JSON.stringify(response.data).substring(0, 1000) + (JSON.stringify(response.data).length > 1000 ? '...(截断)' : ''));
+
+        const formattedResponse = formatResponse(response);
+        console.log('[API] 格式化后的响应:', JSON.stringify({
+          ok: formattedResponse.ok,
+          status: formattedResponse.status,
+          statusText: formattedResponse.statusText
+        }));
+
+        return formattedResponse;
       } catch (nativeError) {
-        console.error('CapacitorHttp请求失败:', nativeError);
+        console.error('[API] CapacitorHttp请求失败:', nativeError);
+        console.error('[API] 错误详情:', nativeError.message);
+        console.error('[API] 错误堆栈:', nativeError.stack);
         return handleApiError(nativeError, url);
       }
     } else {
       // Web环境处理
       try {
-        console.log('Web环境发送请求:', {
-          url,
-          method: options.method,
-          headers: options.headers,
-          body: options.body
-        });
+        console.log('[API] Web环境发送请求');
 
         // 确保请求头包含Content-Type
         const headers = {
@@ -96,23 +121,53 @@ const apiRequest = async (endpoint, options = {}) => {
           ...(options.headers || {})
         };
 
-        const response = await fetch(url, {
+        console.log('[API] 完整请求头:', JSON.stringify(headers));
+
+        // 准备fetch选项
+        const fetchOptions = {
           ...options,
           headers,
           mode: 'cors',
           cache: 'no-cache',
           credentials: 'include'
-        });
+        };
 
-        console.log('Web请求响应:', response);
+        console.log('[API] fetch选项:', JSON.stringify(fetchOptions, (key, value) => {
+          // 避免序列化body，因为它可能很大
+          if (key === 'body') return value ? '[请求体已省略]' : undefined;
+          return value;
+        }));
+
+        // 发送请求
+        console.log('[API] 正在发送fetch请求...');
+        const response = await fetch(url, fetchOptions);
+
+        console.log('[API] fetch响应状态:', response.status, response.statusText);
+        console.log('[API] fetch响应类型:', response.type);
+        console.log('[API] fetch响应URL:', response.url);
+
+        // 尝试克隆并读取响应内容（仅用于日志）
+        try {
+          const clonedResponse = response.clone();
+          const responseText = await clonedResponse.text();
+          console.log('[API] fetch响应内容:', responseText.substring(0, 1000) + (responseText.length > 1000 ? '...(截断)' : ''));
+        } catch (readError) {
+          console.warn('[API] 无法读取响应内容用于日志:', readError.message);
+        }
+
         return response;
       } catch (webError) {
-        console.error('Web请求失败:', webError);
+        console.error('[API] Web请求失败:', webError);
+        console.error('[API] 错误详情:', webError.message);
+        console.error('[API] 错误堆栈:', webError.stack);
         return handleApiError(webError, url);
       }
     }
   } catch (error) {
-    return handleApiError(error, url);
+    console.error('[API] 请求处理过程中发生未捕获错误:', error);
+    console.error('[API] 错误详情:', error.message);
+    console.error('[API] 错误堆栈:', error.stack);
+    return handleApiError(error, endpoint);
   }
 };
 

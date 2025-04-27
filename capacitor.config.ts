@@ -14,6 +14,20 @@ const config: CapacitorConfig = {
   plugins: {
     CapacitorHttp: {
       enabled: true
+    },
+    Geolocation: {
+      // 地理位置插件配置
+      permissions: {
+        // Android配置
+        android: {
+          // 是否在应用启动时请求权限
+          requestOnStart: true,
+          // 是否需要精确定位
+          requireFineLocation: true,
+          // 是否需要后台定位
+          requireBackgroundLocation: false
+        }
+      }
     }
   }
 };
