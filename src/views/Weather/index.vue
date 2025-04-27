@@ -268,10 +268,10 @@
 </template>
 
 <script>
-import { ref, onMounted, computed } from 'vue';
+import { ref, onMounted, onUnmounted, computed } from 'vue';
 import weatherService from '@/services/weatherService';
 import WeatherIcon from '@/components/WeatherIcon.vue';
-import { isNative } from '@/utils/platform';
+import { isNative, isAndroid } from '@/utils/platform';
 import * as locationService from '@/utils/locationService';
 
 export default {
@@ -320,22 +320,29 @@ export default {
     // 请求地理位置权限
     const requestLocationPermission = async () => {
       try {
-        console.log('手动触发地理位置权限请求...');
+        console.log('[Weather] 手动触发地理位置权限请求...');
 
         if (isNative()) {
           // 在原生环境中使用Capacitor Geolocation插件
-          console.log('在原生环境中请求定位权限');
+          console.log('[Weather] 在原生环境中请求定位权限');
+
+          // 不再预先检查GPS是否开启
+          if (isAndroid()) {
+            console.log('[Weather] Android环境，直接尝试请求位置权限，不预先检查GPS状态');
+            // 如果GPS未开启，权限请求后的位置获取会失败，会提示用户
+          }
 
           // 请求权限
+          console.log('[Weather] 调用locationService.requestLocationPermission()');
           const permissionResult = await locationService.requestLocationPermission();
-          console.log('定位权限请求结果:', permissionResult);
+          console.log('[Weather] 定位权限请求结果:', permissionResult);
 
           if (permissionResult.granted) {
-            console.log('成功获取地理位置权限！');
+            console.log('[Weather] 成功获取地理位置权限！');
             // 权限获取成功后获取天气数据
             getLocationWeather();
           } else {
-            console.error('权限请求失败:', permissionResult.status);
+            console.error('[Weather] 权限请求失败:', permissionResult.status);
             errorMessage.value = `地理位置权限请求失败: ${
               permissionResult.status === 'denied'
                 ? '用户拒绝了权限请求，请在设备设置中允许应用使用位置信息'
@@ -345,17 +352,19 @@ export default {
         } else {
           // 在Web环境中使用浏览器地理位置API
           if (navigator.geolocation) {
-            console.log('在Web环境中请求定位权限');
+            console.log('[Weather] 在Web环境中请求定位权限');
 
             // 使用locationService中的方法
+            console.log('[Weather] 调用locationService.requestLocationPermission()');
             const permissionResult = await locationService.requestLocationPermission();
+            console.log('[Weather] 浏览器定位权限请求结果:', permissionResult);
 
             if (permissionResult.granted) {
-              console.log('成功获取地理位置权限！');
+              console.log('[Weather] 成功获取地理位置权限！');
               // 权限获取成功后获取天气数据
               getLocationWeather();
             } else {
-              console.error('权限请求失败:', permissionResult.status);
+              console.error('[Weather] 权限请求失败:', permissionResult.status);
               errorMessage.value = `地理位置权限请求失败: ${
                 permissionResult.status === 'denied'
                   ? '用户拒绝了权限请求，请在浏览器设置中允许使用地理位置'
@@ -363,11 +372,14 @@ export default {
               }`;
             }
           } else {
+            console.error('[Weather] 浏览器不支持地理位置功能');
             errorMessage.value = '您的浏览器不支持地理位置功能';
           }
         }
       } catch (error) {
-        console.error('请求地理位置权限时发生错误:', error);
+        console.error('[Weather] 请求地理位置权限时发生错误:', error);
+        console.error('[Weather] 错误详情:', error.message);
+        console.error('[Weather] 错误堆栈:', error.stack);
         errorMessage.value = `地理位置权限请求失败: ${error.message}`;
       }
     };
@@ -380,32 +392,65 @@ export default {
       cityName.value = ''; // 清空城市名称输入
 
       try {
-        console.log('开始获取当前位置天气...');
+        console.log('[Weather] 开始获取当前位置天气...');
+
+        // 不再预先检查GPS是否开启，直接尝试获取位置
+        if (isNative() && isAndroid()) {
+          console.log('[Weather] Android环境，直接尝试获取位置，不预先检查GPS状态');
+          // 如果GPS未开启，位置获取会失败，会自动回退到IP定位
+        }
+
+        console.log('[Weather] 调用weatherService.fetchWeatherByLocation()');
         const result = await weatherService.fetchWeatherByLocation();
+        console.log('[Weather] 获取位置天气结果:', result);
 
         if (!result.success) {
-          console.error('获取天气数据失败:', result.error);
-          errorMessage.value = result.error || '获取天气数据失败';
+          console.error('[Weather] 获取天气数据失败:', result.error);
+
+          // 根据错误类型提供更友好的提示
+          if (result.code === 'LOCATION_DISABLED') {
+            errorMessage.value = '设备位置服务未开启，已使用IP定位。如需使用GPS定位，请开启设备位置服务';
+            console.log('[Weather] 位置服务未开启，使用IP定位');
+          } else if (result.code === 'PERMISSION_DENIED') {
+            errorMessage.value = '位置权限被拒绝，已使用IP定位。如需使用GPS定位，请在设备设置中允许应用使用位置信息';
+            console.log('[Weather] 位置权限被拒绝，使用IP定位');
+          } else {
+            errorMessage.value = result.error || '获取天气数据失败';
+          }
+
           // 如果定位失败，默认使用绵阳
           if (!cityName.value) {
-            console.log('使用默认城市（绵阳）');
+            console.log('[Weather] 使用默认城市（绵阳）');
             cityName.value = '绵阳';
             await getWeatherData(false);
           }
         } else {
-          console.log('成功获取天气数据');
+          console.log('[Weather] 成功获取天气数据');
           // 更新最后更新时间
           lastUpdateTime.value = new Date();
+
           // 如果成功获取到城市信息，更新城市名称显示
           if (cityInfo.value && cityInfo.value.name) {
+            console.log(`[Weather] 更新城市名称为: ${cityInfo.value.name}`);
             cityName.value = cityInfo.value.name;
+          }
+
+          // 记录定位方式
+          if (weatherService.locationStatus.value.position) {
+            console.log('[Weather] 使用设备GPS定位成功');
+          } else if (weatherService.locationStatus.value.ipLocation) {
+            console.log('[Weather] 使用IP定位成功');
           }
         }
       } catch (err) {
-        console.error('获取当前位置天气错误:', err);
+        console.error('[Weather] 获取当前位置天气错误:', err);
+        console.error('[Weather] 错误详情:', err.message);
+        console.error('[Weather] 错误堆栈:', err.stack);
+
         errorMessage.value = err.message || '网络错误';
+
         // 如果定位失败，默认使用绵阳
-        console.log('出现错误，使用默认城市（绵阳）');
+        console.log('[Weather] 出现错误，使用默认城市（绵阳）');
         cityName.value = '绵阳';
         await getWeatherData(false);
       } finally {
@@ -564,9 +609,34 @@ export default {
       return `${hours}:${minutes}:${seconds}`;
     };
 
+    // 权限状态变化的回调函数
+    const handlePermissionStatusChange = (status) => {
+      console.log('[Weather] 收到权限状态变化:', status);
+
+      if (status.source === 'native_event') {
+        if (status.granted) {
+          console.log('[Weather] 收到原生权限授予事件，尝试获取位置天气');
+          getLocationWeather();
+        } else {
+          console.log('[Weather] 收到原生权限拒绝事件，使用IP定位');
+          // 权限被拒绝，会自动回退到IP定位
+          getLocationWeather();
+        }
+      }
+    };
+
+    // 保存权限状态监听器的取消函数
+    let unsubscribePermissionListener = null;
+
     // 组件挂载时获取数据
     onMounted(async () => {
       console.log('[Weather] 组件挂载，准备获取位置信息');
+
+      // 注册权限状态变化监听
+      if (isNative()) {
+        console.log('[Weather] 注册权限状态变化监听');
+        unsubscribePermissionListener = locationService.onPermissionStatusChange(handlePermissionStatusChange);
+      }
 
       // 如果是原生环境，先主动请求位置权限
       if (isNative()) {
@@ -594,6 +664,15 @@ export default {
         // Web环境，直接尝试获取位置天气（会触发浏览器的权限请求）
         console.log('[Weather] Web环境，尝试获取位置天气');
         getLocationWeather();
+      }
+    });
+
+    // 组件卸载时清理
+    onUnmounted(() => {
+      // 取消权限状态监听
+      if (unsubscribePermissionListener) {
+        console.log('[Weather] 取消权限状态监听');
+        unsubscribePermissionListener();
       }
     });
 

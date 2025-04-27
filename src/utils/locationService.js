@@ -1,59 +1,121 @@
 // src/utils/locationService.js
 import { isNative, isAndroid, isIOS } from './platform';
+import { App } from '@capacitor/app';
+import {
+  safeCheckPermissions,
+  safeRequestPermissions,
+  safeGetCurrentPosition,
+  safeIsLocationEnabled
+} from './geolocationWrapper';
 
-// 异步导入Geolocation插件
-const getGeolocationPlugin = async () => {
+// 权限状态事件监听器
+let permissionListenersInitialized = false;
+let permissionStatusCallbacks = [];
+
+// 初始化权限状态监听
+const initPermissionListeners = () => {
+  if (permissionListenersInitialized || !isNative()) return;
+
+  console.log('[位置服务] 初始化权限状态监听器');
+
+  // 监听位置权限授予事件
+  window.addEventListener('locationPermissionGranted', () => {
+    console.log('[位置服务] 收到位置权限授予事件');
+
+    // 通知所有回调
+    permissionStatusCallbacks.forEach(callback => {
+      try {
+        callback({
+          granted: true,
+          status: 'granted',
+          source: 'native_event'
+        });
+      } catch (e) {
+        console.error('[位置服务] 执行权限状态回调时出错:', e);
+      }
+    });
+  });
+
+  // 监听位置权限拒绝事件
+  window.addEventListener('locationPermissionDenied', () => {
+    console.log('[位置服务] 收到位置权限拒绝事件');
+
+    // 通知所有回调
+    permissionStatusCallbacks.forEach(callback => {
+      try {
+        callback({
+          granted: false,
+          status: 'denied',
+          source: 'native_event'
+        });
+      } catch (e) {
+        console.error('[位置服务] 执行权限状态回调时出错:', e);
+      }
+    });
+  });
+
+  // 监听应用恢复事件，重新检查权限
+  App.addListener('resume', async () => {
+    console.log('[位置服务] 应用恢复，重新检查位置权限');
+    try {
+      const status = await checkLocationPermission();
+      console.log('[位置服务] 应用恢复后的权限状态:', status);
+
+      // 通知所有回调
+      permissionStatusCallbacks.forEach(callback => {
+        try {
+          callback({
+            ...status,
+            source: 'app_resume'
+          });
+        } catch (e) {
+          console.error('[位置服务] 执行权限状态回调时出错:', e);
+        }
+      });
+    } catch (e) {
+      console.error('[位置服务] 应用恢复后检查权限出错:', e);
+    }
+  });
+
+  permissionListenersInitialized = true;
+  console.log('[位置服务] 权限状态监听器初始化完成');
+};
+
+/**
+ * 注册权限状态变化回调
+ * @param {Function} callback - 权限状态变化回调函数
+ * @returns {Function} - 取消注册的函数
+ */
+export const onPermissionStatusChange = (callback) => {
+  if (!permissionListenersInitialized) {
+    initPermissionListeners();
+  }
+
+  permissionStatusCallbacks.push(callback);
+  console.log('[位置服务] 注册了新的权限状态回调，当前回调数:', permissionStatusCallbacks.length);
+
+  // 返回取消注册的函数
+  return () => {
+    permissionStatusCallbacks = permissionStatusCallbacks.filter(cb => cb !== callback);
+    console.log('[位置服务] 取消注册权限状态回调，剩余回调数:', permissionStatusCallbacks.length);
+  };
+};
+
+// 检查平台信息并记录日志
+const logPlatformInfo = () => {
   if (isNative()) {
     try {
-      console.log('[位置服务] 正在加载Capacitor Geolocation插件...');
+      const platform = isNative() ? 'native' : 'web';
+      console.log(`[位置服务] 当前平台: ${platform}`);
 
-      // 检查Capacitor是否正确初始化
-      try {
-        const platform = isNative() ? 'native' : 'web';
-        console.log(`[位置服务] 当前平台: ${platform}`);
-
-        if (isNative()) {
-          const specificPlatform = isAndroid() ? 'Android' : (isIOS() ? 'iOS' : 'unknown');
-          console.log(`[位置服务] 具体平台: ${specificPlatform}`);
-        }
-      } catch (platformError) {
-        console.error('[位置服务] 检查平台时出错:', platformError);
+      if (isNative()) {
+        const specificPlatform = isAndroid() ? 'Android' : (isIOS() ? 'iOS' : 'unknown');
+        console.log(`[位置服务] 具体平台: ${specificPlatform}`);
       }
-
-      // 导入Geolocation插件
-      console.log('[位置服务] 开始导入@capacitor/geolocation...');
-      const { Geolocation } = await import('@capacitor/geolocation');
-
-      // 验证插件是否正确加载
-      if (!Geolocation) {
-        console.error('[位置服务] Geolocation插件导入成功，但对象为空');
-        throw new Error('Geolocation插件对象为空');
-      }
-
-      // 检查插件方法是否存在
-      const methods = ['checkPermissions', 'requestPermissions', 'getCurrentPosition'];
-      const missingMethods = methods.filter(method => !Geolocation[method]);
-
-      if (missingMethods.length > 0) {
-        console.error(`[位置服务] Geolocation插件缺少方法: ${missingMethods.join(', ')}`);
-        throw new Error(`Geolocation插件缺少必要方法: ${missingMethods.join(', ')}`);
-      }
-
-      console.log('[位置服务] Capacitor Geolocation插件加载成功');
-      console.log('[位置服务] 可用方法:', Object.keys(Geolocation).join(', '));
-
-      return Geolocation;
-    } catch (error) {
-      console.error('[位置服务] 加载Geolocation插件失败:', error);
-      console.error('[位置服务] 错误详情:', error.message);
-      console.error('[位置服务] 错误堆栈:', error.stack);
-
-      throw new Error('无法加载地理位置插件: ' + error.message);
+    } catch (platformError) {
+      console.error('[位置服务] 检查平台时出错:', platformError);
     }
-  } else {
-    console.log('[位置服务] 非原生环境，不加载Capacitor Geolocation插件');
   }
-  return null;
 };
 
 /**
@@ -65,54 +127,37 @@ export const checkLocationPermission = async () => {
     if (isNative()) {
       console.log('[位置服务] 在原生环境中检查定位权限...');
 
+      // 记录平台信息
+      logPlatformInfo();
+
       try {
-        const Geolocation = await getGeolocationPlugin();
+        // 使用安全包装器检查权限
+        console.log('[位置服务] 使用安全包装器检查权限...');
+        const permissionStatus = await safeCheckPermissions();
+        console.log('[位置服务] 定位权限状态:', JSON.stringify(permissionStatus));
 
-        if (!Geolocation) {
-          console.error('[位置服务] Geolocation插件为空，无法检查权限');
-          return { granted: false, status: 'error', error: 'Geolocation插件为空' };
+        // 检查返回的权限状态是否有效
+        if (!permissionStatus || typeof permissionStatus.location === 'undefined') {
+          console.warn('[位置服务] 权限状态返回无效:', permissionStatus);
+          return { granted: false, status: 'unknown', error: '权限状态返回无效' };
         }
 
-        // 检查权限状态
-        console.log('[位置服务] 调用Geolocation.checkPermissions()...');
+        const result = {
+          granted: permissionStatus.location === 'granted',
+          status: permissionStatus.location
+        };
 
-        try {
-          const permissionStatus = await Geolocation.checkPermissions();
-          console.log('[位置服务] 定位权限状态:', JSON.stringify(permissionStatus));
-
-          // 检查返回的权限状态是否有效
-          if (!permissionStatus || typeof permissionStatus.location === 'undefined') {
-            console.warn('[位置服务] 权限状态返回无效:', permissionStatus);
-            return { granted: false, status: 'unknown', error: '权限状态返回无效' };
-          }
-
-          const result = {
-            granted: permissionStatus.location === 'granted',
-            status: permissionStatus.location
-          };
-
-          console.log('[位置服务] 权限检查结果:', JSON.stringify(result));
-          return result;
-        } catch (checkError) {
-          console.error('[位置服务] 检查权限时发生错误:', checkError);
-          console.error('[位置服务] 错误详情:', checkError.message);
-          console.error('[位置服务] 错误堆栈:', checkError.stack);
-
-          return {
-            granted: false,
-            status: 'error',
-            error: `检查权限时发生错误: ${checkError.message}`
-          };
-        }
-      } catch (pluginError) {
-        console.error('[位置服务] 获取Geolocation插件时发生错误:', pluginError);
-        console.error('[位置服务] 错误详情:', pluginError.message);
-        console.error('[位置服务] 错误堆栈:', pluginError.stack);
+        console.log('[位置服务] 权限检查结果:', JSON.stringify(result));
+        return result;
+      } catch (error) {
+        console.error('[位置服务] 检查权限时发生错误:', error);
+        console.error('[位置服务] 错误详情:', error.message);
+        console.error('[位置服务] 错误堆栈:', error.stack);
 
         return {
           granted: false,
           status: 'error',
-          error: `获取Geolocation插件时发生错误: ${pluginError.message}`
+          error: `检查权限时发生错误: ${error.message}`
         };
       }
     } else {
@@ -138,17 +183,13 @@ export const requestLocationPermission = async () => {
     if (isNative()) {
       console.log('[位置服务] 在原生环境中请求定位权限...');
 
+      // 记录平台信息
+      logPlatformInfo();
+
       try {
-        const Geolocation = await getGeolocationPlugin();
-
-        if (!Geolocation) {
-          console.error('[位置服务] Geolocation插件为空，无法请求权限');
-          return { granted: false, status: 'error', error: 'Geolocation插件为空' };
-        }
-
         // 先检查当前权限状态
         console.log('[位置服务] 先检查当前权限状态...');
-        const currentStatus = await Geolocation.checkPermissions();
+        const currentStatus = await safeCheckPermissions();
         console.log('[位置服务] 当前权限状态:', JSON.stringify(currentStatus));
 
         // 如果已经有权限，直接返回
@@ -161,15 +202,13 @@ export const requestLocationPermission = async () => {
         }
 
         // 请求权限
-        console.log('[位置服务] 调用Geolocation.requestPermissions()...');
-        const permissionStatus = await Geolocation.requestPermissions({
-          permissions: ['location']
-        });
+        console.log('[位置服务] 使用安全包装器请求权限...');
+        const permissionStatus = await safeRequestPermissions();
         console.log('[位置服务] 定位权限请求结果:', JSON.stringify(permissionStatus));
 
         // 再次检查权限状态，确保权限已更新
         console.log('[位置服务] 再次检查权限状态...');
-        const newStatus = await Geolocation.checkPermissions();
+        const newStatus = await safeCheckPermissions();
         console.log('[位置服务] 更新后的权限状态:', JSON.stringify(newStatus));
 
         return {
@@ -240,6 +279,9 @@ export const getCurrentPosition = async (options = {}) => {
     if (isNative()) {
       console.log('[位置服务] 在原生环境中获取当前位置...');
 
+      // 记录平台信息
+      logPlatformInfo();
+
       try {
         // 先检查权限
         console.log('[位置服务] 先检查定位权限...');
@@ -256,19 +298,23 @@ export const getCurrentPosition = async (options = {}) => {
             console.error('[位置服务] 用户拒绝了定位权限请求');
             return {
               success: false,
-              error: '用户拒绝了定位权限请求，请在设备设置中允许应用使用位置信息'
+              error: '用户拒绝了定位权限请求，请在设备设置中允许应用使用位置信息',
+              code: 'PERMISSION_DENIED'
             };
           }
         }
 
-        const Geolocation = await getGeolocationPlugin();
-
-        if (!Geolocation) {
-          console.error('[位置服务] Geolocation插件为空，无法获取位置');
-          return {
-            success: false,
-            error: 'Geolocation插件为空'
-          };
+        // 检查位置服务是否开启（非Android平台）
+        if (!isAndroid()) {
+          const locationEnabled = await safeIsLocationEnabled();
+          if (!locationEnabled) {
+            console.error('[位置服务] 位置服务未开启');
+            return {
+              success: false,
+              error: '位置服务未开启，请在设备设置中开启位置服务',
+              code: 'LOCATION_DISABLED'
+            };
+          }
         }
 
         // 默认选项
@@ -283,9 +329,10 @@ export const getCurrentPosition = async (options = {}) => {
         console.log('[位置服务] 定位选项:', JSON.stringify(positionOptions));
 
         // 获取位置
-        console.log('[位置服务] 调用Geolocation.getCurrentPosition()...');
+        console.log('[位置服务] 使用安全包装器获取位置...');
         try {
-          const position = await Geolocation.getCurrentPosition(positionOptions);
+          // 使用安全包装器获取位置
+          const position = await safeGetCurrentPosition(positionOptions);
           console.log('[位置服务] 原生定位成功:', JSON.stringify(position));
 
           if (!position || !position.coords) {
@@ -295,6 +342,16 @@ export const getCurrentPosition = async (options = {}) => {
               error: '获取到的位置信息无效'
             };
           }
+
+          // 记录详细的位置信息
+          console.log(`[位置服务] 位置详情 -
+            纬度: ${position.coords.latitude},
+            经度: ${position.coords.longitude},
+            精度: ${position.coords.accuracy}米,
+            海拔: ${position.coords.altitude || '未知'},
+            速度: ${position.coords.speed || '未知'},
+            方向: ${position.coords.heading || '未知'}`
+          );
 
           return {
             success: true,
@@ -313,9 +370,30 @@ export const getCurrentPosition = async (options = {}) => {
           console.error('[位置服务] 错误详情:', posError.message);
           console.error('[位置服务] 错误堆栈:', posError.stack);
 
+          // 检查错误类型，提供更具体的错误信息
+          let errorMessage = posError.message || '获取位置时发生错误';
+          let errorCode = 'POSITION_ERROR';
+
+          // 尝试解析错误信息
+          if (posError.message) {
+            if (posError.message.includes('denied') || posError.message.includes('permission')) {
+              errorMessage = '位置权限被拒绝，请在设备设置中允许应用使用位置信息';
+              errorCode = 'PERMISSION_DENIED';
+            } else if (posError.message.includes('timeout')) {
+              errorMessage = '获取位置超时，请检查GPS信号或网络连接';
+              errorCode = 'TIMEOUT';
+            } else if (posError.message.includes('unavailable') || posError.message.includes('disabled')) {
+              errorMessage = '位置服务不可用，请检查设备位置服务是否开启';
+              errorCode = 'LOCATION_DISABLED';
+            }
+          }
+
+          console.log(`[位置服务] 错误分类: ${errorCode}, 错误信息: ${errorMessage}`);
+
           return {
             success: false,
-            error: posError.message || '获取位置时发生错误'
+            error: errorMessage,
+            code: errorCode
           };
         }
       } catch (nativeError) {
@@ -356,25 +434,30 @@ export const getCurrentPosition = async (options = {}) => {
               console.error('[位置服务] 错误信息:', error.message);
 
               let errorMessage = '';
+              let errorCode = '';
 
               switch (error.code) {
                 case error.PERMISSION_DENIED:
                   errorMessage = '用户拒绝了地理位置请求';
+                  errorCode = 'PERMISSION_DENIED';
                   break;
                 case error.POSITION_UNAVAILABLE:
                   errorMessage = '位置信息不可用';
+                  errorCode = 'POSITION_UNAVAILABLE';
                   break;
                 case error.TIMEOUT:
                   errorMessage = '获取用户位置超时';
+                  errorCode = 'TIMEOUT';
                   break;
                 default:
                   errorMessage = '获取位置时发生未知错误';
+                  errorCode = 'UNKNOWN_ERROR';
               }
 
               reject({
                 success: false,
                 error: errorMessage,
-                code: error.code
+                code: errorCode
               });
             },
             // 选项
@@ -416,51 +499,27 @@ export const getCurrentPosition = async (options = {}) => {
 export const watchPosition = async (successCallback, errorCallback, options = {}) => {
   try {
     if (isNative()) {
-      const Geolocation = await getGeolocationPlugin();
-
-      // 默认选项
-      const defaultOptions = {
-        enableHighAccuracy: true,
-        timeout: 10000,
-        maximumAge: 0
-      };
-
-      // 合并选项
-      const watchOptions = { ...defaultOptions, ...options };
-
-      // 监视位置变化
-      const watchId = await Geolocation.watchPosition(watchOptions, (position, err) => {
-        if (err) {
-          console.error('原生位置监视错误:', err);
-          if (errorCallback) errorCallback({
-            success: false,
-            error: err.message || '监视位置时发生错误'
-          });
-          return;
-        }
-
-        console.log('原生位置监视更新:', position);
-        if (successCallback) successCallback({
-          success: true,
-          coords: {
-            latitude: position.coords.latitude,
-            longitude: position.coords.longitude,
-            accuracy: position.coords.accuracy,
-            altitude: position.coords.altitude,
-            heading: position.coords.heading,
-            speed: position.coords.speed
-          },
-          timestamp: position.timestamp
+      // 在原生环境中，暂时不支持位置监视功能
+      // 因为我们需要重新实现安全的watchPosition包装器
+      console.error('[位置服务] 原生环境暂不支持位置监视功能');
+      if (errorCallback) {
+        errorCallback({
+          success: false,
+          error: '原生环境暂不支持位置监视功能',
+          code: 'NOT_IMPLEMENTED'
         });
-      });
-
-      return { success: true, watchId };
+      }
+      return {
+        success: false,
+        error: '原生环境暂不支持位置监视功能',
+        code: 'NOT_IMPLEMENTED'
+      };
     } else {
       // 浏览器环境下使用Web Geolocation API
       if (navigator.geolocation) {
         const watchId = navigator.geolocation.watchPosition(
           (position) => {
-            console.log('浏览器位置监视更新:', position);
+            console.log('[位置服务] 浏览器位置监视更新:', position);
             if (successCallback) successCallback({
               success: true,
               coords: {
@@ -475,27 +534,32 @@ export const watchPosition = async (successCallback, errorCallback, options = {}
             });
           },
           (error) => {
-            console.error('浏览器位置监视错误:', error);
+            console.error('[位置服务] 浏览器位置监视错误:', error);
             let errorMessage = '';
+            let errorCode = '';
 
             switch (error.code) {
               case error.PERMISSION_DENIED:
                 errorMessage = '用户拒绝了地理位置请求';
+                errorCode = 'PERMISSION_DENIED';
                 break;
               case error.POSITION_UNAVAILABLE:
                 errorMessage = '位置信息不可用';
+                errorCode = 'POSITION_UNAVAILABLE';
                 break;
               case error.TIMEOUT:
                 errorMessage = '获取用户位置超时';
+                errorCode = 'TIMEOUT';
                 break;
               default:
                 errorMessage = '获取位置时发生未知错误';
+                errorCode = 'UNKNOWN_ERROR';
             }
 
             if (errorCallback) errorCallback({
               success: false,
               error: errorMessage,
-              code: error.code
+              code: errorCode
             });
           },
           // 选项
@@ -508,6 +572,14 @@ export const watchPosition = async (successCallback, errorCallback, options = {}
 
         return { success: true, watchId };
       } else {
+        console.error('[位置服务] 浏览器不支持地理位置功能');
+        if (errorCallback) {
+          errorCallback({
+            success: false,
+            error: '浏览器不支持地理位置功能',
+            code: 'UNSUPPORTED'
+          });
+        }
         return {
           success: false,
           error: '浏览器不支持地理位置功能',
@@ -516,10 +588,18 @@ export const watchPosition = async (successCallback, errorCallback, options = {}
       }
     }
   } catch (error) {
-    console.error('设置位置监视失败:', error);
+    console.error('[位置服务] 设置位置监视失败:', error);
+    if (errorCallback) {
+      errorCallback({
+        success: false,
+        error: error.message || '设置位置监视时发生错误',
+        code: 'ERROR'
+      });
+    }
     return {
       success: false,
-      error: error.message || '设置位置监视时发生错误'
+      error: error.message || '设置位置监视时发生错误',
+      code: 'ERROR'
     };
   }
 };
@@ -532,26 +612,34 @@ export const watchPosition = async (successCallback, errorCallback, options = {}
 export const clearWatch = async (watchId) => {
   try {
     if (isNative()) {
-      const Geolocation = await getGeolocationPlugin();
-      await Geolocation.clearWatch({ id: watchId });
-      return { success: true };
+      // 在原生环境中，暂时不支持位置监视功能
+      console.error('[位置服务] 原生环境暂不支持位置监视功能');
+      return {
+        success: false,
+        error: '原生环境暂不支持位置监视功能',
+        code: 'NOT_IMPLEMENTED'
+      };
     } else {
       // 浏览器环境下使用Web Geolocation API
       if (navigator.geolocation) {
+        console.log('[位置服务] 清除浏览器位置监视:', watchId);
         navigator.geolocation.clearWatch(watchId);
         return { success: true };
       } else {
+        console.error('[位置服务] 浏览器不支持地理位置功能');
         return {
           success: false,
-          error: '浏览器不支持地理位置功能'
+          error: '浏览器不支持地理位置功能',
+          code: 'UNSUPPORTED'
         };
       }
     }
   } catch (error) {
-    console.error('清除位置监视失败:', error);
+    console.error('[位置服务] 清除位置监视失败:', error);
     return {
       success: false,
-      error: error.message || '清除位置监视时发生错误'
+      error: error.message || '清除位置监视时发生错误',
+      code: 'ERROR'
     };
   }
 };
