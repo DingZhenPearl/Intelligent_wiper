@@ -25,7 +25,6 @@
     "@capacitor/app": "^7.0.0",
     "@capacitor/core": "^7.0.0",
     "@capacitor/device": "^7.0.1",
-    "@capacitor/geolocation": "^7.1.1",
     "@capacitor/network": "^7.0.1",
     "@capacitor/splash-screen": "^7.0.0",
     "axios": "^1.6.7",

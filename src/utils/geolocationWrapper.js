@@ -1,6 +1,5 @@
 // src/utils/geolocationWrapper.js
-import { Geolocation } from '@capacitor/geolocation';
-import { isAndroid, isNative } from './platform';
+import CustomGeolocation from './customGeolocation';
 
 /**
  * 安全地检查位置权限
@@ -9,7 +8,7 @@ import { isAndroid, isNative } from './platform';
 export const safeCheckPermissions = async () => {
   try {
     console.log('[GeolocationWrapper] 检查位置权限...');
-    const result = await Geolocation.checkPermissions();
+    const result = await CustomGeolocation.checkPermissions();
     console.log('[GeolocationWrapper] 权限状态:', result);
     return result;
   } catch (error) {
@@ -25,7 +24,7 @@ export const safeCheckPermissions = async () => {
 export const safeRequestPermissions = async () => {
   try {
     console.log('[GeolocationWrapper] 请求位置权限...');
-    const result = await Geolocation.requestPermissions({
+    const result = await CustomGeolocation.requestPermissions({
       permissions: ['location']
     });
     console.log('[GeolocationWrapper] 权限请求结果:', result);
@@ -44,24 +43,19 @@ export const safeRequestPermissions = async () => {
 export const safeGetCurrentPosition = async (options = {}) => {
   try {
     console.log('[GeolocationWrapper] 获取当前位置...');
-    
-    // 在Android上，不要尝试检查位置服务是否开启
-    if (isNative() && isAndroid()) {
-      console.log('[GeolocationWrapper] Android环境，跳过检查位置服务状态');
-    }
-    
+
     // 默认选项
     const defaultOptions = {
       enableHighAccuracy: true,
       timeout: 10000,
       maximumAge: 0
     };
-    
+
     // 合并选项
     const positionOptions = { ...defaultOptions, ...options };
     console.log('[GeolocationWrapper] 位置选项:', positionOptions);
-    
-    const position = await Geolocation.getCurrentPosition(positionOptions);
+
+    const position = await CustomGeolocation.getCurrentPosition(positionOptions);
     console.log('[GeolocationWrapper] 获取位置成功:', position);
     return position;
   } catch (error) {
@@ -71,25 +65,26 @@ export const safeGetCurrentPosition = async (options = {}) => {
 };
 
 /**
- * 检查位置服务是否开启（仅在非Android平台上使用）
+ * 检查位置服务是否开启
  * @returns {Promise<boolean>} 位置服务状态
  */
 export const safeIsLocationEnabled = async () => {
-  // 在Android上，直接返回true，避免调用不支持的方法
-  if (isNative() && isAndroid()) {
-    console.log('[GeolocationWrapper] Android环境，跳过检查位置服务状态，假设已开启');
-    return true;
-  }
-  
   try {
     console.log('[GeolocationWrapper] 检查位置服务状态...');
-    // 在非Android平台上尝试调用isLocationEnabled
-    if (typeof Geolocation.isLocationEnabled === 'function') {
-      const enabled = await Geolocation.isLocationEnabled();
-      console.log('[GeolocationWrapper] 位置服务状态:', enabled);
-      return enabled;
-    } else {
-      console.log('[GeolocationWrapper] isLocationEnabled方法不可用，假设已开启');
+
+    // 尝试调用checkPermissions，如果位置服务未开启，会抛出异常
+    try {
+      await CustomGeolocation.checkPermissions();
+      console.log('[GeolocationWrapper] 位置服务已开启');
+      return true;
+    } catch (error) {
+      if (error.message && error.message.includes('位置服务未启用')) {
+        console.log('[GeolocationWrapper] 位置服务未开启');
+        return false;
+      }
+
+      // 其他错误，假设位置服务已开启
+      console.warn('[GeolocationWrapper] 检查位置服务状态出错，假设已开启:', error);
       return true;
     }
   } catch (error) {

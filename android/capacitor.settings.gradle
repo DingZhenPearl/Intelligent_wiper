@@ -8,8 +8,7 @@ project(':capacitor-app').projectDir = new File('../node_modules/@capacitor/app/
 include ':capacitor-device'
 project(':capacitor-device').projectDir = new File('../node_modules/@capacitor/device/android')
 
-include ':capacitor-geolocation'
-project(':capacitor-geolocation').projectDir = new File('../node_modules/@capacitor/geolocation/android')
+
 
 include ':capacitor-network'
 project(':capacitor-network').projectDir = new File('../node_modules/@capacitor/network/android')
