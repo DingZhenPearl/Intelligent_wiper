@@ -257,6 +257,10 @@
               <WeatherIcon :iconCode="hour.icon" size="small" class="hourly-weather-icon" />
               <div class="hourly-temp">{{ hour.temp }}°C</div>
               <div class="hourly-desc">{{ hour.text }}</div>
+              <div class="hourly-rain">
+                <span class="rain-icon material-icons">water_drop</span>
+                <span class="rain-prob">{{ hour.pop || '0' }}%</span>
+              </div>
               <div class="hourly-wind">{{ hour.windDir }} {{ hour.windScale }}级</div>
             </div>
           </div>
@@ -276,6 +280,10 @@
             <WeatherIcon :iconCode="day.iconDay" size="small" class="forecast-weather-icon" />
             <div class="forecast-temp">{{ day.tempMin }}°C ~ {{ day.tempMax }}°C</div>
             <div class="forecast-desc">{{ day.textDay }}</div>
+            <div class="forecast-precip">
+              <span class="precip-icon material-icons">water_drop</span>
+              <span class="precip-value">{{ day.precip || '0' }}mm</span>
+            </div>
             <div class="forecast-wind">{{ day.windDirDay }} {{ day.windScaleDay }}级</div>
           </div>
         </div>
@@ -1439,6 +1447,25 @@ export default {
             text-align: center;
           }
 
+          .hourly-rain {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: var(--font-size-xs);
+            margin-bottom: var(--spacing-xs);
+
+            .rain-icon {
+              font-size: 14px;
+              margin-right: 2px;
+              color: #0288d1;
+            }
+
+            .rain-prob {
+              font-weight: 500;
+              color: var(--color-text);
+            }
+          }
+
           .hourly-wind {
             font-size: var(--font-size-xs);
             color: #888;
@@ -1498,6 +1525,25 @@ export default {
             color: #666;
             margin-bottom: var(--spacing-xs);
             text-align: center;
+          }
+
+          .forecast-precip {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: var(--font-size-xs);
+            margin-bottom: var(--spacing-xs);
+
+            .precip-icon {
+              font-size: 14px;
+              margin-right: 2px;
+              color: #0288d1;
+            }
+
+            .precip-value {
+              font-weight: 500;
+              color: var(--color-text);
+            }
           }
 
           .forecast-wind {
