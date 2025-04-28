@@ -243,6 +243,26 @@
         </template>
       </div>
 
+      <!-- 逐小时天气预报 -->
+      <div class="hourly" v-if="hourlyWeather && hourlyWeather.hourly">
+        <h2>24小时天气预报</h2>
+        <div class="hourly-chart">
+          <div class="hourly-list">
+            <div
+              v-for="(hour, index) in hourlyWeather.hourly"
+              :key="index"
+              class="hourly-item"
+            >
+              <div class="hourly-time">{{ formatHourTime(hour.fxTime) }}</div>
+              <WeatherIcon :iconCode="hour.icon" size="small" class="hourly-weather-icon" />
+              <div class="hourly-temp">{{ hour.temp }}°C</div>
+              <div class="hourly-desc">{{ hour.text }}</div>
+              <div class="hourly-wind">{{ hour.windDir }} {{ hour.windScale }}级</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <!-- 天气预报信息 -->
       <div class="forecast" v-if="forecastWeather && forecastWeather.daily">
         <h2>未来三天天气预报</h2>
@@ -299,6 +319,7 @@ export default {
     const nowWeather = computed(() => weatherService.nowWeather.value);
     const forecastWeather = computed(() => weatherService.forecastWeather.value);
     const minutelyWeather = computed(() => weatherService.minutelyWeather.value);
+    const hourlyWeather = computed(() => weatherService.hourlyWeather.value);
 
     // 计算属性
     const hasWeatherData = computed(() => {
@@ -587,6 +608,16 @@ export default {
       return `${hours}:${minutes}`;
     };
 
+    // 格式化小时时间
+    const formatHourTime = (timeStr) => {
+      if (!timeStr) return '';
+
+      const date = new Date(timeStr);
+      const hours = date.getHours().toString().padStart(2, '0');
+
+      return `${hours}:00`;
+    };
+
     // 格式化日期
     const formatDate = (dateStr) => {
       if (!dateStr) return '';
@@ -687,6 +718,7 @@ export default {
       nowWeather,
       forecastWeather,
       minutelyWeather,
+      hourlyWeather,
       hasWeatherData,
       hasRainData,
       popularCities,
@@ -702,6 +734,7 @@ export default {
       getDataPoints,
       formatDate,
       formatMinuteTime,
+      formatHourTime,
       formatUpdateTime
     };
   }
@@ -1317,6 +1350,100 @@ export default {
           margin-top: var(--spacing-xs);
           color: #888;
           font-size: var(--font-size-xs);
+        }
+      }
+    }
+
+    .hourly {
+      background-color: white;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+      padding: var(--spacing-lg);
+      margin-bottom: var(--spacing-lg);
+      overflow: hidden;
+
+      h2 {
+        margin-bottom: var(--spacing-md);
+        color: #333;
+        font-size: var(--font-size-xl);
+        text-align: center;
+      }
+
+      .hourly-chart {
+        overflow-x: auto;
+        padding-bottom: var(--spacing-sm);
+
+        &::-webkit-scrollbar {
+          height: 6px;
+        }
+
+        &::-webkit-scrollbar-track {
+          background: #f1f1f1;
+          border-radius: 3px;
+        }
+
+        &::-webkit-scrollbar-thumb {
+          background: #ccc;
+          border-radius: 3px;
+        }
+
+        &::-webkit-scrollbar-thumb:hover {
+          background: #aaa;
+        }
+      }
+
+      .hourly-list {
+        display: flex;
+        gap: var(--spacing-md);
+        padding: var(--spacing-sm) var(--spacing-xs);
+        min-width: max-content;
+
+        .hourly-item {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          padding: var(--spacing-md);
+          border-radius: 8px;
+          background-color: #f8f9fa;
+          min-width: 100px;
+          transition: transform 0.2s ease, box-shadow 0.2s ease;
+
+          &:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+          }
+
+          .hourly-time {
+            font-size: var(--font-size-sm);
+            color: #666;
+            margin-bottom: var(--spacing-sm);
+            text-align: center;
+            font-weight: 500;
+          }
+
+          .hourly-weather-icon {
+            margin: var(--spacing-xs) 0;
+          }
+
+          .hourly-temp {
+            font-size: var(--font-size-md);
+            font-weight: 500;
+            color: #333;
+            margin: var(--spacing-sm) 0;
+          }
+
+          .hourly-desc {
+            font-size: var(--font-size-sm);
+            color: #666;
+            margin-bottom: var(--spacing-xs);
+            text-align: center;
+          }
+
+          .hourly-wind {
+            font-size: var(--font-size-xs);
+            color: #888;
+            text-align: center;
+          }
         }
       }
     }

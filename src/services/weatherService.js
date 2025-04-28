@@ -25,6 +25,9 @@ const weatherService = {
   // 分钟级降水预报数据
   minutelyWeather: ref(null),
 
+  // 逐小时天气预报数据
+  hourlyWeather: ref(null),
+
   // 城市信息
   cityInfo: ref(null),
 
@@ -33,7 +36,8 @@ const weatherService = {
     now: false,
     forecast: false,
     city: false,
-    minutely: false
+    minutely: false,
+    hourly: false
   }),
 
   // 错误信息
@@ -41,7 +45,8 @@ const weatherService = {
     now: null,
     forecast: null,
     city: null,
-    minutely: null
+    minutely: null,
+    hourly: null
   }),
 
   // 最后更新时间
@@ -49,7 +54,8 @@ const weatherService = {
     now: null,
     forecast: null,
     city: null,
-    minutely: null
+    minutely: null,
+    hourly: null
   }),
 
   /**
@@ -327,6 +333,69 @@ const weatherService = {
   },
 
   /**
+   * 获取逐小时天气预报数据
+   * @param {string} locationId - 城市ID或坐标，默认为绵阳城市代码
+   * @returns {Promise<Object>} - 包含逐小时天气预报数据的Promise
+   */
+  async fetchHourlyWeather(locationId = '101270401') {
+    try {
+      this.loading.value.hourly = true;
+      this.error.value.hourly = null;
+
+      console.log(`[天气服务] 开始获取逐小时天气预报数据，位置: ${locationId}`);
+
+      // 构建API请求URL
+      const url = `/api/weather/hourly?location=${locationId}`;
+
+      // 发送请求
+      const response = await get(url);
+
+      if (response.ok) {
+        const result = await response.json();
+
+        if (result.success && result.data && result.data.hourly) {
+          console.log('[天气服务] 获取逐小时天气预报数据成功:', result.data);
+
+          // 更新逐小时天气预报数据
+          this.hourlyWeather.value = result.data;
+
+          // 更新最后更新时间
+          this.lastUpdateTime.value.hourly = new Date();
+
+          return {
+            success: true,
+            data: result.data
+          };
+        } else {
+          console.error('[天气服务] 获取逐小时天气预报数据失败:', result.error);
+          this.error.value.hourly = result.error || '获取逐小时天气预报数据失败';
+          return {
+            success: false,
+            error: this.error.value.hourly
+          };
+        }
+      } else {
+        const errorData = await response.json();
+        console.error('[天气服务] 获取逐小时天气预报数据失败:', errorData);
+        this.error.value.hourly = errorData.error || '获取逐小时天气预报数据失败';
+        return {
+          success: false,
+          error: this.error.value.hourly
+        };
+      }
+    } catch (error) {
+      console.error('[天气服务] 获取逐小时天气预报数据错误:', error);
+      this.error.value.hourly = error.message || '网络错误';
+      return {
+        success: false,
+        error: this.error.value.hourly
+      };
+    } finally {
+      this.loading.value.hourly = false;
+    }
+  },
+
+  /**
    * 通过IP地址获取位置信息
    * @returns {Promise<Object>} - 包含IP地址位置信息的Promise
    */
@@ -557,12 +626,13 @@ const weatherService = {
       const locationId = this.cityInfo.value.id;
       console.log(`[天气服务] 获取到城市ID: ${locationId}`);
 
-      // 并行获取实时天气、预报和分钟级降水数据
+      // 并行获取实时天气、预报、分钟级降水数据和逐小时天气预报
       console.log('[天气服务] 开始并行获取天气数据');
-      const [nowResult, forecastResult, minutelyResult] = await Promise.all([
+      const [nowResult, forecastResult, minutelyResult, hourlyResult] = await Promise.all([
         this.fetchNowWeather(locationId),
         this.fetchForecastWeather(locationId),
-        this.fetchMinutelyWeather({ locationId, lon: longitude, lat: latitude })
+        this.fetchMinutelyWeather({ locationId, lon: longitude, lat: latitude }),
+        this.fetchHourlyWeather(locationId)
       ]);
 
       // 检查结果
@@ -581,6 +651,11 @@ const weatherService = {
         console.warn('[天气服务] 获取分钟级降水数据失败:', minutelyResult.error);
       }
 
+      // 逐小时天气预报数据失败不影响整体显示，只记录错误
+      if (!hourlyResult.success) {
+        console.warn('[天气服务] 获取逐小时天气预报数据失败:', hourlyResult.error);
+      }
+
       // 所有数据获取成功
       console.log('[天气服务] 成功获取所有天气数据');
       return {
@@ -589,7 +664,8 @@ const weatherService = {
           city: this.cityInfo.value,
           now: this.nowWeather.value,
           forecast: this.forecastWeather.value,
-          minutely: this.minutelyWeather.value
+          minutely: this.minutelyWeather.value,
+          hourly: this.hourlyWeather.value
         }
       };
     } catch (error) {
@@ -619,11 +695,12 @@ const weatherService = {
       const lon = this.cityInfo.value.lon;
       const lat = this.cityInfo.value.lat;
 
-      // 并行获取实时天气、预报和分钟级降水数据
-      const [nowResult, forecastResult, minutelyResult] = await Promise.all([
+      // 并行获取实时天气、预报、分钟级降水数据和逐小时天气预报
+      const [nowResult, forecastResult, minutelyResult, hourlyResult] = await Promise.all([
         this.fetchNowWeather(locationId),
         this.fetchForecastWeather(locationId),
-        this.fetchMinutelyWeather({ locationId, lon, lat })
+        this.fetchMinutelyWeather({ locationId, lon, lat }),
+        this.fetchHourlyWeather(locationId)
       ]);
 
       // 检查结果
@@ -640,6 +717,11 @@ const weatherService = {
         console.warn('[天气服务] 获取分钟级降水数据失败:', minutelyResult.error);
       }
 
+      // 逐小时天气预报数据失败不影响整体显示，只记录错误
+      if (!hourlyResult.success) {
+        console.warn('[天气服务] 获取逐小时天气预报数据失败:', hourlyResult.error);
+      }
+
       // 所有数据获取成功
       return {
         success: true,
@@ -647,7 +729,8 @@ const weatherService = {
           city: this.cityInfo.value,
           now: this.nowWeather.value,
           forecast: this.forecastWeather.value,
-          minutely: this.minutelyWeather.value
+          minutely: this.minutelyWeather.value,
+          hourly: this.hourlyWeather.value
         }
       };
     } catch (error) {

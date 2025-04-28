@@ -188,6 +188,61 @@ router.get('/minutely', async (req, res) => {
   }
 });
 
+// 获取逐小时天气预报
+router.get('/hourly', async (req, res) => {
+  try {
+    // 从查询参数中获取城市代码或坐标
+    const location = req.query.location || '101270401'; // 默认绵阳城市代码
+
+    console.log(`获取逐小时天气预报数据，位置: ${location}`);
+
+    // 构建API URL和请求配置
+    let apiUrl, requestConfig;
+
+    if (AUTH_METHOD === 'header') {
+      // 使用请求标头方式
+      apiUrl = `${QWEATHER_WEATHER_API_BASE}/weather/24h?location=${location}`;
+      requestConfig = {
+        headers: {
+          'X-QW-Api-Key': QWEATHER_API_KEY
+        }
+      };
+    } else {
+      // 使用请求参数方式
+      apiUrl = `${QWEATHER_WEATHER_API_BASE}/weather/24h?key=${QWEATHER_API_KEY}&location=${location}`;
+      requestConfig = {};
+    }
+
+    console.log(`使用${AUTH_METHOD === 'header' ? '请求标头' : '请求参数'}方式调用API`);
+
+    // 调用和风天气API
+    console.log(`调用API: ${apiUrl}`);
+    const response = await axios.get(apiUrl, requestConfig);
+
+    // 检查响应状态
+    console.log('响应数据:', response.data);
+    if (response.status === 200 && response.data.code === '200') {
+      console.log('逐小时天气预报API调用成功');
+      res.json({
+        success: true,
+        data: response.data
+      });
+    } else {
+      console.error(`逐小时天气预报API调用失败，状态码: ${response.status}, API代码: ${response.data.code}`);
+      res.status(200).json({
+        success: false,
+        error: `逐小时天气预报API调用失败: ${response.data.code}`
+      });
+    }
+  } catch (error) {
+    console.error('获取逐小时天气预报数据错误:', error.message);
+    res.status(500).json({
+      success: false,
+      error: `服务器内部错误: ${error.message}`
+    });
+  }
+});
+
 // 获取城市信息
 router.get('/city', async (req, res) => {
   try {
