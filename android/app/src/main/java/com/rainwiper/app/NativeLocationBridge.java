@@ -16,11 +16,13 @@ public class NativeLocationBridge {
     private static final String TAG = "NativeLocationBridge";
 
     private final NativeLocationManager locationManager;
+    private final IPLocationService ipLocationService;
     private final MainActivity activity;
 
     public NativeLocationBridge(MainActivity activity) {
         this.activity = activity;
         this.locationManager = new NativeLocationManager(activity);
+        this.ipLocationService = new IPLocationService();
         Log.d(TAG, "NativeLocationBridge 初始化");
     }
 
@@ -134,5 +136,29 @@ public class NativeLocationBridge {
         });
     }
 
+    /**
+     * 获取IP定位
+     * @param callback JavaScript回调函数名称
+     */
+    @JavascriptInterface
+    public void getIPLocation(final String callback) {
+        Log.d(TAG, "JS调用: getIPLocation(callback=" + callback + ")");
 
+        // 在UI线程上获取IP位置
+        activity.runOnUiThread(() -> {
+            ipLocationService.getIPLocation(new IPLocationService.LocationCallback() {
+                @Override
+                public void onSuccess(JSObject location) {
+                    Log.d(TAG, "IP定位成功: " + location);
+                    sendSuccessCallback(callback, location.toString());
+                }
+
+                @Override
+                public void onError(String error) {
+                    Log.e(TAG, "IP定位失败: " + error);
+                    sendErrorCallback(callback, error);
+                }
+            });
+        });
+    }
 }

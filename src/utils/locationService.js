@@ -3,6 +3,9 @@ import { isNative, isAndroid, isIOS } from './platform';
 import { App } from '@capacitor/app';
 import NativeLocation from './nativeLocation';
 
+// 是否启用IP定位作为备选
+const ENABLE_IP_FALLBACK = true;
+
 // 权限状态事件监听器
 let permissionListenersInitialized = false;
 let permissionStatusCallbacks = [];
@@ -316,39 +319,68 @@ export const getCurrentPosition = async (options = {}) => {
         console.log('[位置服务] 使用原生定位获取位置...');
         try {
           // 使用原生定位获取位置
-          const position = await NativeLocation.getCurrentPosition(positionOptions);
-          console.log('[位置服务] 原生定位成功:', JSON.stringify(position));
+          try {
+            const position = await NativeLocation.getCurrentPosition(positionOptions);
+            console.log('[位置服务] 原生定位成功:', JSON.stringify(position));
 
-          if (!position || !position.coords) {
-            console.error('[位置服务] 位置信息无效:', position);
+            if (!position || !position.coords) {
+              console.error('[位置服务] 位置信息无效:', position);
+              throw new Error('获取到的位置信息无效');
+            }
+
             return {
-              success: false,
-              error: '获取到的位置信息无效'
+              success: true,
+              coords: {
+                latitude: position.coords.latitude,
+                longitude: position.coords.longitude,
+                accuracy: position.coords.accuracy,
+                altitude: position.coords.altitude,
+                heading: position.coords.heading,
+                speed: position.coords.speed
+              },
+              timestamp: position.timestamp,
+              source: 'gps'
             };
+          } catch (gpsError) {
+            console.error('[位置服务] GPS定位失败:', gpsError);
+
+            // 如果启用了IP定位备选，尝试使用IP定位
+            if (ENABLE_IP_FALLBACK) {
+              console.log('[位置服务] 尝试使用IP定位作为备选');
+              try {
+                const ipPosition = await NativeLocation.getIPLocation();
+                console.log('[位置服务] IP定位成功:', JSON.stringify(ipPosition));
+
+                if (!ipPosition || !ipPosition.coords) {
+                  console.error('[位置服务] IP位置信息无效:', ipPosition);
+                  throw new Error('获取到的IP位置信息无效');
+                }
+
+                return {
+                  success: true,
+                  coords: {
+                    latitude: ipPosition.coords.latitude,
+                    longitude: ipPosition.coords.longitude,
+                    accuracy: ipPosition.coords.accuracy || 10000, // IP定位精度较低
+                    altitude: null,
+                    heading: null,
+                    speed: null
+                  },
+                  timestamp: ipPosition.timestamp,
+                  source: 'ip',
+                  ip: ipPosition.ip,
+                  city: ipPosition.city,
+                  region: ipPosition.region,
+                  country: ipPosition.country
+                };
+              } catch (ipError) {
+                console.error('[位置服务] IP定位也失败:', ipError);
+                throw gpsError; // 抛出原始GPS错误
+              }
+            } else {
+              throw gpsError;
+            }
           }
-
-          // 记录详细的位置信息
-          console.log(`[位置服务] 位置详情 -
-            纬度: ${position.coords.latitude},
-            经度: ${position.coords.longitude},
-            精度: ${position.coords.accuracy}米,
-            海拔: ${position.coords.altitude || '未知'},
-            速度: ${position.coords.speed || '未知'},
-            方向: ${position.coords.heading || '未知'}`
-          );
-
-          return {
-            success: true,
-            coords: {
-              latitude: position.coords.latitude,
-              longitude: position.coords.longitude,
-              accuracy: position.coords.accuracy,
-              altitude: position.coords.altitude,
-              heading: position.coords.heading,
-              speed: position.coords.speed
-            },
-            timestamp: position.timestamp
-          };
         } catch (posError) {
           console.error('[位置服务] 获取位置时发生错误:', posError);
           console.error('[位置服务] 错误详情:', posError.message);
