@@ -12,7 +12,7 @@ const httpsOptions = (() => {
       cert: fs.readFileSync(path.resolve(__dirname, './ssl/cert.pem'))
     }
   } catch (e) {
-    console.warn('未找到SSL证书文件，将使用HTTP协议。如需使用HTTPS，请生成证书文件并放在ssl文件夹中。')
+    console.warn('未找到SSL证书文件，将使用HTTP协议。如需使用HTTPS，请运行 node https/generate-ssl-cert.js 生成证书文件。')
     return false
   }
 })()

@@ -1,6 +1,6 @@
 /**
  * 使用mkcert生成本地开发SSL证书的脚本
- * 运行方式: node generate-ssl-cert-mkcert.js
+ * 运行方式: node https/generate-ssl-cert-mkcert.js
  * 
  * 前提条件: 已安装mkcert
  * 安装方法:
@@ -13,7 +13,7 @@ const fs = require('fs');
 const path = require('path');
 
 // 创建ssl目录
-const sslDir = path.join(__dirname, 'ssl');
+const sslDir = path.join(__dirname, '..', 'ssl');
 if (!fs.existsSync(sslDir)) {
   fs.mkdirSync(sslDir);
   console.log('创建ssl目录成功');

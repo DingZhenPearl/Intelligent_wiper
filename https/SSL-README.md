@@ -18,7 +18,7 @@
 我们提供了一个脚本来生成自签名 SSL 证书。运行以下命令：
 
 ```bash
-node generate-ssl-cert.js
+node https/generate-ssl-cert.js
 ```
 
 这将在项目根目录下创建一个 `ssl` 文件夹，并在其中生成 `key.pem` 和 `cert.pem` 文件。
