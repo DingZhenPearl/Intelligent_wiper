@@ -22,22 +22,24 @@
             <span class="material-icons">close</span>
           </button>
         </div>
-        <button
-          class="location-btn"
-          @click="getLocationWeather"
-          :disabled="isLoading"
-          :title="'使用当前位置'"
-        >
-          <span class="icon material-icons">my_location</span>
-        </button>
-        <button
-          class="search-btn"
-          @click="getWeatherData"
-          :disabled="isLoading"
-        >
-          <span class="icon material-icons">{{ isLoading ? 'hourglass_top' : 'search' }}</span>
-          <span class="btn-text">{{ isLoading ? '加载中...' : '查询天气' }}</span>
-        </button>
+        <div class="buttons-wrapper">
+          <button
+            class="location-btn"
+            @click="getLocationWeather"
+            :disabled="isLoading"
+            :title="'使用当前位置'"
+          >
+            <span class="icon material-icons">my_location</span>
+          </button>
+          <button
+            class="search-btn"
+            @click="getWeatherData"
+            :disabled="isLoading"
+          >
+            <span class="icon material-icons">{{ isLoading ? 'hourglass_top' : 'search' }}</span>
+            <span class="btn-text">{{ isLoading ? '加载中...' : '查询天气' }}</span>
+          </button>
+        </div>
       </div>
       <div class="popular-cities" v-if="!isLoading && !hasError">
         <span class="popular-city-label">热门城市:</span>
@@ -724,22 +726,34 @@ export default {
 
     .search-container {
       display: flex;
+      flex-wrap: wrap;
       gap: var(--spacing-sm);
       margin-bottom: var(--spacing-md);
       justify-content: center;
+      position: relative;
+      z-index: 1;
+
+      .buttons-wrapper {
+        display: flex;
+        gap: var(--spacing-sm);
+        align-items: center;
+      }
 
       .input-group {
         position: relative;
         flex: 1;
+        min-width: 200px;
         max-width: 400px;
         display: flex;
         align-items: center;
+        z-index: 2;
 
         .location-icon {
           position: absolute;
           left: 10px;
           color: #666;
           font-size: 20px;
+          z-index: 3;
         }
 
         input {
@@ -750,6 +764,8 @@ export default {
           font-size: var(--font-size-md);
           transition: all 0.3s ease;
           box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+          width: 100%;
+          z-index: 2;
 
           &:focus {
             border-color: var(--color-primary);
@@ -769,6 +785,7 @@ export default {
           display: flex;
           align-items: center;
           justify-content: center;
+          z-index: 3;
 
           &:hover {
             color: #666;
@@ -783,6 +800,7 @@ export default {
       .location-btn {
         height: 48px;
         width: 48px;
+        min-width: 48px;
         background-color: #039be5; /* 浅蓝色 */
         color: white;
         border: none;
@@ -794,6 +812,7 @@ export default {
         transition: all 0.3s ease;
         box-shadow: 0 3px 6px rgba(0, 0, 0, 0.2);
         margin-right: var(--spacing-xs);
+        z-index: 1;
 
         &:hover:not(:disabled) {
           background-color: #0288d1;
@@ -821,6 +840,7 @@ export default {
       .search-btn {
         padding: 0 20px;
         height: 48px;
+        min-width: 120px;
         background-color: #0277bd; /* 更深的蓝色 */
         color: white;
         border: none;
@@ -833,6 +853,7 @@ export default {
         gap: var(--spacing-xs);
         transition: all 0.3s ease;
         box-shadow: 0 3px 6px rgba(0, 0, 0, 0.2);
+        z-index: 1;
 
         &:hover:not(:disabled) {
           background-color: #01579b; /* 悬停时更深 */
@@ -1399,24 +1420,36 @@ export default {
       .search-container {
         flex-direction: column;
         align-items: stretch;
+        gap: var(--spacing-md);
 
         .input-group {
           width: 100%;
           max-width: none;
+          margin-bottom: var(--spacing-xs);
+        }
+
+        .buttons-wrapper {
+          flex-direction: column;
+          width: 100%;
+          gap: var(--spacing-md);
         }
 
         .location-btn, .search-btn {
           margin-top: var(--spacing-xs);
+          height: 52px; /* 增加按钮高度，更容易点击 */
         }
 
         .location-btn {
           width: 100%;
           margin-right: 0;
+          min-height: 52px;
         }
 
         .search-btn {
           width: 100%;
           justify-content: center;
+          min-height: 52px;
+          font-size: var(--font-size-md);
         }
       }
 
