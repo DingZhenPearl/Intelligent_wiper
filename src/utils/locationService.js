@@ -2,6 +2,7 @@
 import { isNative, isAndroid, isIOS } from './platform';
 import { App } from '@capacitor/app';
 import NativeLocation from './nativeLocation';
+import IPLocation from './ipLocation';
 
 // 是否启用IP定位作为备选
 const ENABLE_IP_FALLBACK = true;
@@ -441,10 +442,11 @@ export const getCurrentPosition = async (options = {}) => {
                   heading: position.coords.heading,
                   speed: position.coords.speed
                 },
-                timestamp: position.timestamp
+                timestamp: position.timestamp,
+                source: 'gps'
               });
             },
-            (error) => {
+            async (error) => {
               console.error('[位置服务] 浏览器定位失败:', error);
               console.error('[位置服务] 错误代码:', error.code);
               console.error('[位置服务] 错误信息:', error.message);
@@ -470,6 +472,37 @@ export const getCurrentPosition = async (options = {}) => {
                   errorCode = 'UNKNOWN_ERROR';
               }
 
+              // 如果启用了IP定位备选，尝试使用IP定位
+              if (ENABLE_IP_FALLBACK) {
+                console.log('[位置服务] 浏览器定位失败，尝试使用IP定位作为备选');
+                try {
+                  const ipPosition = await IPLocation.getIPLocation();
+                  console.log('[位置服务] IP定位成功:', ipPosition);
+
+                  resolve({
+                    success: true,
+                    coords: {
+                      latitude: ipPosition.coords.latitude,
+                      longitude: ipPosition.coords.longitude,
+                      accuracy: ipPosition.coords.accuracy || 10000, // IP定位精度较低
+                      altitude: null,
+                      heading: null,
+                      speed: null
+                    },
+                    timestamp: ipPosition.timestamp,
+                    source: 'ip',
+                    ip: ipPosition.ip,
+                    city: ipPosition.city,
+                    region: ipPosition.region,
+                    country: ipPosition.country
+                  });
+                  return;
+                } catch (ipError) {
+                  console.error('[位置服务] IP定位也失败:', ipError);
+                  // 继续使用原始错误
+                }
+              }
+
               reject({
                 success: false,
                 error: errorMessage,
@@ -485,6 +518,46 @@ export const getCurrentPosition = async (options = {}) => {
           );
         } else {
           console.error('[位置服务] 浏览器不支持地理位置功能');
+
+          // 如果启用了IP定位备选，尝试使用IP定位
+          if (ENABLE_IP_FALLBACK) {
+            console.log('[位置服务] 浏览器不支持地理位置功能，尝试使用IP定位作为备选');
+            try {
+              IPLocation.getIPLocation().then(ipPosition => {
+                console.log('[位置服务] IP定位成功:', ipPosition);
+
+                resolve({
+                  success: true,
+                  coords: {
+                    latitude: ipPosition.coords.latitude,
+                    longitude: ipPosition.coords.longitude,
+                    accuracy: ipPosition.coords.accuracy || 10000, // IP定位精度较低
+                    altitude: null,
+                    heading: null,
+                    speed: null
+                  },
+                  timestamp: ipPosition.timestamp,
+                  source: 'ip',
+                  ip: ipPosition.ip,
+                  city: ipPosition.city,
+                  region: ipPosition.region,
+                  country: ipPosition.country
+                });
+              }).catch(ipError => {
+                console.error('[位置服务] IP定位也失败:', ipError);
+                reject({
+                  success: false,
+                  error: '浏览器不支持地理位置功能，且IP定位失败',
+                  code: 'UNSUPPORTED'
+                });
+              });
+              return;
+            } catch (ipError) {
+              console.error('[位置服务] IP定位也失败:', ipError);
+              // 继续使用原始错误
+            }
+          }
+
           reject({
             success: false,
             error: '浏览器不支持地理位置功能',
