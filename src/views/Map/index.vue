@@ -50,29 +50,68 @@
         <button class="close-button" @click="toggleNavigationMode">×</button>
       </div>
       <div class="panel-content">
+        <!-- 起点搜索框 -->
         <div class="input-group">
           <span class="material-icons">location_on</span>
-          <input
-            type="text"
-            v-model="startPoint.name"
-            placeholder="起点"
-            @focus="selectStartPoint"
-            readonly
-          />
-          <button class="action-button" @click="useCurrentLocationAsStart">
+          <div class="search-input-wrapper">
+            <input
+              type="text"
+              v-model="startSearchText"
+              placeholder="起点"
+              @input="handleStartSearch"
+              @focus="startSearchFocused = true"
+              @blur="handleStartBlur"
+            />
+            <div class="search-results" v-if="startSearchFocused && startSearchResults.length > 0">
+              <div
+                v-for="(item, index) in startSearchResults"
+                :key="`start-${index}`"
+                class="search-result-item"
+                @click="selectStartSearchResult(item)"
+              >
+                <span class="material-icons">place</span>
+                <div class="result-info">
+                  <div class="result-name">{{ item.name }}</div>
+                  <div class="result-address">{{ item.address }}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <button class="action-button" @click="useCurrentLocationAsStart" title="使用当前位置">
             <span class="material-icons">my_location</span>
           </button>
         </div>
+
+        <!-- 终点搜索框 -->
         <div class="input-group">
           <span class="material-icons">flag</span>
-          <input
-            type="text"
-            v-model="endPoint.name"
-            placeholder="终点"
-            @focus="selectEndPoint"
-            readonly
-          />
+          <div class="search-input-wrapper">
+            <input
+              type="text"
+              v-model="endSearchText"
+              placeholder="终点"
+              @input="handleEndSearch"
+              @focus="endSearchFocused = true"
+              @blur="handleEndBlur"
+            />
+            <div class="search-results" v-if="endSearchFocused && endSearchResults.length > 0">
+              <div
+                v-for="(item, index) in endSearchResults"
+                :key="`end-${index}`"
+                class="search-result-item"
+                @click="selectEndSearchResult(item)"
+              >
+                <span class="material-icons">place</span>
+                <div class="result-info">
+                  <div class="result-name">{{ item.name }}</div>
+                  <div class="result-address">{{ item.address }}</div>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
+
+        <!-- 按钮组 -->
         <div class="button-group">
           <button
             class="plan-button"
@@ -87,6 +126,8 @@
             清除
           </button>
         </div>
+
+        <!-- 路线信息 -->
         <div class="route-info" v-if="routeInfo">
           <div class="info-item">
             <span class="material-icons">schedule</span>
@@ -168,6 +209,18 @@ export default {
     const routePath = ref([]);
     const routeInfo = ref(null);
 
+    // 起点搜索相关状态
+    const startSearchText = ref('');
+    const startSearchResults = ref([]);
+    const startSearchFocused = ref(false);
+    const autoCompleteStart = ref(null);
+
+    // 终点搜索相关状态
+    const endSearchText = ref('');
+    const endSearchResults = ref([]);
+    const endSearchFocused = ref(false);
+    const autoCompleteEnd = ref(null);
+
     // 路线天气相关状态
     const showRouteWeatherPopup = ref(false);
     const isRouteWeatherLoading = ref(false);
@@ -230,6 +283,11 @@ export default {
     onMounted(() => {
       console.log('[地图] 组件已挂载');
       initializeMap();
+
+      // 初始化自动完成插件
+      setTimeout(() => {
+        initAutoComplete();
+      }, 1000); // 延迟初始化，确保地图API已加载
     });
 
     // 切换天气模式
@@ -398,6 +456,185 @@ export default {
       }
     };
 
+    // 初始化自动完成插件
+    const initAutoComplete = () => {
+      if (!window.AMap) {
+        console.error('[地图] 高德地图API未加载');
+        return;
+      }
+
+      // 初始化起点自动完成插件
+      if (!autoCompleteStart.value) {
+        window.AMap.plugin('AMap.AutoComplete', () => {
+          autoCompleteStart.value = new window.AMap.AutoComplete({
+            city: '全国'
+          });
+          console.log('[地图] 起点自动完成插件初始化成功');
+        });
+      }
+
+      // 初始化终点自动完成插件
+      if (!autoCompleteEnd.value) {
+        window.AMap.plugin('AMap.AutoComplete', () => {
+          autoCompleteEnd.value = new window.AMap.AutoComplete({
+            city: '全国'
+          });
+          console.log('[地图] 终点自动完成插件初始化成功');
+        });
+      }
+    };
+
+    // 处理起点搜索
+    const handleStartSearch = () => {
+      if (!autoCompleteStart.value || !startSearchText.value.trim()) {
+        startSearchResults.value = [];
+        return;
+      }
+
+      autoCompleteStart.value.search(startSearchText.value, (status, result) => {
+        if (status === 'complete' && result.tips) {
+          startSearchResults.value = result.tips.map(tip => ({
+            name: tip.name,
+            address: tip.district,
+            location: tip.location,
+            id: tip.id
+          }));
+          console.log('[地图] 起点搜索结果:', startSearchResults.value);
+        } else {
+          startSearchResults.value = [];
+        }
+      });
+    };
+
+    // 处理终点搜索
+    const handleEndSearch = () => {
+      if (!autoCompleteEnd.value || !endSearchText.value.trim()) {
+        endSearchResults.value = [];
+        return;
+      }
+
+      autoCompleteEnd.value.search(endSearchText.value, (status, result) => {
+        if (status === 'complete' && result.tips) {
+          endSearchResults.value = result.tips.map(tip => ({
+            name: tip.name,
+            address: tip.district,
+            location: tip.location,
+            id: tip.id
+          }));
+          console.log('[地图] 终点搜索结果:', endSearchResults.value);
+        } else {
+          endSearchResults.value = [];
+        }
+      });
+    };
+
+    // 选择起点搜索结果
+    const selectStartSearchResult = (item) => {
+      console.log('[地图] 选择起点搜索结果:', item);
+
+      // 确保位置信息存在
+      if (!item.location) {
+        console.error('[地图] 搜索结果没有位置信息:', item);
+        return;
+      }
+
+      // 设置起点
+      startPoint.value = {
+        name: item.name,
+        location: {
+          lng: parseFloat(item.location.lng),
+          lat: parseFloat(item.location.lat)
+        }
+      };
+
+      // 更新搜索框文本
+      startSearchText.value = item.name;
+
+      // 隐藏搜索结果
+      startSearchResults.value = [];
+      startSearchFocused.value = false;
+
+      // 在地图上标记起点
+      if (map.value) {
+        // 清除之前的标记
+        clearRoute();
+
+        // 移动地图到起点
+        map.value.setCenter([item.location.lng, item.location.lat]);
+
+        // 添加标记
+        const marker = new window.AMap.Marker({
+          position: [item.location.lng, item.location.lat],
+          title: '起点: ' + item.name,
+          animation: 'AMAP_ANIMATION_DROP',
+          icon: 'https://webapi.amap.com/theme/v1.3/markers/n/start.png'
+        });
+
+        // 添加到地图
+        map.value.add(marker);
+      }
+    };
+
+    // 选择终点搜索结果
+    const selectEndSearchResult = (item) => {
+      console.log('[地图] 选择终点搜索结果:', item);
+
+      // 确保位置信息存在
+      if (!item.location) {
+        console.error('[地图] 搜索结果没有位置信息:', item);
+        return;
+      }
+
+      // 设置终点
+      endPoint.value = {
+        name: item.name,
+        location: {
+          lng: parseFloat(item.location.lng),
+          lat: parseFloat(item.location.lat)
+        }
+      };
+
+      // 更新搜索框文本
+      endSearchText.value = item.name;
+
+      // 隐藏搜索结果
+      endSearchResults.value = [];
+      endSearchFocused.value = false;
+
+      // 在地图上标记终点
+      if (map.value) {
+        // 移动地图到终点
+        map.value.setCenter([item.location.lng, item.location.lat]);
+
+        // 添加标记
+        const marker = new window.AMap.Marker({
+          position: [item.location.lng, item.location.lat],
+          title: '终点: ' + item.name,
+          animation: 'AMAP_ANIMATION_DROP',
+          icon: 'https://webapi.amap.com/theme/v1.3/markers/n/end.png'
+        });
+
+        // 添加到地图
+        map.value.add(marker);
+      }
+    };
+
+    // 处理起点搜索框失焦
+    const handleStartBlur = () => {
+      // 延迟隐藏结果，以便点击结果项
+      setTimeout(() => {
+        startSearchFocused.value = false;
+      }, 200);
+    };
+
+    // 处理终点搜索框失焦
+    const handleEndBlur = () => {
+      // 延迟隐藏结果，以便点击结果项
+      setTimeout(() => {
+        endSearchFocused.value = false;
+      }, 200);
+    };
+
     // 处理搜索清除
     const handleSearchClear = () => {
       console.log('[地图] 搜索清除');
@@ -454,14 +691,17 @@ export default {
 
         // 设置起点
         startPoint.value = {
-          name: '当前位置',
+          name: '我的位置',
           location: {
             lng: longitude,
             lat: latitude
           }
         };
 
-        console.log('[地图] 设置起点为当前位置:', startPoint.value);
+        console.log('[地图] 设置起点为我的位置:', startPoint.value);
+
+        // 更新搜索框文本
+        startSearchText.value = '我的位置';
 
         // 在地图上标记起点
         if (map.value) {
@@ -470,7 +710,7 @@ export default {
           // 添加标记
           const marker = new window.AMap.Marker({
             position: [longitude, latitude],
-            title: '当前位置(起点)',
+            title: '我的位置',
             animation: 'AMAP_ANIMATION_DROP'
           });
 
@@ -703,6 +943,22 @@ export default {
       clearRoute,
       routeInfo,
 
+      // 起点搜索相关
+      startSearchText,
+      startSearchResults,
+      startSearchFocused,
+      handleStartSearch,
+      selectStartSearchResult,
+      handleStartBlur,
+
+      // 终点搜索相关
+      endSearchText,
+      endSearchResults,
+      endSearchFocused,
+      handleEndSearch,
+      selectEndSearchResult,
+      handleEndBlur,
+
       // 路线天气相关
       showRouteWeatherPopup,
       routeWeatherPoints,
@@ -737,7 +993,7 @@ export default {
     transform: translateX(-50%);
     width: 90%;
     max-width: 500px;
-    z-index: 10;
+    z-index: 9; /* 降低z-index，确保导航面板在上层 */
   }
 
   .map-view {
@@ -843,7 +1099,7 @@ export default {
 
   .navigation-panel {
     position: absolute;
-    bottom: var(--spacing-lg);
+    top: calc(var(--spacing-lg) + var(--font-size-xxl) + var(--spacing-lg) + 50px); /* 位于标题和搜索框下方 */
     left: 50%;
     transform: translateX(-50%);
     width: 90%;
@@ -851,7 +1107,7 @@ export default {
     background-color: white;
     border-radius: var(--border-radius-lg);
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-    z-index: 10;
+    z-index: 11; /* 确保在搜索框上方 */
     overflow: hidden;
 
     .panel-header {
@@ -892,21 +1148,73 @@ export default {
         border-radius: var(--border-radius-md);
         padding: var(--spacing-sm) var(--spacing-md);
         margin-bottom: var(--spacing-md);
+        position: relative;
 
         .material-icons {
           color: var(--primary-color);
           margin-right: var(--spacing-sm);
         }
 
-        input {
+        .search-input-wrapper {
           flex: 1;
-          border: none;
-          background: none;
-          outline: none;
-          font-size: var(--font-size-md);
+          position: relative;
 
-          &::placeholder {
-            color: #999;
+          input {
+            width: 100%;
+            border: none;
+            background: none;
+            outline: none;
+            font-size: var(--font-size-md);
+
+            &::placeholder {
+              color: #999;
+            }
+          }
+
+          .search-results {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            width: 100%;
+            max-height: 300px;
+            overflow-y: auto;
+            background-color: white;
+            border-radius: var(--border-radius-md);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            z-index: 1000;
+            margin-top: var(--spacing-xs);
+
+            .search-result-item {
+              display: flex;
+              align-items: center;
+              padding: var(--spacing-sm) var(--spacing-md);
+              cursor: pointer;
+
+              &:hover {
+                background-color: #f5f5f5;
+              }
+
+              .material-icons {
+                color: var(--primary-color);
+                margin-right: var(--spacing-sm);
+                font-size: 18px;
+              }
+
+              .result-info {
+                flex: 1;
+
+                .result-name {
+                  font-weight: bold;
+                  font-size: var(--font-size-sm);
+                }
+
+                .result-address {
+                  font-size: var(--font-size-xs);
+                  color: #666;
+                  margin-top: 2px;
+                }
+              }
+            }
           }
         }
 
@@ -1049,6 +1357,7 @@ export default {
 
     .navigation-panel {
       width: 95%;
+      top: calc(var(--spacing-lg) + var(--font-size-xl) + var(--spacing-md) + 40px); /* 调整移动设备上的位置 */
 
       .panel-content {
         padding: var(--spacing-sm);

@@ -128,7 +128,7 @@ const mapService = {
       // 创建标记
       const marker = new window.AMap.Marker({
         position: [position.coords.longitude, position.coords.latitude],
-        title: '当前位置'
+        title: '我的位置'
       });
 
       // 将标记添加到地图
