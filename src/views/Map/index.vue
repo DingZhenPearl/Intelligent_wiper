@@ -14,6 +14,16 @@
       <button @click="initializeMap" class="retry-button">重试</button>
     </div>
 
+    <!-- 搜索框 -->
+    <div class="search-box-container">
+      <SearchBox
+        v-if="map"
+        :map="map"
+        @select="handleSearchSelect"
+        @clear="handleSearchClear"
+      />
+    </div>
+
     <!-- 地图容器 -->
     <div id="map-container" class="map-view" ref="mapContainer"></div>
 
@@ -27,6 +37,71 @@
         <span class="material-icons">wb_sunny</span>
         天气查询
       </button>
+      <button @click="toggleNavigationMode" class="control-button" :class="{ 'active': navigationModeActive }">
+        <span class="material-icons">directions</span>
+        导航
+      </button>
+    </div>
+
+    <!-- 导航面板 -->
+    <div v-if="navigationModeActive" class="navigation-panel">
+      <div class="panel-header">
+        <h3>路线规划</h3>
+        <button class="close-button" @click="toggleNavigationMode">×</button>
+      </div>
+      <div class="panel-content">
+        <div class="input-group">
+          <span class="material-icons">location_on</span>
+          <input
+            type="text"
+            v-model="startPoint.name"
+            placeholder="起点"
+            @focus="selectStartPoint"
+            readonly
+          />
+          <button class="action-button" @click="useCurrentLocationAsStart">
+            <span class="material-icons">my_location</span>
+          </button>
+        </div>
+        <div class="input-group">
+          <span class="material-icons">flag</span>
+          <input
+            type="text"
+            v-model="endPoint.name"
+            placeholder="终点"
+            @focus="selectEndPoint"
+            readonly
+          />
+        </div>
+        <div class="button-group">
+          <button
+            class="plan-button"
+            @click="planRoute"
+            :disabled="!canPlanRoute"
+          >
+            <span class="material-icons">directions</span>
+            规划路线
+          </button>
+          <button class="clear-button" @click="clearRoute">
+            <span class="material-icons">clear</span>
+            清除
+          </button>
+        </div>
+        <div class="route-info" v-if="routeInfo">
+          <div class="info-item">
+            <span class="material-icons">schedule</span>
+            <span>{{ routeInfo.time }}</span>
+          </div>
+          <div class="info-item">
+            <span class="material-icons">straighten</span>
+            <span>{{ routeInfo.distance }}</span>
+          </div>
+          <button class="check-weather-button" @click="checkRouteWeather">
+            <span class="material-icons">cloud</span>
+            检查路线天气
+          </button>
+        </div>
+      </div>
     </div>
 
     <!-- 天气信息弹窗 -->
@@ -38,6 +113,16 @@
       @close="closeWeatherPopup"
       @retry="retryWeatherFetch"
     />
+
+    <!-- 路线天气弹窗 -->
+    <RouteWeatherPopup
+      :visible="showRouteWeatherPopup"
+      :routePoints="routeWeatherPoints"
+      :loading="isRouteWeatherLoading"
+      :error="routeWeatherError"
+      @close="closeRouteWeatherPopup"
+      @retry="checkRouteWeather"
+    />
   </div>
 </template>
 
@@ -45,12 +130,17 @@
 import { ref, onMounted, onUnmounted, computed } from 'vue';
 import mapService from '@/services/mapService';
 import weatherMapService from '@/services/weatherMapService';
+import routeWeatherService from '@/services/routeWeatherService';
 import WeatherPopup from '@/components/WeatherPopup.vue';
+import RouteWeatherPopup from '@/components/RouteWeatherPopup.vue';
+import SearchBox from '@/components/SearchBox.vue';
 
 export default {
   name: 'MapView',
   components: {
-    WeatherPopup
+    WeatherPopup,
+    RouteWeatherPopup,
+    SearchBox
   },
   setup() {
     // 状态变量
@@ -68,6 +158,21 @@ export default {
     const weatherData = ref({});
     const clickListener = ref(null);
     const clickMarker = ref(null);
+
+    // 导航相关状态
+    const navigationModeActive = ref(false);
+    const startPoint = ref({ name: '', location: null });
+    const endPoint = ref({ name: '', location: null });
+    const selectingPoint = ref(''); // 'start' 或 'end'
+    const drivingInstance = ref(null);
+    const routePath = ref([]);
+    const routeInfo = ref(null);
+
+    // 路线天气相关状态
+    const showRouteWeatherPopup = ref(false);
+    const isRouteWeatherLoading = ref(false);
+    const routeWeatherError = ref('');
+    const routeWeatherPoints = ref([]);
 
     // 初始化地图
     const initializeMap = async () => {
@@ -259,6 +364,291 @@ export default {
       fetchWeatherByLocation(longitude, latitude);
     };
 
+    // 处理搜索结果选择
+    const handleSearchSelect = (item) => {
+      console.log('[地图] 搜索结果选择:', item);
+
+      // 确保位置信息存在
+      if (!item.location) {
+        console.error('[地图] 搜索结果没有位置信息:', item);
+        return;
+      }
+
+      // 如果正在选择起点或终点，则设置相应的点
+      if (selectingPoint.value === 'start') {
+        startPoint.value = {
+          name: item.name,
+          location: {
+            lng: parseFloat(item.location.lng),
+            lat: parseFloat(item.location.lat)
+          }
+        };
+        console.log('[地图] 设置起点:', startPoint.value);
+        selectingPoint.value = '';
+      } else if (selectingPoint.value === 'end') {
+        endPoint.value = {
+          name: item.name,
+          location: {
+            lng: parseFloat(item.location.lng),
+            lat: parseFloat(item.location.lat)
+          }
+        };
+        console.log('[地图] 设置终点:', endPoint.value);
+        selectingPoint.value = '';
+      }
+    };
+
+    // 处理搜索清除
+    const handleSearchClear = () => {
+      console.log('[地图] 搜索清除');
+
+      // 清除地图上的标记
+      if (map.value) {
+        map.value.clearMap();
+      }
+    };
+
+    // 切换导航模式
+    const toggleNavigationMode = () => {
+      navigationModeActive.value = !navigationModeActive.value;
+      console.log(`[地图] 导航模式 ${navigationModeActive.value ? '开启' : '关闭'}`);
+
+      // 如果关闭导航模式，清除路线
+      if (!navigationModeActive.value) {
+        clearRoute();
+      } else {
+        // 关闭天气模式
+        weatherModeActive.value = false;
+        removeMapClickListener();
+      }
+    };
+
+    // 选择起点
+    const selectStartPoint = () => {
+      console.log('[地图] 选择起点');
+      selectingPoint.value = 'start';
+    };
+
+    // 选择终点
+    const selectEndPoint = () => {
+      console.log('[地图] 选择终点');
+      selectingPoint.value = 'end';
+    };
+
+    // 使用当前位置作为起点
+    const useCurrentLocationAsStart = async () => {
+      try {
+        console.log('[地图] 使用当前位置作为起点');
+
+        // 获取当前位置
+        const position = await mapService.getCurrentPosition();
+        console.log('[地图] 获取到当前位置:', position);
+
+        // 确保位置信息存在
+        if (!position || !position.coords) {
+          throw new Error('无法获取位置信息');
+        }
+
+        const longitude = position.coords.longitude;
+        const latitude = position.coords.latitude;
+
+        // 设置起点
+        startPoint.value = {
+          name: '当前位置',
+          location: {
+            lng: longitude,
+            lat: latitude
+          }
+        };
+
+        console.log('[地图] 设置起点为当前位置:', startPoint.value);
+
+        // 在地图上标记起点
+        if (map.value) {
+          map.value.setCenter([longitude, latitude]);
+
+          // 添加标记
+          const marker = new window.AMap.Marker({
+            position: [longitude, latitude],
+            title: '当前位置(起点)',
+            animation: 'AMAP_ANIMATION_DROP'
+          });
+
+          // 添加到地图
+          map.value.add(marker);
+        }
+      } catch (error) {
+        console.error('[地图] 获取当前位置失败:', error);
+        errorMessage.value = `获取当前位置失败: ${error.message}`;
+      }
+    };
+
+    // 计算是否可以规划路线
+    const canPlanRoute = computed(() => {
+      return startPoint.value.location && endPoint.value.location;
+    });
+
+    // 规划路线
+    const planRoute = () => {
+      if (!canPlanRoute.value) {
+        console.warn('[地图] 无法规划路线: 起点或终点未设置');
+        return;
+      }
+
+      console.log('[地图] 开始规划路线');
+      console.log('[地图] 起点:', startPoint.value);
+      console.log('[地图] 终点:', endPoint.value);
+
+      // 清除之前的路线
+      clearRoute();
+
+      try {
+        // 创建起点和终点
+        const startLngLat = new window.AMap.LngLat(
+          startPoint.value.location.lng,
+          startPoint.value.location.lat
+        );
+
+        const endLngLat = new window.AMap.LngLat(
+          endPoint.value.location.lng,
+          endPoint.value.location.lat
+        );
+
+        console.log('[地图] 起点LngLat:', startLngLat);
+        console.log('[地图] 终点LngLat:', endLngLat);
+
+        // 创建驾车规划实例
+        if (drivingInstance.value) {
+          drivingInstance.value.clear();
+        }
+
+        // @ts-ignore
+        drivingInstance.value = new window.AMap.Driving({
+          map: map.value,
+          panel: false,
+          policy: window.AMap.DrivingPolicy.LEAST_TIME,
+          autoFitView: true
+        });
+
+        // 规划路线
+        drivingInstance.value.search(
+          startLngLat,
+          endLngLat,
+          (status, result) => {
+            if (status === 'complete') {
+              console.log('[地图] 路线规划成功:', result);
+
+              // 保存路径点
+              if (result.routes && result.routes.length > 0) {
+                const route = result.routes[0];
+                routePath.value = route.steps.reduce((acc, step) => {
+                  return acc.concat(step.path);
+                }, []);
+
+                // 设置路线信息
+                routeInfo.value = {
+                  distance: formatDistance(route.distance),
+                  time: formatTime(route.time)
+                };
+              }
+            } else {
+              console.error('[地图] 路线规划失败:', result);
+              errorMessage.value = '路线规划失败，请重试';
+            }
+          }
+        );
+      } catch (error) {
+        console.error('[地图] 规划路线时发生错误:', error);
+        errorMessage.value = `规划路线失败: ${error.message}`;
+      }
+    };
+
+    // 清除路线
+    const clearRoute = () => {
+      console.log('[地图] 清除路线');
+
+      // 清除驾车规划实例
+      if (drivingInstance.value) {
+        try {
+          drivingInstance.value.clear();
+        } catch (error) {
+          console.error('[地图] 清除路线失败:', error);
+        }
+      }
+
+      // 清除地图上的所有覆盖物
+      if (map.value) {
+        try {
+          map.value.clearMap();
+        } catch (error) {
+          console.error('[地图] 清除地图覆盖物失败:', error);
+        }
+      }
+
+      // 清除路径点
+      routePath.value = [];
+
+      // 清除路线信息
+      routeInfo.value = null;
+    };
+
+    // 格式化距离
+    const formatDistance = (distance) => {
+      if (distance >= 1000) {
+        return `${(distance / 1000).toFixed(1)} 公里`;
+      }
+      return `${distance} 米`;
+    };
+
+    // 格式化时间
+    const formatTime = (time) => {
+      const hours = Math.floor(time / 3600);
+      const minutes = Math.floor((time % 3600) / 60);
+
+      if (hours > 0) {
+        return `${hours} 小时 ${minutes} 分钟`;
+      }
+      return `${minutes} 分钟`;
+    };
+
+    // 检查路线天气
+    const checkRouteWeather = async () => {
+      if (routePath.value.length === 0) {
+        console.warn('[地图] 无法检查路线天气: 路线未规划');
+        return;
+      }
+
+      try {
+        console.log('[地图] 开始检查路线天气');
+
+        // 显示加载状态
+        showRouteWeatherPopup.value = true;
+        isRouteWeatherLoading.value = true;
+        routeWeatherError.value = '';
+
+        // 获取路线上的采样点
+        const samplePoints = routeWeatherService.getSamplePoints(routePath.value, 5);
+        console.log('[地图] 路线采样点:', samplePoints);
+
+        // 获取采样点的天气信息
+        const pointsWithWeather = await routeWeatherService.getRouteWeather(samplePoints);
+        routeWeatherPoints.value = pointsWithWeather;
+
+        // 清除加载状态
+        isRouteWeatherLoading.value = false;
+      } catch (error) {
+        console.error('[地图] 检查路线天气失败:', error);
+        routeWeatherError.value = `检查路线天气失败: ${error.message}`;
+        isRouteWeatherLoading.value = false;
+      }
+    };
+
+    // 关闭路线天气弹窗
+    const closeRouteWeatherPopup = () => {
+      showRouteWeatherPopup.value = false;
+      console.log('[地图] 关闭路线天气弹窗');
+    };
+
     // 组件卸载时清理资源
     onUnmounted(() => {
       console.log('[地图] 组件已卸载');
@@ -266,6 +656,9 @@ export default {
       // 移除点击监听器和标记
       removeMapClickListener();
       removeClickMarker();
+
+      // 清除路线
+      clearRoute();
 
       // 销毁地图
       if (map.value) {
@@ -281,6 +674,7 @@ export default {
       hasError,
       initializeMap,
       locateMe,
+      map,
 
       // 天气相关
       weatherModeActive,
@@ -290,7 +684,32 @@ export default {
       weatherData,
       toggleWeatherMode,
       closeWeatherPopup,
-      retryWeatherFetch
+      retryWeatherFetch,
+
+      // 搜索相关
+      handleSearchSelect,
+      handleSearchClear,
+
+      // 导航相关
+      navigationModeActive,
+      startPoint,
+      endPoint,
+      toggleNavigationMode,
+      selectStartPoint,
+      selectEndPoint,
+      useCurrentLocationAsStart,
+      canPlanRoute,
+      planRoute,
+      clearRoute,
+      routeInfo,
+
+      // 路线天气相关
+      showRouteWeatherPopup,
+      routeWeatherPoints,
+      isRouteWeatherLoading,
+      routeWeatherError,
+      checkRouteWeather,
+      closeRouteWeatherPopup
     };
   }
 };
@@ -302,12 +721,23 @@ export default {
   display: flex;
   flex-direction: column;
   height: 100%;
+  position: relative;
 
   h1 {
     text-align: center;
     margin-bottom: var(--spacing-lg);
     color: #333;
     font-size: var(--font-size-xxl);
+  }
+
+  .search-box-container {
+    position: absolute;
+    top: calc(var(--spacing-lg) + var(--font-size-xxl) + var(--spacing-lg));
+    left: 50%;
+    transform: translateX(-50%);
+    width: 90%;
+    max-width: 500px;
+    z-index: 10;
   }
 
   .map-view {
@@ -410,6 +840,182 @@ export default {
       }
     }
   }
+
+  .navigation-panel {
+    position: absolute;
+    bottom: var(--spacing-lg);
+    left: 50%;
+    transform: translateX(-50%);
+    width: 90%;
+    max-width: 500px;
+    background-color: white;
+    border-radius: var(--border-radius-lg);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    z-index: 10;
+    overflow: hidden;
+
+    .panel-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: var(--spacing-md);
+      background-color: var(--primary-color);
+      color: white;
+
+      h3 {
+        margin: 0;
+        font-size: var(--font-size-lg);
+      }
+
+      .close-button {
+        background: none;
+        border: none;
+        color: white;
+        font-size: 24px;
+        cursor: pointer;
+        padding: 0;
+        line-height: 1;
+
+        &:hover {
+          opacity: 0.8;
+        }
+      }
+    }
+
+    .panel-content {
+      padding: var(--spacing-md);
+
+      .input-group {
+        display: flex;
+        align-items: center;
+        background-color: #f5f5f5;
+        border-radius: var(--border-radius-md);
+        padding: var(--spacing-sm) var(--spacing-md);
+        margin-bottom: var(--spacing-md);
+
+        .material-icons {
+          color: var(--primary-color);
+          margin-right: var(--spacing-sm);
+        }
+
+        input {
+          flex: 1;
+          border: none;
+          background: none;
+          outline: none;
+          font-size: var(--font-size-md);
+
+          &::placeholder {
+            color: #999;
+          }
+        }
+
+        .action-button {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          background: none;
+          border: none;
+          padding: 0;
+          cursor: pointer;
+
+          .material-icons {
+            color: #666;
+            margin-right: 0;
+          }
+
+          &:hover .material-icons {
+            color: var(--primary-color);
+          }
+        }
+      }
+
+      .button-group {
+        display: flex;
+        gap: var(--spacing-md);
+        margin-bottom: var(--spacing-md);
+
+        .plan-button, .clear-button {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: var(--spacing-sm) var(--spacing-md);
+          border-radius: var(--border-radius-md);
+          border: none;
+          cursor: pointer;
+          font-size: var(--font-size-md);
+
+          .material-icons {
+            margin-right: var(--spacing-xs);
+          }
+        }
+
+        .plan-button {
+          flex: 2;
+          background-color: var(--primary-color);
+          color: white;
+
+          &:hover {
+            background-color: var(--primary-color-dark);
+          }
+
+          &:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+          }
+        }
+
+        .clear-button {
+          flex: 1;
+          background-color: #f5f5f5;
+          color: #666;
+
+          &:hover {
+            background-color: #e0e0e0;
+          }
+        }
+      }
+
+      .route-info {
+        background-color: #f5f5f5;
+        border-radius: var(--border-radius-md);
+        padding: var(--spacing-md);
+
+        .info-item {
+          display: flex;
+          align-items: center;
+          margin-bottom: var(--spacing-sm);
+
+          .material-icons {
+            color: var(--primary-color);
+            margin-right: var(--spacing-sm);
+          }
+        }
+
+        .check-weather-button {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          width: 100%;
+          background-color: var(--primary-color);
+          color: white;
+          border: none;
+          padding: var(--spacing-sm);
+          border-radius: var(--border-radius-md);
+          cursor: pointer;
+          margin-top: var(--spacing-md);
+
+          .material-icons {
+            margin-right: var(--spacing-xs);
+          }
+
+          &:hover {
+            background-color: var(--primary-color-dark);
+          }
+        }
+      }
+    }
+  }
 }
 
 @keyframes spin {
@@ -430,6 +1036,23 @@ export default {
 
     .map-view {
       min-height: 300px;
+    }
+
+    .map-controls {
+      flex-wrap: wrap;
+
+      .control-button {
+        font-size: var(--font-size-sm);
+        padding: var(--spacing-xs) var(--spacing-md);
+      }
+    }
+
+    .navigation-panel {
+      width: 95%;
+
+      .panel-content {
+        padding: var(--spacing-sm);
+      }
     }
   }
 }

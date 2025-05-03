@@ -22,6 +22,29 @@ const mapService = {
   status: mapStatus,
 
   /**
+   * 获取当前位置
+   * @param {Object} options - 定位选项
+   * @returns {Promise<Object>} - 位置信息
+   */
+  async getCurrentPosition(options = {}) {
+    try {
+      console.log('[地图服务] 开始获取当前位置');
+
+      // 使用locationService获取当前位置
+      const position = await locationService.getCurrentPosition(options);
+      console.log('[地图服务] 获取当前位置成功:', position);
+
+      // 保存位置信息
+      this.status.value.position = position;
+
+      return position;
+    } catch (error) {
+      console.error('[地图服务] 获取当前位置失败:', error);
+      throw error;
+    }
+  },
+
+  /**
    * 初始化地图
    * @param {string} containerId - 地图容器ID
    * @param {Object} options - 地图选项
