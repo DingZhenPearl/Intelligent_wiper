@@ -19,6 +19,10 @@
         <span class="icon">🌤️</span>
         <span>天气预报</span>
       </router-link>
+      <router-link to="/map" class="nav-item">
+        <span class="icon">🗺️</span>
+        <span>地图</span>
+      </router-link>
       <router-link to="/settings" class="nav-item">
         <span class="icon">⚙️</span>
         <span>状态与设置</span>
@@ -90,7 +94,7 @@ export default {
   font-size: var(--font-size-sm);
   padding: var(--spacing-xs) 0;
   transition: color 0.3s;
-  width: 25%;
+  width: 20%;
 }
 
 .nav-item .icon {

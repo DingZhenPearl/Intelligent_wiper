@@ -33,6 +33,12 @@ const routes = [
     meta: { requiresAuth: true }
   },
   {
+    path: '/map',
+    name: 'Map',
+    component: () => import('../views/Map/index.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
     path: '/',
     redirect: () => {
       // 检查是否已登录，决定重定向到哪里
