@@ -816,6 +816,9 @@ export default {
         }
       }
 
+      // 清除采样点标记
+      removeSampleMarkers();
+
       // 清除地图上的所有覆盖物
       if (map.value) {
         try {
@@ -851,10 +854,67 @@ export default {
       return `${minutes} 分钟`;
     };
 
+    // 采样点标记数组
+    const sampleMarkers = ref([]);
+
+    // 移除采样点标记
+    const removeSampleMarkers = () => {
+      if (sampleMarkers.value.length > 0 && map.value) {
+        // 从地图上移除所有采样点标记
+        map.value.remove(sampleMarkers.value);
+        sampleMarkers.value = [];
+        console.log('[地图] 已移除所有采样点标记');
+      }
+    };
+
+    // 在地图上标记采样点
+    const markSamplePoints = (points) => {
+      if (!map.value || !points || points.length === 0) return;
+
+      // 先移除现有的采样点标记
+      removeSampleMarkers();
+
+      // 为每个采样点创建标记
+      const markers = points.map((point, index) => {
+        // 根据点的类型选择不同的图标
+        let icon;
+        if (point.name === '起点') {
+          icon = 'https://webapi.amap.com/theme/v1.3/markers/n/start.png';
+        } else if (point.name === '终点') {
+          icon = 'https://webapi.amap.com/theme/v1.3/markers/n/end.png';
+        } else {
+          // 途经点使用数字图标
+          const iconIndex = (index % 10) + 1; // 1-10的数字
+          icon = `https://webapi.amap.com/theme/v1.3/markers/n/mark_b${iconIndex}.png`;
+        }
+
+        // 创建标记
+        const marker = new window.AMap.Marker({
+          position: [point.longitude, point.latitude],
+          title: `${point.name}${point.weather ? ': ' + point.weather.weather : ''}`,
+          icon: icon,
+          label: {
+            content: `<div style="padding: 2px 5px; background-color: #fff; border-radius: 3px; border: 1px solid #ccc; font-size: 12px;">${point.name}</div>`,
+            direction: 'top'
+          }
+        });
+
+        return marker;
+      });
+
+      // 将所有标记添加到地图
+      map.value.add(markers);
+
+      // 保存标记引用
+      sampleMarkers.value = markers;
+
+      console.log(`[地图] 已在地图上标记${markers.length}个采样点`);
+    };
+
     // 检查路线天气
     const checkRouteWeather = async () => {
-      if (routePath.value.length === 0) {
-        console.warn('[地图] 无法检查路线天气: 路线未规划');
+      if (routePath.value.length === 0 || !routeInfo.value) {
+        console.warn('[地图] 无法检查路线天气: 路线未规划或路线信息不完整');
         return;
       }
 
@@ -866,13 +926,30 @@ export default {
         isRouteWeatherLoading.value = true;
         routeWeatherError.value = '';
 
-        // 获取路线上的采样点
-        const samplePoints = routeWeatherService.getSamplePoints(routePath.value, 5);
+        // 从路线信息中提取距离（去掉单位）
+        let distanceText = routeInfo.value.distance;
+        let distance = 0;
+
+        if (distanceText.includes('公里')) {
+          // 如果距离以公里为单位，转换为米
+          distance = parseFloat(distanceText.replace(' 公里', '')) * 1000;
+        } else {
+          // 如果距离以米为单位
+          distance = parseFloat(distanceText.replace(' 米', ''));
+        }
+
+        console.log(`[地图] 路线距离: ${distance}米`);
+
+        // 获取路线上的采样点，根据距离确定采样点数量
+        const samplePoints = routeWeatherService.getSamplePoints(routePath.value, distance);
         console.log('[地图] 路线采样点:', samplePoints);
 
         // 获取采样点的天气信息
         const pointsWithWeather = await routeWeatherService.getRouteWeather(samplePoints);
         routeWeatherPoints.value = pointsWithWeather;
+
+        // 在地图上标记采样点
+        markSamplePoints(pointsWithWeather);
 
         // 清除加载状态
         isRouteWeatherLoading.value = false;
@@ -887,6 +964,10 @@ export default {
     const closeRouteWeatherPopup = () => {
       showRouteWeatherPopup.value = false;
       console.log('[地图] 关闭路线天气弹窗');
+
+      // 保留采样点标记，不移除
+      // 如果需要在关闭弹窗时移除标记，可以取消下面这行的注释
+      // removeSampleMarkers();
     };
 
     // 组件卸载时清理资源
@@ -896,6 +977,9 @@ export default {
       // 移除点击监听器和标记
       removeMapClickListener();
       removeClickMarker();
+
+      // 移除采样点标记
+      removeSampleMarkers();
 
       // 清除路线
       clearRoute();
@@ -965,7 +1049,12 @@ export default {
       isRouteWeatherLoading,
       routeWeatherError,
       checkRouteWeather,
-      closeRouteWeatherPopup
+      closeRouteWeatherPopup,
+
+      // 采样点标记相关
+      sampleMarkers,
+      markSamplePoints,
+      removeSampleMarkers
     };
   }
 };
