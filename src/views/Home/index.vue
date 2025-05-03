@@ -57,6 +57,30 @@
         <span class="icon material-icons">power_settings_new</span>
           {{ currentStatus === 'off' ? '开启雨刷' : '立即关闭' }}
         </button>
+
+        <!-- 语音控制按钮 -->
+        <button class="voice-control-btn" @click="toggleVoiceControl" :class="{ 'listening': isVoiceListening }">
+          <span class="icon material-icons">{{ isVoiceListening ? 'mic' : 'mic_none' }}</span>
+          {{ isVoiceListening ? '正在聆听...' : '语音控制' }}
+        </button>
+
+        <!-- 语音识别结果提示 -->
+        <div v-if="voiceResult" class="voice-result" :class="{ 'success': voiceSuccess, 'error': !voiceSuccess }">
+          <span class="icon material-icons">{{ voiceSuccess ? 'check_circle' : 'error' }}</span>
+          <span>{{ voiceResult }}</span>
+        </div>
+
+        <!-- 权限提示 -->
+        <div v-if="showPermissionTip" class="permission-tip">
+          <span class="icon material-icons">mic_off</span>
+          <div class="tip-content">
+            <p>需要麦克风权限才能使用语音控制功能</p>
+            <p class="tip-detail">请在系统设置中允许应用使用麦克风</p>
+          </div>
+          <button class="close-tip" @click="dismissPermissionTip">
+            <span class="icon material-icons">close</span>
+          </button>
+        </div>
       </div>
     </div>
   </div>
@@ -66,6 +90,9 @@
 import { ref, onMounted, onUnmounted, watch } from 'vue'
 import rainfallService from '@/services/rainfallService'
 import rainfallDataService from '@/services/rainfallDataService'
+import voiceService from '@/services/voiceService'
+import nativeVoiceService from '@/services/nativeVoiceService'
+import { isNative } from '@/utils/platform'
 
 export default {
   name: 'ControlPanel',
@@ -80,6 +107,12 @@ export default {
     const isMockDataLoading = ref(false) // 是否正在生成模拟数据
     const mockDataMessage = ref('') // 模拟数据生成结果消息
     const mockDataSuccess = ref(true) // 模拟数据生成是否成功
+
+    // 语音控制相关状态
+    const isVoiceListening = ref(false) // 是否正在监听语音
+    const voiceResult = ref('') // 语音识别结果
+    const voiceSuccess = ref(true) // 语音识别是否成功
+    const showPermissionTip = ref(false) // 是否显示权限提示
 
     // 监听共享服务中的雨量数据变化
     watch(() => rainfallService.rainfallPercentage.value, (newPercentage) => {
@@ -369,9 +402,288 @@ export default {
       }
     };
 
-    // 生命周期钩子
-    onMounted(async () => {
+
+
+    // 获取当前使用的语音服务
+    const getCurrentVoiceService = () => {
+      // 如果在原生环境中，并且原生语音服务可用，则使用原生语音服务
+      if (isNative() && nativeVoiceService.nativeBridge) {
+        return nativeVoiceService;
+      }
+      // 否则使用Web语音服务
+      return voiceService;
+    };
+
+    // 语音控制相关方法
+    const toggleVoiceControl = async () => {
+      console.log('[Home] 切换语音控制状态');
+
+      // 获取当前使用的语音服务
+      const currentVoiceService = getCurrentVoiceService();
+      console.log(`[Home] 使用${currentVoiceService === nativeVoiceService ? '原生' : 'Web'}语音服务`);
+
+      if (isVoiceListening.value) {
+        // 如果正在监听，则停止
+        stopVoiceListening();
+      } else {
+        if (currentVoiceService === nativeVoiceService) {
+          // 使用原生语音服务
+          console.log('[Home] 使用原生语音服务开始语音识别');
+
+          // 检查麦克风权限
+          if (!currentVoiceService.microphonePermissionGranted.value) {
+            console.log('[Home] 麦克风权限未授予，请求权限');
+            currentVoiceService.requestMicrophonePermission();
+            showVoiceResult('请授予麦克风权限以使用语音控制功能', false);
+            return;
+          }
+
+          // 开始语音识别
+          const startSuccess = currentVoiceService.start();
+
+          if (startSuccess) {
+            isVoiceListening.value = true;
+
+            // 设置超时，如果10秒内没有识别结果，自动停止
+            setTimeout(() => {
+              if (isVoiceListening.value) {
+                console.log('[Home] 语音识别超时，自动停止');
+                stopVoiceListening();
+                showVoiceResult('未能识别到语音命令', false);
+              }
+            }, 10000);
+          } else {
+            showVoiceResult(currentVoiceService.error.value || '启动语音识别失败', false);
+          }
+        } else {
+          // 使用Web语音服务
+          console.log('[Home] 使用Web语音服务开始语音识别');
+
+          // 在开始语音识别前，先主动请求麦克风权限
+          try {
+            console.log('[Home] 主动请求麦克风权限');
+
+            // 使用getUserMedia API直接请求麦克风权限
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+
+            // 如果成功获取流，则权限已授予
+            console.log('[Home] 成功获取音频流，麦克风权限已授予');
+
+            // 停止所有轨道
+            stream.getTracks().forEach(track => track.stop());
+
+            // 开始语音识别
+            await startVoiceListening();
+          } catch (err) {
+            console.error('[Home] 请求麦克风权限失败:', err);
+
+            // 显示错误信息
+            if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+              showVoiceResult('麦克风权限被拒绝，请在设置中允许应用使用麦克风', false);
+            } else {
+              // 尝试正常启动语音识别
+              await startVoiceListening();
+            }
+          }
+        }
+      }
+    };
+
+    // 开始语音监听
+    const startVoiceListening = async () => {
+      console.log('[Home] 开始语音监听');
+
+      // 清除之前的结果
+      voiceResult.value = '';
+
+      // 显示正在准备的状态
+      isVoiceListening.value = true;
+
+      try {
+        // 启动语音识别（异步操作）
+        const startSuccess = await voiceService.start();
+
+        if (startSuccess) {
+          console.log('[Home] 语音识别启动成功');
+
+          // 设置超时，如果10秒内没有识别结果，自动停止
+          setTimeout(() => {
+            if (isVoiceListening.value) {
+              console.log('[Home] 语音识别超时，自动停止');
+              stopVoiceListening();
+              showVoiceResult('未能识别到语音命令', false);
+            }
+          }, 10000);
+        } else {
+          // 启动失败
+          console.error('[Home] 语音识别启动失败');
+          isVoiceListening.value = false;
+          showVoiceResult(voiceService.error.value || '启动语音识别失败', false);
+        }
+      } catch (err) {
+        // 捕获任何异常
+        console.error('[Home] 语音识别启动异常:', err);
+        isVoiceListening.value = false;
+        showVoiceResult(`语音识别启动异常: ${err.message}`, false);
+      }
+    };
+
+    // 停止语音监听
+    const stopVoiceListening = () => {
+      console.log('[Home] 停止语音监听');
+
+      // 获取当前使用的语音服务
+      const currentVoiceService = getCurrentVoiceService();
+      console.log(`[Home] 使用${currentVoiceService === nativeVoiceService ? '原生' : 'Web'}语音服务停止语音识别`);
+
+      currentVoiceService.stop();
+      isVoiceListening.value = false;
+    };
+
+    // 显示语音结果
+    const showVoiceResult = (result, success = true) => {
+      console.log(`[Home] 显示语音结果: ${result}, 成功: ${success}`);
+
+      voiceResult.value = result;
+      voiceSuccess.value = success;
+
+      // 检查是否是权限错误
+      if (!success && (
+        result.includes('权限') ||
+        result.includes('麦克风') ||
+        result.includes('NotAllowedError')
+      )) {
+        // 显示权限提示
+        showPermissionTip.value = true;
+      }
+
+      // 5秒后清除结果
+      setTimeout(() => {
+        voiceResult.value = '';
+      }, 5000);
+    };
+
+    // 关闭权限提示
+    const dismissPermissionTip = () => {
+      console.log('[Home] 关闭权限提示');
+      showPermissionTip.value = false;
+    };
+
+    // 处理语音命令
+    const handleVoiceCommand = (command) => {
+      console.log(`[Home] 处理语音命令: ${command}`);
+      console.log('%c【语音命令】原始命令: ' + command, 'color: #2196F3; font-weight: bold; font-size: 14px;');
+
+      // 获取当前使用的语音服务
+      const currentVoiceService = getCurrentVoiceService();
+      console.log(`[Home] 使用${currentVoiceService === nativeVoiceService ? '原生' : 'Web'}语音服务处理命令`);
+
+      // 使用语音服务处理命令
+      const action = currentVoiceService.processCommand(command);
+
+      if (action) {
+        console.log(`[Home] 识别到语音命令: ${action}`);
+        console.log('%c【语音命令】解析结果: ' + action, 'color: #9C27B0; font-weight: bold; font-size: 14px;');
+
+        // 根据命令执行相应操作
+        if (action === 'start') {
+          // 开启雨刷
+          if (currentStatus.value === 'off') {
+            console.log('%c【语音命令】执行: 开启雨刷（智能模式）', 'color: #FF9800; font-weight: bold; font-size: 14px;');
+            changeStatus('smart');
+            showVoiceResult('已开启雨刷（智能模式）');
+          } else {
+            console.log('%c【语音命令】状态: 雨刷已经处于开启状态', 'color: #FF9800; font-weight: bold; font-size: 14px;');
+            showVoiceResult('雨刷已经处于开启状态');
+          }
+        } else if (action === 'stop') {
+          // 关闭雨刷
+          if (currentStatus.value !== 'off') {
+            console.log('%c【语音命令】执行: 关闭雨刷', 'color: #FF9800; font-weight: bold; font-size: 14px;');
+            changeStatus('off');
+            showVoiceResult('已关闭雨刷');
+          } else {
+            console.log('%c【语音命令】状态: 雨刷已经处于关闭状态', 'color: #FF9800; font-weight: bold; font-size: 14px;');
+            showVoiceResult('雨刷已经处于关闭状态');
+          }
+        } else if (['smart', 'interval', 'low', 'high'].includes(action)) {
+          // 切换到特定模式
+          // 获取模式的中文名称
+          const modeNames = {
+            'smart': '智能',
+            'interval': '间歇',
+            'low': '低速',
+            'high': '高速'
+          };
+
+          console.log(`%c【语音命令】执行: 切换到${modeNames[action]}模式`, 'color: #FF9800; font-weight: bold; font-size: 14px;');
+          changeStatus(action);
+          showVoiceResult(`已切换到${modeNames[action]}模式`);
+        } else {
+          // 未知命令
+          console.log('%c【语音命令】错误: 无法执行未知命令', 'color: #F44336; font-weight: bold; font-size: 14px;');
+          showVoiceResult(`无法执行命令: ${command}`, false);
+        }
+      } else {
+        // 未识别到有效命令
+        console.log('%c【语音命令】错误: 未识别到有效命令', 'color: #F44336; font-weight: bold; font-size: 14px;');
+        showVoiceResult(`未识别到有效命令: ${command}`, false);
+      }
+    };
+
+    // 设置语音事件监听器
+    const setupVoiceEventListeners = () => {
+      console.log('[Home] 设置语音事件监听器');
+
+      // 语音识别结果事件
+      window.addEventListener('voice-result', (event) => {
+        console.log('[Home] 收到语音识别结果事件:', event.detail);
+
+        const result = event.detail.result;
+        stopVoiceListening(); // 停止监听
+
+        // 处理语音命令
+        handleVoiceCommand(result);
+      });
+
+      // 语音识别错误事件
+      window.addEventListener('voice-error', (event) => {
+        console.error('[Home] 收到语音识别错误事件:', event.detail);
+
+        stopVoiceListening(); // 停止监听
+        showVoiceResult(`语音识别错误: ${event.detail.error}`, false);
+      });
+
+      // 语音识别结束事件
+      window.addEventListener('voice-end', () => {
+        console.log('[Home] 收到语音识别结束事件');
+
+        isVoiceListening.value = false;
+      });
+    };
+
+    // 移除语音事件监听器
+    const removeVoiceEventListeners = () => {
+      console.log('[Home] 移除语音事件监听器');
+
+      window.removeEventListener('voice-result', () => {});
+      window.removeEventListener('voice-error', () => {});
+      window.removeEventListener('voice-end', () => {});
+    };
+
+    // 修改现有的onMounted和onUnmounted方法
+    const originalOnMounted = onMounted;
+    const originalOnUnmounted = onUnmounted;
+
+    // 重新定义onMounted，添加语音服务初始化
+    originalOnMounted(async () => {
       console.log('首页组件已挂载');
+
+      // 初始化语音服务
+      voiceService.init();
+
+      // 设置语音事件监听器
+      setupVoiceEventListeners();
 
       // 检查用户登录状态
       const userDataStr = localStorage.getItem('user');
@@ -443,8 +755,17 @@ export default {
       }
     });
 
-    onUnmounted(() => {
+    // 重新定义onUnmounted，添加语音服务清理
+    originalOnUnmounted(() => {
       console.log("首页组件已卸载");
+
+      // 移除语音事件监听器
+      removeVoiceEventListeners();
+
+      // 确保停止语音监听
+      if (isVoiceListening.value) {
+        stopVoiceListening();
+      }
 
       // 清理定时器，但保留轮询状态
       if (dataPollingInterval.value) {
@@ -478,7 +799,14 @@ export default {
       // 数据轮询相关
       isDataPollingActive,
       startServiceDataCheck,
-      stopServiceDataCheck
+      stopServiceDataCheck,
+      // 语音控制相关
+      isVoiceListening,
+      voiceResult,
+      voiceSuccess,
+      showPermissionTip,
+      toggleVoiceControl,
+      dismissPermissionTip
     }
   }
 }
@@ -696,6 +1024,138 @@ export default {
 
     .icon {
       font-size: calc(var(--font-size-lg) * 1.2);
+    }
+  }
+
+  .voice-control-btn {
+    background-color: #34a853;
+    color: white;
+    border: none;
+    border-radius: var(--border-radius-lg);
+    padding: var(--spacing-sm) var(--spacing-lg);
+    font-size: var(--font-size-md);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-xs);
+    transition: all 0.3s ease;
+    margin-top: var(--spacing-md);
+    width: 100%;
+    max-width: 400px;
+    justify-content: center;
+
+    &:hover {
+      background-color: #2d9249;
+    }
+
+    &.listening {
+      background-color: #ea4335;
+      animation: pulse 1.5s infinite;
+
+      &:hover {
+        background-color: #d33426;
+      }
+    }
+
+    .icon {
+      font-size: calc(var(--font-size-md) * 1.2);
+    }
+  }
+
+  .voice-result {
+    margin-top: var(--spacing-md);
+    padding: var(--spacing-sm) var(--spacing-md);
+    border-radius: var(--border-radius-md);
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-xs);
+    width: 100%;
+    max-width: 400px;
+
+    &.success {
+      background-color: rgba(52, 168, 83, 0.1);
+      color: #34a853;
+      border: 1px solid rgba(52, 168, 83, 0.3);
+    }
+
+    &.error {
+      background-color: rgba(234, 67, 53, 0.1);
+      color: #ea4335;
+      border: 1px solid rgba(234, 67, 53, 0.3);
+    }
+
+    .icon {
+      font-size: var(--font-size-md);
+    }
+  }
+
+  .permission-tip {
+    margin-top: var(--spacing-md);
+    padding: var(--spacing-md);
+    border-radius: var(--border-radius-md);
+    background-color: rgba(251, 188, 5, 0.1);
+    border: 1px solid rgba(251, 188, 5, 0.3);
+    color: #fbbc05;
+    display: flex;
+    align-items: flex-start;
+    gap: var(--spacing-sm);
+    width: 100%;
+    max-width: 400px;
+    position: relative;
+
+    .icon {
+      font-size: var(--font-size-lg);
+      margin-top: 2px;
+    }
+
+    .tip-content {
+      flex: 1;
+
+      p {
+        margin: 0;
+        line-height: 1.4;
+
+        &.tip-detail {
+          font-size: var(--font-size-sm);
+          opacity: 0.8;
+          margin-top: 4px;
+        }
+      }
+    }
+
+    .close-tip {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      background: none;
+      border: none;
+      color: #fbbc05;
+      cursor: pointer;
+      padding: 4px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+
+      .icon {
+        font-size: var(--font-size-sm);
+      }
+
+      &:hover {
+        background-color: rgba(251, 188, 5, 0.1);
+        border-radius: 50%;
+      }
+    }
+  }
+
+  @keyframes pulse {
+    0% {
+      transform: scale(1);
+    }
+    50% {
+      transform: scale(1.05);
+    }
+    100% {
+      transform: scale(1);
     }
   }
 
