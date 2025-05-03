@@ -174,65 +174,13 @@
         </div>
         <div class="minutely-chart">
           <div class="chart-container">
-            <svg class="rain-line-chart" viewBox="0 0 100 30" preserveAspectRatio="none">
-              <!-- 渐变定义 -->
-              <defs>
-                <linearGradient id="rain-gradient" x1="0%" y1="0%" x2="0%" y2="100%">
-                  <stop offset="0%" stop-color="#03a9f4" stop-opacity="0.8" />
-                  <stop offset="100%" stop-color="#03a9f4" stop-opacity="0.1" />
-                </linearGradient>
-              </defs>
-              <!-- 背景网格线 -->
-              <g class="grid-lines">
-                <line x1="0" y1="0" x2="100" y2="0" class="grid-line"></line>
-                <line x1="0" y1="10" x2="100" y2="10" class="grid-line"></line>
-                <line x1="0" y1="20" x2="100" y2="20" class="grid-line"></line>
-                <line x1="0" y1="30" x2="100" y2="30" class="grid-line"></line>
-              </g>
-
-              <!-- 降水量折线 -->
-              <polyline
-                :points="getLinePoints()"
-                class="rain-line"
-                fill="none"
-              ></polyline>
-
-              <!-- 降水量填充区域 -->
-              <path
-                :d="getAreaPath()"
-                class="rain-area"
-              ></path>
-
-              <!-- 数据点 -->
-              <g class="data-points">
-                <circle
-                  v-for="(point, index) in getDataPoints()"
-                  :key="index"
-                  :cx="point.x"
-                  :cy="point.y"
-                  r="0.5"
-                  class="data-point"
-                  :class="{ 'has-rain': parseFloat(point.precip) > 0 }"
-                  :title="`${formatMinuteTime(point.time)}: ${point.precip}mm`"
-                ></circle>
-              </g>
-            </svg>
-
-            <!-- 降水量刻度 -->
-            <div class="rain-scale">
-              <span>5mm</span>
-              <span>2.5mm</span>
-              <span>0mm</span>
-            </div>
-          </div>
-
-          <!-- 时间刻度 -->
-          <div class="time-labels">
-            <span>{{ formatMinuteTime(minutelyWeather.minutely[0].fxTime) }}</span>
-            <span>{{ formatMinuteTime(minutelyWeather.minutely[Math.floor(minutelyWeather.minutely.length / 4)].fxTime) }}</span>
-            <span>{{ formatMinuteTime(minutelyWeather.minutely[Math.floor(minutelyWeather.minutely.length / 2)].fxTime) }}</span>
-            <span>{{ formatMinuteTime(minutelyWeather.minutely[Math.floor(minutelyWeather.minutely.length * 3 / 4)].fxTime) }}</span>
-            <span>{{ formatMinuteTime(minutelyWeather.minutely[minutelyWeather.minutely.length - 1].fxTime) }}</span>
+            <e-charts
+              :option="getRainChartOption()"
+              height="220px"
+              width="100%"
+              :auto-resize="true"
+              class="rain-echarts"
+            />
           </div>
         </div>
         </template>
@@ -301,13 +249,15 @@
 import { ref, onMounted, onUnmounted, computed } from 'vue';
 import weatherService from '@/services/weatherService';
 import WeatherIcon from '@/components/WeatherIcon.vue';
+import ECharts from '@/components/ECharts';
 import { isNative, isAndroid } from '@/utils/platform';
 import * as locationService from '@/utils/locationService';
 
 export default {
   name: 'WeatherView',
   components: {
-    WeatherIcon
+    WeatherIcon,
+    ECharts
   },
   setup() {
     // 响应式状态
@@ -316,6 +266,8 @@ export default {
     const errorMessage = ref(null);
     const lastUpdateTime = ref(null);
     const isUsingLocation = ref(false);
+
+    // 不再需要降水图表交互状态，ECharts内置了交互功能
 
     // 热门城市列表
     const popularCities = [
@@ -529,14 +481,326 @@ export default {
 
 
 
+    // 计算最大降水量，用于动态调整量程
+    const getMaxPrecip = () => {
+      if (!minutelyWeather.value || !minutelyWeather.value.minutely || minutelyWeather.value.minutely.length === 0) {
+        return 5; // 默认值
+      }
+
+      // 找出最大降水量
+      const maxValue = Math.max(...minutelyWeather.value.minutely.map(minute => parseFloat(minute.precip)));
+
+      // 根据最大值动态设置量程
+      if (maxValue <= 0.1) return 0.5; // 几乎无雨，使用0.5mm量程
+      if (maxValue <= 1) return 2;     // 小雨，使用2mm量程
+      if (maxValue <= 3) return 5;     // 中雨，使用5mm量程
+      if (maxValue <= 10) return 15;   // 大雨，使用15mm量程
+      if (maxValue <= 20) return 30;   // 暴雨，使用30mm量程
+      return Math.ceil(maxValue * 1.2); // 特大暴雨，使用比最大值大20%的量程
+    };
+
+    // 获取ECharts图表配置
+    const getRainChartOption = () => {
+      if (!minutelyWeather.value || !minutelyWeather.value.minutely || minutelyWeather.value.minutely.length === 0) {
+        return {
+          backgroundColor: '#f8f9fa',
+          title: {
+            show: false // 不显示标题，使用外部h2标题
+          },
+          grid: {
+            left: '5%',
+            right: '5%',
+            bottom: '10%',
+            top: '5%',
+            containLabel: true
+          },
+          tooltip: {
+            trigger: 'axis',
+            formatter: function(params) {
+              return `${formatMinuteTime(params[0].name)}: ${params[0].value}mm`;
+            },
+            backgroundColor: 'rgba(255, 255, 255, 0.9)',
+            borderColor: '#e0e0e0',
+            borderWidth: 1,
+            textStyle: {
+              color: '#333'
+            },
+            padding: [8, 10]
+          },
+          xAxis: {
+            type: 'category',
+            boundaryGap: false,
+            data: [],
+            axisLine: {
+              lineStyle: {
+                color: '#ccc'
+              }
+            },
+            axisTick: {
+              show: false
+            },
+            axisLabel: {
+              formatter: function(value) {
+                return formatMinuteTime(value);
+              },
+              interval: function(index) {
+                // 只显示第一个、中间和最后一个时间标签
+                const total = minutelyWeather.value.minutely.length;
+                return index === 0 || index === Math.floor(total / 2) || index === total - 1;
+              },
+              color: '#666',
+              fontSize: 10
+            },
+            splitLine: {
+              show: false
+            }
+          },
+          yAxis: {
+            type: 'value',
+            name: '降水量(mm)',
+            nameTextStyle: {
+              color: '#666',
+              fontSize: 10,
+              padding: [0, 0, 0, 5]
+            },
+            min: 0,
+            max: getMaxPrecip(),
+            splitNumber: 5,
+            axisLine: {
+              show: false
+            },
+            axisTick: {
+              show: false
+            },
+            axisLabel: {
+              formatter: '{value} mm',
+              color: '#666',
+              fontSize: 10
+            },
+            splitLine: {
+              lineStyle: {
+                color: '#e0e0e0',
+                type: 'dashed'
+              }
+            }
+          },
+          series: [{
+            name: '降水量',
+            type: 'line',
+            smooth: true,
+            symbol: 'emptyCircle',
+            symbolSize: 5,
+            sampling: 'average',
+            itemStyle: {
+              color: '#0288d1',
+              borderWidth: 1,
+              borderColor: '#0288d1'
+            },
+            lineStyle: {
+              width: 2
+            },
+            emphasis: {
+              itemStyle: {
+                color: '#fff',
+                borderWidth: 2,
+                borderColor: '#0288d1'
+              }
+            },
+            areaStyle: {
+              color: {
+                type: 'linear',
+                x: 0,
+                y: 0,
+                x2: 0,
+                y2: 1,
+                colorStops: [{
+                  offset: 0,
+                  color: 'rgba(3, 169, 244, 0.6)'
+                }, {
+                  offset: 1,
+                  color: 'rgba(3, 169, 244, 0.05)'
+                }]
+              },
+              origin: 'start'
+            },
+            data: []
+          }]
+        };
+      }
+
+      // 准备数据
+      const times = minutelyWeather.value.minutely.map(item => item.fxTime);
+      const values = minutelyWeather.value.minutely.map(item => parseFloat(item.precip));
+
+      // 返回配置
+      return {
+        backgroundColor: '#f8f9fa',
+        title: {
+          show: false // 不显示标题，使用外部h2标题
+        },
+        grid: {
+          left: '5%',
+          right: '5%',
+          bottom: '10%',
+          top: '5%',
+          containLabel: true
+        },
+        tooltip: {
+          trigger: 'axis',
+          formatter: function(params) {
+            return `${formatMinuteTime(params[0].name)}: ${params[0].value}mm`;
+          },
+          backgroundColor: 'rgba(255, 255, 255, 0.9)',
+          borderColor: '#e0e0e0',
+          borderWidth: 1,
+          textStyle: {
+            color: '#333'
+          },
+          padding: [8, 10]
+        },
+        xAxis: {
+          type: 'category',
+          boundaryGap: false,
+          data: times,
+          axisLine: {
+            lineStyle: {
+              color: '#ccc'
+            }
+          },
+          axisTick: {
+            show: false
+          },
+          axisLabel: {
+            formatter: function(value) {
+              return formatMinuteTime(value);
+            },
+            interval: function(index) {
+              // 只显示第一个、1/4、中间、3/4和最后一个时间标签
+              const total = times.length;
+              return index === 0 ||
+                     index === Math.floor(total / 4) ||
+                     index === Math.floor(total / 2) ||
+                     index === Math.floor(total * 3 / 4) ||
+                     index === total - 1;
+            },
+            color: '#666',
+            fontSize: 10
+          },
+          splitLine: {
+            show: false
+          }
+        },
+        yAxis: {
+          type: 'value',
+          name: '降水量(mm)',
+          nameTextStyle: {
+            color: '#666',
+            fontSize: 10,
+            padding: [0, 0, 0, 5]
+          },
+          min: 0,
+          max: getMaxPrecip(),
+          splitNumber: getRainScaleValues().length + 1,
+          axisLine: {
+            show: false
+          },
+          axisTick: {
+            show: false
+          },
+          axisLabel: {
+            formatter: '{value} mm',
+            color: '#666',
+            fontSize: 10
+          },
+          splitLine: {
+            lineStyle: {
+              color: '#e0e0e0',
+              type: 'dashed'
+            }
+          }
+        },
+        series: [{
+          name: '降水量',
+          type: 'line',
+          smooth: true,
+          symbol: 'circle',
+          symbolSize: function(value) {
+            // 根据降水量调整点的大小
+            return parseFloat(value) > 0 ? 6 : 4;
+          },
+          sampling: 'average',
+          itemStyle: {
+            color: function(params) {
+              // 根据降水量调整点的颜色
+              return getRainColor(params.value);
+            }
+          },
+          lineStyle: {
+            width: 2,
+            color: '#0288d1'
+          },
+          emphasis: {
+            itemStyle: {
+              borderWidth: 2
+            }
+          },
+          areaStyle: {
+            color: {
+              type: 'linear',
+              x: 0,
+              y: 0,
+              x2: 0,
+              y2: 1,
+              colorStops: [{
+                offset: 0,
+                color: 'rgba(3, 169, 244, 0.6)'
+              }, {
+                offset: 1,
+                color: 'rgba(3, 169, 244, 0.05)'
+              }]
+            },
+            origin: 'start'
+          },
+          data: values
+        }]
+      };
+    };
+
+    // 获取雨量刻度值
+    const getRainScaleValues = () => {
+      const maxPrecip = getMaxPrecip();
+
+      // 根据最大降水量动态生成刻度值
+      if (maxPrecip <= 0.5) {
+        return [0.5, 0.25]; // 0.5mm量程：0.5mm, 0.25mm, 0mm
+      } else if (maxPrecip <= 2) {
+        return [2, 1]; // 2mm量程：2mm, 1mm, 0mm
+      } else if (maxPrecip <= 5) {
+        return [5, 2.5]; // 5mm量程：5mm, 2.5mm, 0mm
+      } else if (maxPrecip <= 15) {
+        return [15, 10, 5]; // 15mm量程：15mm, 10mm, 5mm, 0mm
+      } else if (maxPrecip <= 30) {
+        return [30, 20, 10]; // 30mm量程：30mm, 20mm, 10mm, 0mm
+      } else {
+        // 对于更大的量程，生成4个均匀分布的刻度值
+        const step = maxPrecip / 4;
+        return [
+          maxPrecip,
+          Math.round((maxPrecip - step) * 10) / 10,
+          Math.round((maxPrecip - 2 * step) * 10) / 10,
+          Math.round((maxPrecip - 3 * step) * 10) / 10
+        ];
+      }
+    };
+
     // 生成折线图的点坐标
     const getLinePoints = () => {
       if (!minutelyWeather.value || !minutelyWeather.value.minutely || minutelyWeather.value.minutely.length === 0) {
         return '';
       }
 
-      // 定义最大降水量，用于缩放
-      const maxPrecip = 5; // 5mm
+      // 获取动态最大降水量
+      const maxPrecip = getMaxPrecip();
 
       // 生成折线图的点坐标
       return minutelyWeather.value.minutely.map((minute, index) => {
@@ -553,8 +817,8 @@ export default {
         return '';
       }
 
-      // 定义最大降水量，用于缩放
-      const maxPrecip = 5; // 5mm
+      // 获取动态最大降水量
+      const maxPrecip = getMaxPrecip();
 
       // 生成折线图的点坐标
       const points = minutelyWeather.value.minutely.map((minute, index) => {
@@ -583,8 +847,8 @@ export default {
         return [];
       }
 
-      // 定义最大降水量，用于缩放
-      const maxPrecip = 5; // 5mm
+      // 获取动态最大降水量
+      const maxPrecip = getMaxPrecip();
 
       // 生成数据点
       return minutelyWeather.value.minutely.map((minute, index) => {
@@ -649,6 +913,8 @@ export default {
 
       return `${hours}:${minutes}:${seconds}`;
     };
+
+    // 这些函数已不再需要，因为我们使用ECharts的内置交互功能
 
     // 权限状态变化的回调函数
     const handlePermissionStatusChange = (status) => {
@@ -740,6 +1006,9 @@ export default {
       getLinePoints,
       getAreaPath,
       getDataPoints,
+      getMaxPrecip,
+      getRainScaleValues,
+      getRainChartOption,
       formatDate,
       formatMinuteTime,
       formatHourTime,
@@ -1297,67 +1566,23 @@ export default {
       }
 
       .minutely-chart {
-        height: 250px;
         margin: var(--spacing-md) 0;
 
         .chart-container {
           position: relative;
-          height: 200px;
           width: 100%;
-          background-color: #f8f9fa;
-          border-radius: 4px;
-          padding: var(--spacing-xs);
-          display: flex;
+          border-radius: 8px;
+          overflow: hidden;
+          box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
 
-          .rain-line-chart {
-            width: 100%;
-            height: 100%;
+          .rain-echarts {
+            border-radius: 8px;
+            transition: all 0.3s ease;
 
-            .grid-line {
-              stroke: #e0e0e0;
-              stroke-width: 0.2;
-            }
-
-            .rain-line {
-              stroke: #03a9f4;
-              stroke-width: 0.5;
-              stroke-linejoin: round;
-            }
-
-            .rain-area {
-              fill: url(#rain-gradient);
-              fill-opacity: 0.5;
-            }
-
-            .data-point {
-              fill: #03a9f4;
-
-              &.has-rain {
-                fill: #0288d1;
-              }
+            &:hover {
+              box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
             }
           }
-
-          .rain-scale {
-            position: absolute;
-            right: var(--spacing-xs);
-            top: 0;
-            height: 100%;
-            display: flex;
-            flex-direction: column;
-            justify-content: space-between;
-            color: #888;
-            font-size: var(--font-size-xs);
-            padding: var(--spacing-xs) 0;
-          }
-        }
-
-        .time-labels {
-          display: flex;
-          justify-content: space-between;
-          margin-top: var(--spacing-xs);
-          color: #888;
-          font-size: var(--font-size-xs);
         }
       }
     }
