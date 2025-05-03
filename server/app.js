@@ -10,6 +10,7 @@ const rainfallRoutes = require('./routes/rainfallRoutes');
 const statusRoutes = require('./routes/statusRoutes');
 const weatherRoutes = require('./routes/weatherRoutes');
 const ipLocationRoutes = require('./routes/ipLocationRoutes');
+const amapWeatherRoutes = require('./routes/amapWeatherRoutes');
 
 // 创建Express应用
 const app = express();
@@ -84,6 +85,7 @@ app.use('/api/rainfall', rainfallRoutes);
 app.use('/api/status', statusRoutes);
 app.use('/api/weather', weatherRoutes);
 app.use('/api/iplocation', ipLocationRoutes);
+app.use('/api/weather', amapWeatherRoutes);
 
 // 处理所有前端路由 - 必须放在所有API路由之后
 app.get('*', (req, res) => {
