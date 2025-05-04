@@ -1,7 +1,5 @@
 // src/services/voiceService.js
 import { ref } from 'vue';
-import { isNative } from '../utils/platform';
-import { Capacitor } from '@capacitor/core';
 
 // 创建一个单例服务，用于语音识别
 const voiceService = {
@@ -14,169 +12,11 @@ const voiceService = {
   // 错误信息
   error: ref(null),
 
-  // 权限状态
-  microphonePermissionGranted: ref(false),
-
   // 语音识别实例
   recognition: null,
 
-  // 初始化服务
-  async setup() {
-    console.log('[语音服务] 设置服务');
-
-    // 监听原生权限事件
-    if (isNative()) {
-      this.setupNativeListeners();
-    }
-
-    // 初始化语音识别
-    await this.init();
-
-    // 在应用启动时主动请求麦克风权限
-    setTimeout(async () => {
-      console.log('[语音服务] 应用启动后主动请求麦克风权限');
-      await this.checkMicrophonePermission();
-    }, 2000); // 延迟2秒，确保应用已完全加载
-  },
-
-  // 设置原生事件监听器
-  setupNativeListeners() {
-    console.log('[语音服务] 设置原生事件监听器');
-
-    // 监听麦克风权限授予事件
-    window.addEventListener('microphonePermissionGranted', () => {
-      console.log('[语音服务] 收到麦克风权限授予事件');
-      this.microphonePermissionGranted.value = true;
-    });
-
-    // 监听麦克风权限拒绝事件
-    window.addEventListener('microphonePermissionDenied', () => {
-      console.log('[语音服务] 收到麦克风权限拒绝事件');
-      this.microphonePermissionGranted.value = false;
-      this.error.value = '麦克风权限被拒绝，无法使用语音识别功能';
-    });
-  },
-
-  // 移除原生事件监听器
-  removeNativeListeners() {
-    console.log('[语音服务] 移除原生事件监听器');
-
-    window.removeEventListener('microphonePermissionGranted', () => {});
-    window.removeEventListener('microphonePermissionDenied', () => {});
-  },
-
-  // 检查麦克风权限
-  async checkMicrophonePermission() {
-    console.log('[语音服务] 检查麦克风权限');
-
-    // 在Android原生环境中检查权限
-    if (isNative() && Capacitor.getPlatform() === 'android') {
-      return await this.checkAndroidMicrophonePermission();
-    }
-
-    // 在Web环境中检查权限
-    return await this.checkWebMicrophonePermission();
-  },
-
-  // 检查Android麦克风权限
-  async checkAndroidMicrophonePermission() {
-    console.log('[语音服务] 检查Android麦克风权限');
-
-    try {
-      // 尝试导入Android权限API
-      console.log('[语音服务] 尝试导入Android权限API');
-
-      // 使用Capacitor的Android平台API
-      const { PermissionState, requestPermissions } = await import('@capacitor/android');
-
-      console.log('[语音服务] 请求麦克风权限');
-      const result = await requestPermissions(['android.permission.RECORD_AUDIO']);
-
-      console.log('[语音服务] 麦克风权限状态:', result);
-
-      if (result && result['android.permission.RECORD_AUDIO'] === PermissionState.GRANTED) {
-        console.log('[语音服务] 麦克风权限已授予');
-        this.microphonePermissionGranted.value = true;
-        return true;
-      } else {
-        console.error('[语音服务] 麦克风权限被拒绝');
-        this.error.value = '麦克风权限被拒绝，无法使用语音识别功能';
-        this.microphonePermissionGranted.value = false;
-        return false;
-      }
-    } catch (err) {
-      console.error('[语音服务] 检查Android麦克风权限失败:', err);
-
-      // 如果API调用失败，尝试直接使用WebView请求权限
-      return await this.requestWebViewPermission();
-    }
-  },
-
-  // 检查Web麦克风权限
-  async checkWebMicrophonePermission() {
-    console.log('[语音服务] 检查Web麦克风权限');
-
-    try {
-      // 尝试使用navigator.permissions API（Web标准）
-      if (navigator.permissions) {
-        console.log('[语音服务] 尝试使用navigator.permissions API');
-        const permissionResult = await navigator.permissions.query({ name: 'microphone' });
-
-        console.log('[语音服务] 麦克风权限状态:', permissionResult.state);
-
-        if (permissionResult.state === 'granted') {
-          this.microphonePermissionGranted.value = true;
-          return true;
-        } else if (permissionResult.state === 'prompt') {
-          // 将在用户尝试使用麦克风时提示
-          return true;
-        } else {
-          this.error.value = '麦克风权限被拒绝，无法使用语音识别功能';
-          this.microphonePermissionGranted.value = false;
-          return false;
-        }
-      }
-    } catch (permErr) {
-      console.error('[语音服务] navigator.permissions API失败:', permErr);
-    }
-
-    // 如果navigator.permissions不可用，尝试直接请求权限
-    return await this.requestWebViewPermission();
-  },
-
-  // 在WebView中直接请求麦克风权限
-  async requestWebViewPermission() {
-    console.log('[语音服务] 在WebView中直接请求麦克风权限');
-
-    try {
-      // 创建一个临时的MediaStream来触发权限请求
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-
-      // 如果成功获取流，则权限已授予
-      console.log('[语音服务] 成功获取音频流，麦克风权限已授予');
-
-      // 停止所有轨道
-      stream.getTracks().forEach(track => track.stop());
-
-      this.microphonePermissionGranted.value = true;
-      return true;
-    } catch (err) {
-      console.error('[语音服务] 请求麦克风权限失败:', err);
-
-      if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
-        this.error.value = '麦克风权限被拒绝，无法使用语音识别功能';
-        this.microphonePermissionGranted.value = false;
-        return false;
-      }
-
-      // 对于其他错误，假设权限可能已授予
-      console.log('[语音服务] 无法确定权限状态，假设已授予');
-      return true;
-    }
-  },
-
   // 初始化语音识别
-  async init() {
+  init() {
     console.log('[语音服务] 初始化语音识别服务');
 
     // 检查浏览器是否支持语音识别
@@ -247,52 +87,15 @@ const voiceService = {
   },
 
   // 开始语音识别
-  async start() {
+  start() {
     console.log('[语音服务] 开始语音识别');
 
-    // 在原生环境中，检查权限状态
-    if (isNative()) {
-      console.log('[语音服务] 在原生环境中检查麦克风权限状态');
-
-      // 如果已知权限被拒绝，直接返回错误
-      if (this.microphonePermissionGranted.value === false) {
-        console.error('[语音服务] 麦克风权限已被拒绝');
-        this.error.value = '麦克风权限被拒绝，请在设置中允许应用使用麦克风';
-        return false;
-      }
-
-      // 如果权限状态未知，尝试请求权限
-      if (this.microphonePermissionGranted.value !== true) {
-        console.log('[语音服务] 权限状态未知，尝试请求权限');
-        const hasPermission = await this.checkMicrophonePermission();
-        if (!hasPermission) {
-          console.error('[语音服务] 没有麦克风权限，无法启动语音识别');
-          this.error.value = '没有麦克风权限，请在设置中允许应用使用麦克风';
-          return false;
-        }
-      }
-    } else {
-      // 在Web环境中，使用Web API检查权限
-      const hasPermission = await this.checkMicrophonePermission();
-      if (!hasPermission) {
-        console.error('[语音服务] 没有麦克风权限，无法启动语音识别');
-        this.error.value = '没有麦克风权限，请在设置中允许应用使用麦克风';
-        return false;
-      }
-    }
-
     if (!this.recognition) {
-      const initSuccess = await this.init();
+      const initSuccess = this.init();
       if (!initSuccess) return false;
     }
 
     try {
-      // 在启动前添加一个小延迟，确保权限已经完全生效
-      await new Promise(resolve => setTimeout(resolve, 500));
-
-      // 添加更多日志，帮助调试
-      console.log('[语音服务] 尝试启动语音识别...');
-
       this.recognition.start();
       this.isListening.value = true;
       this.error.value = null;
@@ -301,21 +104,7 @@ const voiceService = {
       return true;
     } catch (err) {
       console.error('[语音服务] 启动语音识别失败:', err);
-      console.error('[语音服务] 错误名称:', err.name);
-      console.error('[语音服务] 错误消息:', err.message);
-
-      // 提供更详细的错误信息
-      let errorMessage = `启动语音识别失败: ${err.message}`;
-
-      if (err.name === 'NotAllowedError') {
-        errorMessage = '麦克风访问被拒绝，请确保已授予麦克风权限';
-        // 更新权限状态
-        this.microphonePermissionGranted.value = false;
-      } else if (err.name === 'NotFoundError') {
-        errorMessage = '未找到麦克风设备';
-      }
-
-      this.error.value = errorMessage;
+      this.error.value = `启动语音识别失败: ${err.message}`;
       this.isListening.value = false;
       return false;
     }
