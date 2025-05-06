@@ -403,30 +403,37 @@ export default {
     };
 
     // 开始语音监听
-    const startVoiceListening = () => {
+    const startVoiceListening = async () => {
       console.log('[Home] 开始语音监听');
 
       // 清除之前的结果
       voiceResult.value = '';
 
-      // 启动语音识别
-      const startSuccess = voiceService.start();
+      // 设置状态为正在监听，这样UI可以立即响应
+      isVoiceListening.value = true;
 
-      if (startSuccess) {
-        isVoiceListening.value = true;
+      try {
+        // 启动语音识别（异步）
+        const startSuccess = await voiceService.start();
 
-        // 设置超时，如果10秒内没有识别结果，自动停止
-        setTimeout(() => {
-          if (isVoiceListening.value) {
-            console.log('[Home] 语音识别超时，自动停止');
-            stopVoiceListening();
-            showVoiceResult('未能识别到语音命令', false);
-          }
-        }, 10000);
-      } else {
-        // 启动失败
+        if (startSuccess) {
+          // 设置超时，如果10秒内没有识别结果，自动停止
+          setTimeout(() => {
+            if (isVoiceListening.value) {
+              console.log('[Home] 语音识别超时，自动停止');
+              stopVoiceListening();
+              showVoiceResult('未能识别到语音命令', false);
+            }
+          }, 10000);
+        } else {
+          // 启动失败
+          isVoiceListening.value = false;
+          showVoiceResult(voiceService.error.value || '启动语音识别失败', false);
+        }
+      } catch (err) {
+        console.error('[Home] 启动语音识别出错:', err);
         isVoiceListening.value = false;
-        showVoiceResult(voiceService.error.value || '启动语音识别失败', false);
+        showVoiceResult(`启动语音识别出错: ${err.message || '未知错误'}`, false);
       }
     };
 
