@@ -391,7 +391,24 @@ const voiceService = {
     // 如果识别结束
     if (data.data && data.data.status === 2) {
       console.log('[语音服务] 讯飞语音识别结束');
-      this.stopWebSocket();
+
+      // 检查是否有最终结果但未触发事件
+      const finalResult = this.recognitionResult.value.trim();
+      if (finalResult && !data.data.result) {
+        console.log(`[语音服务] 识别结束时发现未处理的最终结果: "${finalResult}"`);
+
+        // 触发结果事件
+        window.dispatchEvent(new CustomEvent('voice-result', {
+          detail: { result: finalResult }
+        }));
+
+        // 给事件处理一些时间
+        setTimeout(() => {
+          this.stopWebSocket();
+        }, 100);
+      } else {
+        this.stopWebSocket();
+      }
     }
   },
 
@@ -625,8 +642,11 @@ const voiceService = {
   },
 
   // 清理所有资源
-  async cleanupResources() {
-    console.log('[语音服务] 清理所有资源');
+  async cleanupResources(preserveResult = false) {
+    console.log('[语音服务] 清理所有资源, 保留结果:', preserveResult);
+
+    // 保存当前识别结果（如果需要）
+    const currentResult = preserveResult ? this.recognitionResult.value : '';
 
     // 清除超时定时器
     if (this.timeoutTimer) {
@@ -667,7 +687,13 @@ const voiceService = {
 
     // 重置状态
     this.isListening.value = false;
-    this.recognitionResult.value = '';
+
+    // 如果需要保留结果，则恢复保存的结果
+    if (preserveResult) {
+      this.recognitionResult.value = currentResult;
+    } else {
+      this.recognitionResult.value = '';
+    }
 
     // 等待一小段时间确保资源释放
     return new Promise(resolve => setTimeout(resolve, 300));
@@ -787,8 +813,8 @@ const voiceService = {
   },
 
   // 停止语音识别
-  async stop() {
-    console.log('[语音服务] 停止语音识别');
+  async stop(preserveResult = true) {
+    console.log('[语音服务] 停止语音识别, 保留结果:', preserveResult);
 
     // 检查是否被锁定
     if (this.isLocked.value) {
@@ -797,7 +823,7 @@ const voiceService = {
       // 等待锁定解除
       setTimeout(() => {
         if (!this.isLocked.value) {
-          this.stop();
+          this.stop(preserveResult);
         }
       }, 1200);
 
@@ -807,9 +833,26 @@ const voiceService = {
     // 锁定操作
     this.isLocked.value = true;
 
+    // 检查是否有识别结果
+    const hasResult = !!this.recognitionResult.value.trim();
+    console.log(`[语音服务] 当前识别结果: "${this.recognitionResult.value}", 有结果: ${hasResult}`);
+
     try {
-      // 清理所有资源
-      await this.cleanupResources();
+      // 如果有识别结果且需要保留，则触发结果事件
+      if (hasResult && preserveResult) {
+        console.log(`[语音服务] 手动停止时发现有识别结果: "${this.recognitionResult.value}"`);
+
+        // 触发结果事件
+        window.dispatchEvent(new CustomEvent('voice-result', {
+          detail: { result: this.recognitionResult.value }
+        }));
+
+        // 等待一小段时间，确保事件被处理
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+
+      // 清理所有资源，根据参数决定是否保留结果
+      await this.cleanupResources(preserveResult);
       console.log('[语音服务] 语音识别已完全停止');
     } catch (err) {
       console.error('[语音服务] 停止语音识别时发生错误:', err);

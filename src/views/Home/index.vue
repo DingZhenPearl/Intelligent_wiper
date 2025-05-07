@@ -454,8 +454,22 @@ export default {
       console.log('[Home] 停止语音监听');
 
       try {
-        // 停止语音识别服务
-        await voiceService.stop();
+        // 检查是否有识别结果
+        const currentResult = voiceService.recognitionResult.value.trim();
+
+        if (currentResult) {
+          console.log(`[Home] 停止语音监听前发现有识别结果: "${currentResult}"`);
+        }
+
+        // 停止语音识别服务，保留结果
+        await voiceService.stop(true);
+
+        // 如果有识别结果但没有被处理（可能是因为没有触发voice-result事件）
+        // 这是一个额外的安全措施，通常不会执行到这里，因为voiceService.stop已经会触发事件
+        if (currentResult && !voiceResult.value) {
+          console.log(`[Home] 手动处理未被处理的识别结果: "${currentResult}"`);
+          handleVoiceCommand(currentResult);
+        }
       } catch (err) {
         console.error('[Home] 停止语音识别出错:', err);
       } finally {
