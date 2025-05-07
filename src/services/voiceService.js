@@ -3,10 +3,15 @@ import { ref } from 'vue';
 import CryptoJS from 'crypto-js';
 
 // 讯飞语音听写API配置
-// const XFYUN_APP_ID = '67093950'; // 暂时不需要使用
+const XFYUN_APP_ID = '67093950';
 const XFYUN_API_KEY = '0de5f528ef3bd2b67625b45543c704e7';
 const XFYUN_API_SECRET = 'NjVkNWVjMTljMGZlZjJiNTRjZmJjMzJl';
 const XFYUN_API_URL = 'wss://iat-api.xfyun.cn/v2/iat';
+
+// 音频配置
+const SAMPLE_RATE = 16000; // 采样率 16kHz
+const FRAME_SIZE = 1280; // 每帧音频大小 (40ms @ 16kHz = 640 samples = 1280 bytes)
+const SEND_INTERVAL = 40; // 发送间隔 40ms
 
 // 创建一个单例服务，用于语音识别
 const voiceService = {
@@ -29,6 +34,8 @@ const voiceService = {
   audioContext: null,
   audioStream: null,
   audioProcessor: null,
+  audioBufferQueue: [], // 音频缓冲区队列
+  audioSendTimer: null, // 音频发送定时器
 
   // 是否使用WebSocket方式
   useWebSocket: false,
@@ -268,13 +275,20 @@ const voiceService = {
       return;
     }
 
+    console.log(`[语音服务] 收到WebSocket消息: ${JSON.stringify(data)}`);
+
     // 处理识别结果
     if (data.data && data.data.result) {
       let result = '';
+      const resultData = data.data.result;
+
+      // 检查是否有动态修正
+      const hasDynamicCorrection = resultData.pgs === 'rpl';
+      const isLastSegment = resultData.ls;
 
       // 解析识别结果
-      if (data.data.result.ws) {
-        const words = data.data.result.ws.map(item => {
+      if (resultData.ws) {
+        const words = resultData.ws.map(item => {
           if (item.cw && item.cw.length > 0) {
             return item.cw[0].w;
           }
@@ -284,11 +298,20 @@ const voiceService = {
       }
 
       if (result) {
-        console.log(`[语音服务] 识别结果: ${result}`);
-        this.recognitionResult.value = result;
+        console.log(`[语音服务] 识别结果: ${result}, 动态修正: ${hasDynamicCorrection}, 最后片段: ${isLastSegment}`);
+
+        // 如果是动态修正，替换之前的结果
+        if (hasDynamicCorrection) {
+          this.recognitionResult.value = result;
+        } else {
+          // 否则追加结果
+          this.recognitionResult.value += result;
+        }
 
         // 如果是最后一个结果，触发结果事件
-        if (data.data.status === 2) {
+        if (data.data.status === 2 || isLastSegment) {
+          console.log(`[语音服务] 最终识别结果: ${this.recognitionResult.value}`);
+
           // 触发自定义事件
           window.dispatchEvent(new CustomEvent('voice-result', {
             detail: { result: this.recognitionResult.value }
@@ -307,15 +330,32 @@ const voiceService = {
   // 开始录音
   async startRecording() {
     try {
+      // 清空音频缓冲区队列
+      this.audioBufferQueue = [];
+
       // 请求麦克风权限
-      this.audioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      this.audioStream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          sampleRate: SAMPLE_RATE,
+          channelCount: 1,
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true
+        }
+      });
 
       // 创建音频上下文
-      this.audioContext = new (window.AudioContext || window.AudioContext)();
+      const AudioContextClass = window.AudioContext || window.AudioContext;
+      this.audioContext = new AudioContextClass({
+        sampleRate: SAMPLE_RATE
+      });
+
+      console.log(`[语音服务] 音频上下文采样率: ${this.audioContext.sampleRate}Hz`);
+
       const audioInput = this.audioContext.createMediaStreamSource(this.audioStream);
 
-      // 创建处理器节点
-      this.audioProcessor = this.audioContext.createScriptProcessor(16384, 1, 1);
+      // 创建处理器节点 - 使用更小的缓冲区大小以减少延迟
+      this.audioProcessor = this.audioContext.createScriptProcessor(4096, 1, 1);
 
       // 连接节点
       audioInput.connect(this.audioProcessor);
@@ -329,14 +369,21 @@ const voiceService = {
         // 确保WebSocket连接已建立且处于开启状态
         if (this.ws && this.ws.readyState === WebSocket.OPEN) {
           const buffer = e.inputBuffer.getChannelData(0);
-          this.sendAudioData(buffer, isFirstFrame);
 
-          // 第一帧发送后，将标记设为false
-          if (isFirstFrame) {
-            isFirstFrame = false;
-          }
+          // 将音频数据添加到队列中
+          this.audioBufferQueue.push(buffer);
         }
       };
+
+      // 设置定时器，按照固定间隔发送音频数据
+      this.audioSendTimer = setInterval(() => {
+        this.processAudioQueue(isFirstFrame);
+
+        // 第一帧发送后，将标记设为false
+        if (isFirstFrame && this.audioBufferQueue.length > 0) {
+          isFirstFrame = false;
+        }
+      }, SEND_INTERVAL);
 
       console.log('[语音服务] 开始录音');
     } catch (err) {
@@ -346,22 +393,75 @@ const voiceService = {
     }
   },
 
+  // 处理音频队列
+  processAudioQueue(isFirstFrame) {
+    if (this.audioBufferQueue.length === 0 || !this.ws || this.ws.readyState !== WebSocket.OPEN) {
+      return;
+    }
+
+    // 从队列中取出一个音频缓冲区
+    const buffer = this.audioBufferQueue.shift();
+
+    // 如果缓冲区大小超过了FRAME_SIZE，则需要分片处理
+    const samplesPerFrame = FRAME_SIZE / 2; // 每帧采样点数 (16位 = 2字节/采样)
+
+    // 如果缓冲区大小小于一帧，直接发送
+    if (buffer.length <= samplesPerFrame) {
+      this.sendAudioData(buffer, isFirstFrame);
+    } else {
+      // 分片处理
+      let offset = 0;
+      let firstChunk = isFirstFrame;
+
+      while (offset < buffer.length) {
+        const end = Math.min(offset + samplesPerFrame, buffer.length);
+        const chunk = buffer.slice(offset, end);
+
+        this.sendAudioData(chunk, firstChunk);
+
+        offset += samplesPerFrame;
+        firstChunk = false; // 只有第一个分片是第一帧
+      }
+    }
+  },
+
   // 停止录音
   stopRecording() {
+    // 清除音频发送定时器
+    if (this.audioSendTimer) {
+      clearInterval(this.audioSendTimer);
+      this.audioSendTimer = null;
+    }
+
+    // 清空音频缓冲区队列
+    this.audioBufferQueue = [];
+
     if (this.audioProcessor) {
-      this.audioProcessor.disconnect();
+      try {
+        this.audioProcessor.disconnect();
+      } catch (err) {
+        console.error('[语音服务] 断开音频处理器错误:', err);
+      }
       this.audioProcessor = null;
     }
 
     if (this.audioContext) {
-      this.audioContext.close().catch(err => {
+      try {
+        this.audioContext.close().catch(err => {
+          console.error('[语音服务] 关闭音频上下文错误:', err);
+        });
+      } catch (err) {
         console.error('[语音服务] 关闭音频上下文错误:', err);
-      });
+      }
       this.audioContext = null;
     }
 
     if (this.audioStream) {
-      this.audioStream.getTracks().forEach(track => track.stop());
+      try {
+        this.audioStream.getTracks().forEach(track => track.stop());
+      } catch (err) {
+        console.error('[语音服务] 停止音频流错误:', err);
+      }
       this.audioStream = null;
     }
 
@@ -370,43 +470,59 @@ const voiceService = {
 
   // 发送音频数据
   sendAudioData(buffer, isFirstFrame = false) {
-    // 将Float32Array转换为Int16Array
-    const int16Data = new Int16Array(buffer.length);
-    for (let i = 0; i < buffer.length; i++) {
-      // 将-1.0 ~ 1.0的浮点数转换为-32768 ~ 32767的整数
-      int16Data[i] = Math.max(-32768, Math.min(32767, buffer[i] * 32768));
-    }
-
-    // 将数组转换为Base64字符串
-    const base64Data = btoa(String.fromCharCode(...new Uint8Array(int16Data.buffer)));
-
-    // 构建请求数据
-    let audioData = {
-      data: {
-        status: isFirstFrame ? 0 : 1, // 0表示第一帧，1表示中间帧
-        format: 'audio/L16;rate=16000',
-        encoding: 'raw',
-        audio: base64Data
+    try {
+      // 将Float32Array转换为Int16Array
+      const int16Data = new Int16Array(buffer.length);
+      for (let i = 0; i < buffer.length; i++) {
+        // 将-1.0 ~ 1.0的浮点数转换为-32768 ~ 32767的整数
+        int16Data[i] = Math.max(-32768, Math.min(32767, buffer[i] * 32768));
       }
-    };
 
-    // 如果是第一帧，添加common和business参数
-    if (isFirstFrame) {
-      audioData.common = {
-        app_id: '67093950' // 讯飞应用ID
+      // 将数组转换为Base64字符串
+      const base64Data = btoa(String.fromCharCode(...new Uint8Array(int16Data.buffer)));
+
+      // 构建请求数据
+      let audioData = {
+        data: {
+          status: isFirstFrame ? 0 : 1, // 0表示第一帧，1表示中间帧
+          format: `audio/L16;rate=${SAMPLE_RATE}`,
+          encoding: 'raw',
+          audio: base64Data
+        }
       };
 
-      audioData.business = {
-        language: 'zh_cn', // 中文
-        domain: 'iat',     // 日常用语
-        accent: 'mandarin', // 普通话
-        vad_eos: 3000      // 静音检测，静音3秒后自动停止
-      };
-    }
+      // 如果是第一帧，添加common和business参数
+      if (isFirstFrame) {
+        audioData.common = {
+          app_id: XFYUN_APP_ID // 讯飞应用ID
+        };
 
-    // 发送数据
-    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-      this.ws.send(JSON.stringify(audioData));
+        audioData.business = {
+          language: 'zh_cn',    // 中文
+          domain: 'iat',        // 日常用语
+          accent: 'mandarin',   // 普通话
+          vad_eos: 5000,        // 静音检测，静音5秒后自动停止
+          dwa: 'wpgs',          // 开启动态修正功能
+          ptt: 1,               // 开启标点符号
+          nunum: 1,             // 将数字转换为阿拉伯数字
+          vinfo: 1              // 返回音频的起始和结束帧偏移值
+        };
+      }
+
+      // 发送数据
+      if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+        this.ws.send(JSON.stringify(audioData));
+
+        // 记录日志，但不记录音频数据(太大)
+        if (isFirstFrame) {
+          const logData = { ...audioData };
+          logData.data = { ...audioData.data };
+          delete logData.data.audio;
+          console.log(`[语音服务] 发送第一帧数据: ${JSON.stringify(logData)}`);
+        }
+      }
+    } catch (err) {
+      console.error('[语音服务] 发送音频数据错误:', err);
     }
   },
 
