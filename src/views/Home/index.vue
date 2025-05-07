@@ -389,16 +389,35 @@ export default {
 
 
 
+    // 语音控制相关变量
+    const isVoiceButtonLocked = ref(false); // 防止按钮快速连续点击
+
     // 语音控制相关方法
-    const toggleVoiceControl = () => {
+    const toggleVoiceControl = async () => {
       console.log('[Home] 切换语音控制状态');
 
-      if (isVoiceListening.value) {
-        // 如果正在监听，则停止
-        stopVoiceListening();
-      } else {
-        // 如果没有监听，则开始
-        startVoiceListening();
+      // 防止按钮快速连续点击
+      if (isVoiceButtonLocked.value) {
+        console.warn('[Home] 按钮已锁定，忽略此次点击');
+        return;
+      }
+
+      // 锁定按钮
+      isVoiceButtonLocked.value = true;
+
+      try {
+        if (voiceService.isListening.value) {
+          // 如果正在监听，则停止
+          await stopVoiceListening();
+        } else {
+          // 如果没有监听，则开始
+          await startVoiceListening();
+        }
+      } finally {
+        // 延迟解锁按钮，防止快速连续点击
+        setTimeout(() => {
+          isVoiceButtonLocked.value = false;
+        }, 1000);
       }
     };
 
@@ -409,25 +428,18 @@ export default {
       // 清除之前的结果
       voiceResult.value = '';
 
-      // 设置状态为正在监听，这样UI可以立即响应
-      isVoiceListening.value = true;
+      // 同步UI状态与服务状态
+      isVoiceListening.value = voiceService.isListening.value;
 
       try {
         // 启动语音识别（异步）
         const startSuccess = await voiceService.start();
 
-        if (startSuccess) {
-          // 设置超时，如果10秒内没有识别结果，自动停止
-          setTimeout(() => {
-            if (isVoiceListening.value) {
-              console.log('[Home] 语音识别超时，自动停止');
-              stopVoiceListening();
-              showVoiceResult('未能识别到语音命令', false);
-            }
-          }, 10000);
-        } else {
+        // 同步UI状态与服务状态
+        isVoiceListening.value = voiceService.isListening.value;
+
+        if (!startSuccess) {
           // 启动失败
-          isVoiceListening.value = false;
           showVoiceResult(voiceService.error.value || '启动语音识别失败', false);
         }
       } catch (err) {
@@ -438,11 +450,18 @@ export default {
     };
 
     // 停止语音监听
-    const stopVoiceListening = () => {
+    const stopVoiceListening = async () => {
       console.log('[Home] 停止语音监听');
 
-      voiceService.stop();
-      isVoiceListening.value = false;
+      try {
+        // 停止语音识别服务
+        await voiceService.stop();
+      } catch (err) {
+        console.error('[Home] 停止语音识别出错:', err);
+      } finally {
+        // 确保UI状态与服务状态同步
+        isVoiceListening.value = voiceService.isListening.value;
+      }
     };
 
     // 显示语音结果
@@ -508,44 +527,58 @@ export default {
       }
     };
 
+    // 事件处理函数（定义在外部，以便正确移除）
+    const voiceResultHandler = (event) => {
+      console.log('[Home] 收到语音识别结果事件:', event.detail);
+
+      const result = event.detail.result;
+
+      // 处理语音命令
+      handleVoiceCommand(result);
+    };
+
+    const voiceErrorHandler = (event) => {
+      console.error('[Home] 收到语音识别错误事件:', event.detail);
+
+      // 显示错误消息
+      showVoiceResult(`语音识别错误: ${event.detail.error}`, false);
+
+      // 确保UI状态与服务状态同步
+      isVoiceListening.value = voiceService.isListening.value;
+    };
+
+    const voiceEndHandler = () => {
+      console.log('[Home] 收到语音识别结束事件');
+
+      // 确保UI状态与服务状态同步
+      isVoiceListening.value = voiceService.isListening.value;
+    };
+
     // 设置语音事件监听器
     const setupVoiceEventListeners = () => {
       console.log('[Home] 设置语音事件监听器');
 
-      // 语音识别结果事件
-      window.addEventListener('voice-result', (event) => {
-        console.log('[Home] 收到语音识别结果事件:', event.detail);
+      // 先移除可能存在的事件监听器，防止重复添加
+      removeVoiceEventListeners();
 
-        const result = event.detail.result;
-        stopVoiceListening(); // 停止监听
+      // 添加事件监听器
+      window.addEventListener('voice-result', voiceResultHandler);
+      window.addEventListener('voice-error', voiceErrorHandler);
+      window.addEventListener('voice-end', voiceEndHandler);
 
-        // 处理语音命令
-        handleVoiceCommand(result);
-      });
-
-      // 语音识别错误事件
-      window.addEventListener('voice-error', (event) => {
-        console.error('[Home] 收到语音识别错误事件:', event.detail);
-
-        stopVoiceListening(); // 停止监听
-        showVoiceResult(`语音识别错误: ${event.detail.error}`, false);
-      });
-
-      // 语音识别结束事件
-      window.addEventListener('voice-end', () => {
-        console.log('[Home] 收到语音识别结束事件');
-
-        isVoiceListening.value = false;
-      });
+      console.log('[Home] 语音事件监听器设置完成');
     };
 
     // 移除语音事件监听器
     const removeVoiceEventListeners = () => {
       console.log('[Home] 移除语音事件监听器');
 
-      window.removeEventListener('voice-result', () => {});
-      window.removeEventListener('voice-error', () => {});
-      window.removeEventListener('voice-end', () => {});
+      // 正确移除事件监听器
+      window.removeEventListener('voice-result', voiceResultHandler);
+      window.removeEventListener('voice-error', voiceErrorHandler);
+      window.removeEventListener('voice-end', voiceEndHandler);
+
+      console.log('[Home] 语音事件监听器移除完成');
     };
 
     // 修改现有的onMounted和onUnmounted方法
@@ -556,11 +589,22 @@ export default {
     originalOnMounted(async () => {
       console.log('首页组件已挂载');
 
-      // 初始化语音服务
-      voiceService.init();
+      try {
+        // 初始化语音服务
+        const initSuccess = voiceService.init();
+        console.log(`[首页] 语音服务初始化${initSuccess ? '成功' : '失败'}`);
 
-      // 设置语音事件监听器
-      setupVoiceEventListeners();
+        // 确保任何可能的语音识别会话都已停止
+        await voiceService.cleanupResources();
+
+        // 设置语音事件监听器
+        setupVoiceEventListeners();
+
+        // 同步UI状态与服务状态
+        isVoiceListening.value = voiceService.isListening.value;
+      } catch (err) {
+        console.error('[首页] 初始化语音服务出错:', err);
+      }
 
       // 检查用户登录状态
       const userDataStr = localStorage.getItem('user');
@@ -633,20 +677,27 @@ export default {
     });
 
     // 重新定义onUnmounted，添加语音服务清理
-    originalOnUnmounted(() => {
+    originalOnUnmounted(async () => {
       console.log("首页组件已卸载");
 
-      // 移除语音事件监听器
-      removeVoiceEventListeners();
+      try {
+        // 确保停止语音监听
+        if (voiceService.isListening.value || isVoiceListening.value) {
+          console.log('[首页] 组件卸载时停止语音识别');
+          await voiceService.cleanupResources();
+        }
 
-      // 确保停止语音监听
-      if (isVoiceListening.value) {
-        stopVoiceListening();
+        // 移除语音事件监听器
+        removeVoiceEventListeners();
+
+        console.log('[首页] 语音服务资源已清理');
+      } catch (err) {
+        console.error('[首页] 清理语音服务资源出错:', err);
       }
 
       // 清理定时器，但保留轮询状态
       if (dataPollingInterval.value) {
-        console.log('首页卸载，清理定时器，但保留轮询状态');
+        console.log('[首页] 卸载，清理定时器，但保留轮询状态');
         clearInterval(dataPollingInterval.value);
         dataPollingInterval.value = null;
 
@@ -655,7 +706,7 @@ export default {
 
         // 记录当前时间
         const now = new Date();
-        console.log(`首页卸载时间: ${now.toLocaleString()}, 轮询状态: ${isDataPollingActive.value ? '活动' : '非活动'}, localStorage中的状态: ${localStorage.getItem('homePagePollingActive')}`);
+        console.log(`[首页] 卸载时间: ${now.toLocaleString()}, 轮询状态: ${isDataPollingActive.value ? '活动' : '非活动'}, localStorage中的状态: ${localStorage.getItem('homePagePollingActive')}`);
       }
     });
 

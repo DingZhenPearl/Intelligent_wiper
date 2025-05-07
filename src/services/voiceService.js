@@ -18,6 +18,9 @@ const voiceService = {
   // 语音识别状态
   isListening: ref(false),
 
+  // 操作锁，防止并发操作
+  isLocked: ref(false),
+
   // 识别结果
   recognitionResult: ref(''),
 
@@ -36,6 +39,9 @@ const voiceService = {
   audioProcessor: null,
   audioBufferQueue: [], // 音频缓冲区队列
   audioSendTimer: null, // 音频发送定时器
+
+  // 超时定时器
+  timeoutTimer: null,
 
   // 是否使用WebSocket方式
   useWebSocket: false,
@@ -207,8 +213,14 @@ const voiceService = {
 
   // 初始化WebSocket连接
   async initWebSocket() {
+    // 确保没有活跃的WebSocket连接
     if (this.ws) {
-      this.ws.close();
+      try {
+        this.ws.close();
+        this.ws = null;
+      } catch (err) {
+        console.error('[语音服务] 关闭现有WebSocket连接错误:', err);
+      }
     }
 
     // 首先检查并请求权限
@@ -225,46 +237,102 @@ const voiceService = {
       return false;
     }
 
+    // 生成鉴权URL
     const url = this.generateAuthUrl();
     console.log('[语音服务] 连接讯飞语音听写WebSocket API');
 
-    this.ws = new WebSocket(url);
+    // 创建WebSocket连接
+    return new Promise((resolve) => {
+      try {
+        this.ws = new WebSocket(url);
 
-    // 连接建立
-    this.ws.onopen = () => {
-      console.log('[语音服务] WebSocket连接已建立');
-      this.startRecording();
-    };
+        // 设置连接超时
+        const connectionTimeout = setTimeout(() => {
+          if (this.ws && this.ws.readyState !== WebSocket.OPEN) {
+            console.error('[语音服务] WebSocket连接超时');
+            this.error.value = 'WebSocket连接超时';
 
-    // 接收消息
-    this.ws.onmessage = (e) => {
-      const data = JSON.parse(e.data);
-      this.handleWebSocketMessage(data);
-    };
+            // 触发错误事件
+            window.dispatchEvent(new CustomEvent('voice-error', {
+              detail: { error: 'WebSocket连接超时' }
+            }));
 
-    // 连接关闭
-    this.ws.onclose = () => {
-      console.log('[语音服务] WebSocket连接已关闭');
-      this.stopRecording();
-      this.isListening.value = false;
+            // 关闭连接
+            if (this.ws) {
+              this.ws.close();
+              this.ws = null;
+            }
 
-      // 触发自定义事件
-      window.dispatchEvent(new CustomEvent('voice-end'));
-    };
+            resolve(false);
+          }
+        }, 5000);
 
-    // 连接错误
-    this.ws.onerror = (e) => {
-      console.error('[语音服务] WebSocket连接错误:', e);
-      this.error.value = '语音识别连接错误';
-      this.isListening.value = false;
+        // 连接建立
+        this.ws.onopen = () => {
+          console.log('[语音服务] WebSocket连接已建立');
+          clearTimeout(connectionTimeout);
 
-      // 触发自定义事件
-      window.dispatchEvent(new CustomEvent('voice-error', {
-        detail: { error: 'WebSocket连接错误' }
-      }));
-    };
+          // 开始录音
+          this.startRecording();
+          resolve(true);
+        };
 
-    return true;
+        // 接收消息
+        this.ws.onmessage = (e) => {
+          try {
+            const data = JSON.parse(e.data);
+            this.handleWebSocketMessage(data);
+          } catch (err) {
+            console.error('[语音服务] 处理WebSocket消息错误:', err);
+          }
+        };
+
+        // 连接关闭
+        this.ws.onclose = (event) => {
+          console.log(`[语音服务] WebSocket连接已关闭, 代码: ${event.code}, 原因: ${event.reason}`);
+          clearTimeout(connectionTimeout);
+
+          // 停止录音
+          this.stopRecording();
+
+          // 更新状态
+          this.isListening.value = false;
+
+          // 触发结束事件
+          window.dispatchEvent(new CustomEvent('voice-end'));
+
+          if (!event.wasClean && this.isListening.value) {
+            // 如果是非正常关闭且仍在监听状态，触发错误事件
+            this.error.value = '语音识别连接意外关闭';
+            window.dispatchEvent(new CustomEvent('voice-error', {
+              detail: { error: '语音识别连接意外关闭' }
+            }));
+          }
+
+          resolve(false);
+        };
+
+        // 连接错误
+        this.ws.onerror = (e) => {
+          console.error('[语音服务] WebSocket连接错误:', e);
+          clearTimeout(connectionTimeout);
+
+          this.error.value = '语音识别连接错误';
+          this.isListening.value = false;
+
+          // 触发自定义事件
+          window.dispatchEvent(new CustomEvent('voice-error', {
+            detail: { error: 'WebSocket连接错误' }
+          }));
+
+          resolve(false);
+        };
+      } catch (err) {
+        console.error('[语音服务] 创建WebSocket连接错误:', err);
+        this.error.value = `创建WebSocket连接错误: ${err.message}`;
+        resolve(false);
+      }
+    });
   },
 
   // 处理WebSocket消息
@@ -556,86 +624,204 @@ const voiceService = {
     }
   },
 
+  // 清理所有资源
+  async cleanupResources() {
+    console.log('[语音服务] 清理所有资源');
+
+    // 清除超时定时器
+    if (this.timeoutTimer) {
+      clearTimeout(this.timeoutTimer);
+      this.timeoutTimer = null;
+    }
+
+    // 停止录音
+    this.stopRecording();
+
+    // 关闭WebSocket连接
+    if (this.ws) {
+      try {
+        // 发送结束标志
+        this.sendEndFlag();
+
+        // 关闭WebSocket连接
+        setTimeout(() => {
+          if (this.ws) {
+            this.ws.close();
+            this.ws = null;
+          }
+        }, 500);
+      } catch (err) {
+        console.error('[语音服务] 关闭WebSocket连接错误:', err);
+        this.ws = null;
+      }
+    }
+
+    // 停止浏览器原生语音识别
+    if (this.recognition) {
+      try {
+        this.recognition.abort();
+      } catch (err) {
+        console.error('[语音服务] 停止浏览器语音识别错误:', err);
+      }
+    }
+
+    // 重置状态
+    this.isListening.value = false;
+    this.recognitionResult.value = '';
+
+    // 等待一小段时间确保资源释放
+    return new Promise(resolve => setTimeout(resolve, 300));
+  },
+
   // 开始语音识别
   async start() {
     console.log('[语音服务] 开始语音识别');
 
-    if (this.useWebSocket) {
-      // 使用WebSocket方式
-      try {
-        // 设置状态为正在监听，这样UI可以立即响应
-        this.isListening.value = true;
-        this.error.value = null;
-        this.recognitionResult.value = '';
+    // 检查是否已经在监听
+    if (this.isListening.value) {
+      console.warn('[语音服务] 已经在监听中，忽略此次启动请求');
+      return true;
+    }
 
-        // 异步初始化WebSocket
-        const initSuccess = await this.initWebSocket();
-        if (initSuccess) {
-          console.log('[语音服务] WebSocket语音识别已启动');
+    // 检查是否被锁定
+    if (this.isLocked.value) {
+      console.warn('[语音服务] 操作被锁定，忽略此次启动请求');
+      return false;
+    }
+
+    // 锁定操作
+    this.isLocked.value = true;
+
+    try {
+      // 先清理所有资源，确保干净的开始
+      await this.cleanupResources();
+
+      // 重置错误状态
+      this.error.value = null;
+
+      // 设置状态为正在监听，这样UI可以立即响应
+      this.isListening.value = true;
+
+      if (this.useWebSocket) {
+        // 使用WebSocket方式
+        try {
+          // 异步初始化WebSocket
+          const initSuccess = await this.initWebSocket();
+          if (initSuccess) {
+            console.log('[语音服务] WebSocket语音识别已启动');
+
+            // 设置超时定时器，如果10秒内没有结果，自动停止
+            this.timeoutTimer = setTimeout(() => {
+              if (this.isListening.value) {
+                console.log('[语音服务] 识别超时，自动停止');
+                this.stop();
+
+                // 触发错误事件
+                window.dispatchEvent(new CustomEvent('voice-error', {
+                  detail: { error: '识别超时，未检测到语音' }
+                }));
+              }
+            }, 10000);
+
+            return true;
+          } else {
+            await this.cleanupResources();
+            return false;
+          }
+        } catch (err) {
+          console.error('[语音服务] 启动WebSocket语音识别失败:', err);
+          this.error.value = `启动语音识别失败: ${err.message}`;
+          await this.cleanupResources();
+          return false;
+        }
+      } else {
+        // 使用浏览器原生API
+        if (!this.recognition) {
+          const initSuccess = this.init();
+          if (!initSuccess) {
+            this.isLocked.value = false;
+            return false;
+          }
+        }
+
+        try {
+          // 检查并请求权限
+          const hasPermission = await this.requestPermissionTraditional();
+          if (!hasPermission) {
+            console.error('[语音服务] 没有录音权限，无法启动语音识别');
+            this.error.value = '没有录音权限，无法启动语音识别';
+            await this.cleanupResources();
+            return false;
+          }
+
+          this.recognition.start();
+          console.log('[语音服务] 浏览器语音识别已启动');
+
+          // 设置超时定时器，如果10秒内没有结果，自动停止
+          this.timeoutTimer = setTimeout(() => {
+            if (this.isListening.value) {
+              console.log('[语音服务] 识别超时，自动停止');
+              this.stop();
+
+              // 触发错误事件
+              window.dispatchEvent(new CustomEvent('voice-error', {
+                detail: { error: '识别超时，未检测到语音' }
+              }));
+            }
+          }, 10000);
+
           return true;
-        } else {
-          this.isListening.value = false;
+        } catch (err) {
+          console.error('[语音服务] 启动浏览器语音识别失败:', err);
+          this.error.value = `启动语音识别失败: ${err.message}`;
+          await this.cleanupResources();
           return false;
         }
-      } catch (err) {
-        console.error('[语音服务] 启动WebSocket语音识别失败:', err);
-        this.error.value = `启动语音识别失败: ${err.message}`;
-        this.isListening.value = false;
-        return false;
       }
-    } else {
-      // 使用浏览器原生API
-      if (!this.recognition) {
-        const initSuccess = this.init();
-        if (!initSuccess) return false;
-      }
-
-      try {
-        // 检查并请求权限
-        const hasPermission = await this.requestPermissionTraditional();
-        if (!hasPermission) {
-          console.error('[语音服务] 没有录音权限，无法启动语音识别');
-          this.error.value = '没有录音权限，无法启动语音识别';
-          this.isListening.value = false;
-          return false;
-        }
-
-        this.recognition.start();
-        this.isListening.value = true;
-        this.error.value = null;
-        this.recognitionResult.value = '';
-        console.log('[语音服务] 浏览器语音识别已启动');
-        return true;
-      } catch (err) {
-        console.error('[语音服务] 启动浏览器语音识别失败:', err);
-        this.error.value = `启动语音识别失败: ${err.message}`;
-        this.isListening.value = false;
-        return false;
-      }
+    } finally {
+      // 解锁操作
+      setTimeout(() => {
+        this.isLocked.value = false;
+      }, 1000); // 延迟1秒解锁，防止快速连续点击
     }
   },
 
   // 停止语音识别
-  stop() {
+  async stop() {
     console.log('[语音服务] 停止语音识别');
 
-    if (this.useWebSocket) {
-      // 使用WebSocket方式
-      this.stopWebSocket();
-      this.isListening.value = false;
-      console.log('[语音服务] WebSocket语音识别已停止');
-    } else {
-      // 使用浏览器原生API
-      if (!this.recognition) return;
+    // 检查是否被锁定
+    if (this.isLocked.value) {
+      console.warn('[语音服务] 操作被锁定，将在锁定解除后停止');
 
-      try {
-        this.recognition.stop();
-        this.isListening.value = false;
-        console.log('[语音服务] 浏览器语音识别已停止');
-      } catch (err) {
-        console.error('[语音服务] 停止浏览器语音识别失败:', err);
-        this.error.value = `停止语音识别失败: ${err.message}`;
-      }
+      // 等待锁定解除
+      setTimeout(() => {
+        if (!this.isLocked.value) {
+          this.stop();
+        }
+      }, 1200);
+
+      return;
+    }
+
+    // 锁定操作
+    this.isLocked.value = true;
+
+    try {
+      // 清理所有资源
+      await this.cleanupResources();
+      console.log('[语音服务] 语音识别已完全停止');
+    } catch (err) {
+      console.error('[语音服务] 停止语音识别时发生错误:', err);
+      this.error.value = `停止语音识别失败: ${err.message}`;
+    } finally {
+      // 确保状态正确
+      this.isListening.value = false;
+
+      // 延迟解锁操作
+      setTimeout(() => {
+        this.isLocked.value = false;
+      }, 1000);
     }
   },
 
