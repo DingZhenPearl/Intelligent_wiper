@@ -1,6 +1,7 @@
 // src/services/rainfallDataService.js
 import { ref } from 'vue';
 import { get } from './api';
+import oneNetService from './oneNetService';
 
 // 创建一个单例服务，用于获取和缓存雨量数据
 const rainfallDataService = {
@@ -55,6 +56,15 @@ const rainfallDataService = {
     this.error.value[period] = null;
 
     try {
+      // 检查是否使用OneNET数据源
+      if (oneNetService.isOneNetSource.value) {
+        console.log(`[雨量数据服务] 使用OneNET数据源获取${period}统计数据`);
+        return await this.fetchOneNetStatisticsData(period);
+      }
+
+      // 使用本地数据库获取数据
+      console.log(`[雨量数据服务] 使用本地数据库获取${period}统计数据`);
+
       // 从 localStorage 中获取用户名
       let username = 'admin'; // 默认用户名
       const userDataStr = localStorage.getItem('user');
@@ -116,9 +126,64 @@ const rainfallDataService = {
     }
   },
 
+  // 从OneNET获取统计数据
+  async fetchOneNetStatisticsData(period = '10min') {
+    try {
+      console.log(`[雨量数据服务] 从OneNET获取${period}统计数据`);
+
+      // 调用后端API获取OneNET统计数据
+      const response = await get(`/api/rainfall/onenet/stats?period=${period}`);
+
+      if (response.ok) {
+        const data = await response.json();
+        console.log(`[雨量数据服务] 从OneNET获取${period}统计数据成功:`, data);
+
+        if (data.success) {
+          // 更新数据
+          this.statisticsData.value[period] = data.data || [];
+
+          // 更新当前小时数据（如果有）
+          if (data.currentHour) {
+            this.currentHourData.value = data.currentHour;
+          }
+
+          // 更新最后更新时间
+          this.lastUpdateTime.value[period] = new Date();
+
+          return {
+            success: true,
+            data: data.data,
+            currentHour: data.currentHour,
+            unit: data.unit
+          };
+        } else {
+          this.error.value[period] = data.error || '获取OneNET数据失败';
+          return { success: false, error: data.error };
+        }
+      } else {
+        const errorData = await response.json();
+        this.error.value[period] = errorData.error || '获取OneNET数据失败';
+        return { success: false, error: errorData.error };
+      }
+    } catch (error) {
+      console.error(`[雨量数据服务] 从OneNET获取${period}统计数据错误:`, error);
+      this.error.value[period] = error.message || '网络错误';
+      return { success: false, error: error.message };
+    }
+  },
+
   // 获取首页实时雨量数据
   async fetchHomeData() {
     try {
+      // 检查是否使用OneNET数据源
+      if (oneNetService.isOneNetSource.value) {
+        console.log('[雨量数据服务] 使用OneNET数据源获取雨量数据');
+        return await oneNetService.fetchRainfallData();
+      }
+
+      // 使用本地数据库获取数据
+      console.log('[雨量数据服务] 使用本地数据库获取雨量数据');
+
       // 从 localStorage 中获取用户名
       let username = 'admin'; // 默认用户名
       const userDataStr = localStorage.getItem('user');

@@ -40,6 +40,7 @@
 import { ref, onMounted, onUnmounted, computed, watch } from 'vue'
 import ECharts from '@/components/ECharts'
 import rainfallDataService from '@/services/rainfallDataService'
+import oneNetService from '@/services/oneNetService'
 
 // 辅助变量和函数
 
@@ -53,6 +54,7 @@ export default {
     const intervalId = ref(null);
     const chartUpdateId = ref(null); // 用于时间轴更新的定时器
     const chartRef = ref(null); // 图表引用
+    const isOneNetSource = ref(oneNetService.isOneNetSource.value); // 是否使用OneNET数据源
 
     // 定义时间段选择器
     const timePeriods = [
@@ -98,6 +100,28 @@ export default {
     const updateChartData = () => {
       // 打印当前视图和数据长度
       console.log(`当前视图: ${activePeriod.value}, 数据长度: ${chartData.value.length}`);
+
+      // 如果没有数据，显示空图表
+      if (chartData.value.length === 0) {
+        console.log('没有数据，显示空图表');
+        chartOption.value.series[0].data = [];
+
+        // 更新图表标题，根据当前视图
+        const periodLabels = {
+          0: '10分钟内',
+          1: '一小时内',
+          2: '一天内',
+          3: '总数据'
+        };
+
+        // 如果标题中没有错误信息，则更新为默认标题
+        if (!chartOption.value.title.subtext) {
+          const unit = activePeriod.value === 3 ? 'mm/天' : 'mm/h';
+          chartOption.value.title.text = `雨量显示 (${unit}) - ${periodLabels[activePeriod.value]}`;
+        }
+
+        return;
+      }
 
       // 如果是全部视图，打印第一个数据点进行调试
       if (activePeriod.value === 3 && chartData.value.length > 0) {
@@ -152,6 +176,20 @@ export default {
       } else {
         // 其他视图直接使用原始数据
         chartOption.value.series[0].data = chartData.value;
+      }
+
+      // 更新图表标题，根据当前视图
+      const periodLabels = {
+        0: '10分钟内',
+        1: '一小时内',
+        2: '一天内',
+        3: '总数据'
+      };
+
+      // 如果标题中没有错误信息，则更新为默认标题
+      if (!chartOption.value.title.subtext) {
+        const unit = activePeriod.value === 3 ? 'mm/天' : 'mm/h';
+        chartOption.value.title.text = `雨量显示 (${unit}) - ${periodLabels[activePeriod.value]}`;
       }
     };
 
@@ -519,8 +557,8 @@ export default {
       // 获取当前时间段类型
       const periodType = getPeriodType(index);
 
-      // 从后端获取数据
-      fetchDataFromBackend(periodType);
+      // 清除错误信息
+      chartOption.value.title.subtext = '';
 
       // 更新图表标题和单位
       const unit = index === 3 ? 'mm/天' : 'mm/h';
@@ -528,6 +566,9 @@ export default {
 
       // 更新Y轴名称
       chartOption.value.yAxis.name = index === 3 ? '雨量 (mm/天)' : '雨量 (mm/h)';
+
+      // 从后端获取数据
+      fetchDataFromBackend(periodType);
 
       // 清除并重新启动定时器
       if (intervalId.value) {
@@ -608,9 +649,31 @@ export default {
           updateXAxisConfig(period);
         } else {
           console.error(`获取${periodType}数据失败:`, result.error);
+
+          // 检查是否使用OneNET数据源
+          if (oneNetService.isOneNetSource.value) {
+            // 如果是OneNET数据源，显示错误信息
+            chartOption.value.title.text = `雨量显示 - OneNET数据获取失败`;
+            chartOption.value.title.subtext = `错误: ${result.error}`;
+
+            // 清空图表数据但保持图表结构
+            chartData.value = [];
+            updateChartData();
+          }
         }
       } catch (error) {
         console.error(`获取${periodType}数据错误:`, error);
+
+        // 检查是否使用OneNET数据源
+        if (oneNetService.isOneNetSource.value) {
+          // 如果是OneNET数据源，显示错误信息
+          chartOption.value.title.text = `雨量显示 - OneNET数据获取失败`;
+          chartOption.value.title.subtext = `错误: ${error.message || '未知错误'}`;
+
+          // 清空图表数据但保持图表结构
+          chartData.value = [];
+          updateChartData();
+        }
       }
     };
 
@@ -618,8 +681,13 @@ export default {
     const chartOption = ref({
       title: {
         text: '雨量显示 (mm/h) - 10分钟内',
+        subtext: '',
         textStyle: {
           fontSize: 16
+        },
+        subtextStyle: {
+          color: '#e74c3c',  // 红色错误信息
+          fontSize: 14
         },
         left: 'center'
       },
@@ -707,6 +775,21 @@ export default {
         startChartTimeUpdate();
       }
     });
+
+    // 监听OneNET数据源变化
+    watch(() => oneNetService.isOneNetSource.value, (newValue) => {
+      console.log(`[Statistics] 数据源已切换为: ${newValue ? 'OneNET平台' : '本地数据库'}`);
+      isOneNetSource.value = newValue;
+
+      // 清除错误信息
+      chartOption.value.title.subtext = '';
+
+      // 获取当前时间段的数据
+      const periodType = getPeriodType(activePeriod.value);
+
+      // 立即获取最新数据
+      fetchDataFromBackend(periodType);
+    }, { immediate: true });
 
     // 生命周期钩子
     onMounted(() => {

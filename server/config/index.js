@@ -10,6 +10,8 @@ module.exports = {
     DB_SERVICE_SCRIPT: '../python/db_service.py',
     RAINFALL_API_SCRIPT: '../python/rainfall_api.py',
     RAINFALL_COLLECTOR_SCRIPT: '../python/rainfall_collector.py',
-    RAINFALL_DB_SCRIPT: '../python/rainfall_db.py'
+    RAINFALL_DB_SCRIPT: '../python/rainfall_db.py',
+    ONENET_API_SCRIPT: '../python/onenet_api.py',
+    ONENET_STATS_SCRIPT: '../python/onenet_stats.py'
   }
 };

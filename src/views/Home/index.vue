@@ -15,13 +15,32 @@
           {{ backendMessage || '点击下方按钮开始收集数据' }}
         </div>
 
+        <!-- 数据源切换按钮 -->
+        <div class="data-source-switch">
+          <span class="data-source-label">数据源:</span>
+          <button
+            class="data-source-btn"
+            :class="{ active: !isOneNetSource }"
+            @click="switchDataSource(false)"
+          >
+            本地数据库
+          </button>
+          <button
+            class="data-source-btn"
+            :class="{ active: isOneNetSource }"
+            @click="switchDataSource(true)"
+          >
+            OneNET平台
+          </button>
+        </div>
+
         <!-- 数据收集控制按钮 -->
         <div class="data-control-buttons">
           <button
             v-if="!isDataPollingActive"
             class="mock-data-btn start"
             @click="() => generateMockData(7)"
-            :disabled="isMockDataLoading"
+            :disabled="isMockDataLoading || isOneNetSource"
           >
             <span class="icon material-icons">play_arrow</span>
             {{ isMockDataLoading ? '正在初始化...' : '开始收集数据' }}
@@ -30,6 +49,7 @@
             v-else
             class="mock-data-btn stop"
             @click="stopServiceDataCheck"
+            :disabled="isOneNetSource"
           >
             <span class="icon material-icons">stop</span>
             停止收集数据
@@ -79,6 +99,7 @@ import { ref, onMounted, onUnmounted, watch } from 'vue'
 import rainfallService from '@/services/rainfallService'
 import rainfallDataService from '@/services/rainfallDataService'
 import voiceService from '@/services/voiceService'
+import oneNetService from '@/services/oneNetService'
 
 export default {
   name: 'ControlPanel',
@@ -93,6 +114,9 @@ export default {
     const isMockDataLoading = ref(false) // 是否正在生成模拟数据
     const mockDataMessage = ref('') // 模拟数据生成结果消息
     const mockDataSuccess = ref(true) // 模拟数据生成是否成功
+
+    // 数据源相关状态
+    const isOneNetSource = ref(oneNetService.isOneNetSource.value) // 是否使用OneNET数据源
 
     // 语音控制相关状态
     const isVoiceListening = ref(false) // 是否正在监听语音
@@ -112,6 +136,20 @@ export default {
       const now = new Date();
       console.log(`[Home] 更新雨量级别: ${newLevel.text} (时间: ${now.getHours()}:${now.getMinutes()}:${now.getSeconds()})`);
     }, { immediate: true }); // 立即触发一次
+
+    // 监听OneNET数据源状态变化
+    watch(() => oneNetService.isOneNetSource.value, (newValue) => {
+      isOneNetSource.value = newValue;
+      console.log(`[Home] 数据源已切换为: ${newValue ? 'OneNET平台' : '本地数据库'}`);
+
+      // 如果切换到OneNET，停止本地数据采集
+      if (newValue && isDataPollingActive.value) {
+        stopServiceDataCheck();
+      }
+
+      // 立即获取最新数据
+      fetchRainfallFromBackend();
+    }, { immediate: true });
 
     // 定时从后端获取雨量数据
     const dataPollingInterval = ref(null); // 存储定时器ID
@@ -270,6 +308,53 @@ export default {
 
 
     // 智能模式是一个固定的模式，实际的自动调节逻辑在硬件端实现
+
+    // 切换数据源
+    const switchDataSource = async (useOneNet) => {
+      try {
+        console.log(`[Home] 开始切换数据源为 ${useOneNet ? 'OneNET平台' : '本地数据库'}`);
+
+        // 如果当前已经是选择的数据源，不做任何操作
+        if (isOneNetSource.value === useOneNet) {
+          console.log('[Home] 已经是选择的数据源，不做任何操作');
+          return;
+        }
+
+        // 显示切换中的消息
+        mockDataMessage.value = `正在切换数据源为 ${useOneNet ? 'OneNET平台' : '本地数据库'}...`;
+        mockDataSuccess.value = true;
+
+        // 调用服务切换数据源
+        const result = await oneNetService.switchDataSource(useOneNet);
+
+        if (result.success) {
+          mockDataMessage.value = `数据源已切换为 ${useOneNet ? 'OneNET平台' : '本地数据库'}`;
+          mockDataSuccess.value = true;
+
+          // 5秒后清除消息
+          setTimeout(() => {
+            mockDataMessage.value = '';
+          }, 5000);
+        } else {
+          mockDataMessage.value = `切换数据源失败: ${result.error || '未知错误'}`;
+          mockDataSuccess.value = false;
+
+          // 5秒后清除错误消息
+          setTimeout(() => {
+            mockDataMessage.value = '';
+          }, 5000);
+        }
+      } catch (error) {
+        console.error('[Home] 切换数据源错误:', error);
+        mockDataMessage.value = `切换数据源错误: ${error.message || '未知错误'}`;
+        mockDataSuccess.value = false;
+
+        // 5秒后清除错误消息
+        setTimeout(() => {
+          mockDataMessage.value = '';
+        }, 5000);
+      }
+    };
 
     const changeStatus = (status, logChange = true) => {
       currentStatus.value = status
@@ -742,6 +827,9 @@ export default {
       isDataPollingActive,
       startServiceDataCheck,
       stopServiceDataCheck,
+      // 数据源相关
+      isOneNetSource,
+      switchDataSource,
       // 语音控制相关
       isVoiceListening,
       voiceResult,
@@ -830,6 +918,40 @@ export default {
       color: #888;
       margin-bottom: var(--spacing-md);
       font-style: italic;
+    }
+
+    .data-source-switch {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: var(--spacing-xs);
+      margin-bottom: var(--spacing-md);
+    }
+
+    .data-source-label {
+      font-size: var(--font-size-sm);
+      color: #666;
+    }
+
+    .data-source-btn {
+      background-color: #f5f5f5;
+      color: #666;
+      border: 1px solid #ddd;
+      border-radius: var(--border-radius-sm);
+      padding: var(--spacing-xs) var(--spacing-sm);
+      font-size: var(--font-size-xs);
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+
+    .data-source-btn.active {
+      background-color: #4285f4;
+      color: white;
+      border-color: #4285f4;
+    }
+
+    .data-source-btn:hover:not(.active) {
+      background-color: #e0e0e0;
     }
 
     .data-control-buttons {

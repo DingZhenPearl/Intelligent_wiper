@@ -6,6 +6,9 @@ const config = require('../config');
 const { executePythonScript } = require('../utils/pythonRunner');
 const { startRainfallCollector, stopRainfallCollector, setShouldRestartCollector } = require('../services/rainfallCollector');
 
+// 全局变量，存储当前数据源设置
+let useOneNetSource = false;
+
 // 获取统计页面数据
 router.get('/stats', async (req, res) => {
   try {
@@ -146,6 +149,103 @@ router.get('/home', async (req, res) => {
     }
   } catch (error) {
     console.error('获取首页雨量数据错误:', error);
+    res.status(500).json({ error: '服务器内部错误' });
+  }
+});
+
+// 从OneNET平台获取雨量数据
+router.get('/onenet', async (req, res) => {
+  try {
+    console.log('从OneNET平台获取雨量数据');
+
+    // 检查是否启用了OneNET数据源
+    if (!useOneNetSource) {
+      console.log('OneNET数据源未启用，返回错误');
+      return res.status(400).json({
+        success: false,
+        error: 'OneNET数据源未启用'
+      });
+    }
+
+    // 调用OneNET API脚本获取数据
+    const oneNetApiScriptPath = path.join(__dirname, '..', config.paths.ONENET_API_SCRIPT);
+    const result = await executePythonScript(oneNetApiScriptPath, 'get');
+
+    if (result.success) {
+      res.json(result);
+    } else {
+      res.status(500).json({ error: result.error || '获取OneNET数据失败' });
+    }
+  } catch (error) {
+    console.error('获取OneNET雨量数据错误:', error);
+    res.status(500).json({ error: '服务器内部错误' });
+  }
+});
+
+// 从OneNET平台获取统计数据
+router.get('/onenet/stats', async (req, res) => {
+  try {
+    const period = req.query.period || '10min';
+    console.log(`从OneNET平台获取${period}统计数据`);
+
+    // 检查是否启用了OneNET数据源
+    if (!useOneNetSource) {
+      console.log('OneNET数据源未启用，返回错误');
+      return res.status(400).json({
+        success: false,
+        error: 'OneNET数据源未启用'
+      });
+    }
+
+    // 调用OneNET统计API脚本获取数据
+    const oneNetStatsScriptPath = path.join(__dirname, '..', config.paths.ONENET_STATS_SCRIPT);
+    const result = await executePythonScript(oneNetStatsScriptPath, 'stats', { period });
+
+    if (result.success) {
+      res.json(result);
+    } else {
+      res.status(500).json({ error: result.error || `获取OneNET ${period}统计数据失败` });
+    }
+  } catch (error) {
+    console.error(`获取OneNET ${req.query.period || '10min'}统计数据错误:`, error);
+    res.status(500).json({ error: '服务器内部错误' });
+  }
+});
+
+// 切换数据源
+router.post('/switch-source', async (req, res) => {
+  try {
+    const { useOneNet } = req.body;
+
+    if (typeof useOneNet !== 'boolean') {
+      return res.status(400).json({
+        success: false,
+        error: '参数错误，useOneNet必须是布尔值'
+      });
+    }
+
+    console.log(`切换数据源为: ${useOneNet ? 'OneNET平台' : '本地数据库'}`);
+
+    // 更新全局设置
+    useOneNetSource = useOneNet;
+
+    // 如果切换到OneNET，停止本地数据采集器
+    if (useOneNet) {
+      try {
+        console.log('切换到OneNET数据源，停止本地数据采集器');
+        await stopRainfallCollector();
+      } catch (stopError) {
+        console.error('停止数据采集器错误:', stopError);
+        // 继续执行，不影响数据源切换
+      }
+    }
+
+    res.json({
+      success: true,
+      message: `数据源已切换为 ${useOneNet ? 'OneNET平台' : '本地数据库'}`
+    });
+  } catch (error) {
+    console.error('切换数据源错误:', error);
     res.status(500).json({ error: '服务器内部错误' });
   }
 });
