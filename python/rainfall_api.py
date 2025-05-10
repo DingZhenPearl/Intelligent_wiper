@@ -13,7 +13,7 @@ from rainfall_db import (
     get_current_hour_data,
     log
 )
-from rainfall_collector import collect_single_data
+# 不再需要从rainfall_collector导入，因为我们已经删除了这个文件
 
 # 重新定义log函数，确保使用ASCII编码
 def log(message):

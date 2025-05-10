@@ -9,7 +9,7 @@ module.exports = {
     // Python脚本路径
     DB_SERVICE_SCRIPT: '../python/db_service.py',
     RAINFALL_API_SCRIPT: '../python/rainfall_api.py',
-    RAINFALL_COLLECTOR_SCRIPT: '../python/rainfall_collector.py',
+    // RAINFALL_COLLECTOR_SCRIPT: '../python/rainfall_collector.py', // 已删除
     RAINFALL_DB_SCRIPT: '../python/rainfall_db.py',
     ONENET_API_SCRIPT: '../python/onenet_api.py',
     ONENET_STATS_SCRIPT: '../python/onenet_stats.py'

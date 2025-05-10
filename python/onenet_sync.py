@@ -24,6 +24,9 @@ from onenet_api import (
     generate_token
 )
 
+# 导入数据聚合函数
+from rainfall_db import aggregate_data
+
 # 全局变量
 running = True
 last_sync_time = datetime.now()
@@ -276,12 +279,41 @@ def sync_onenet_data(username='admin'):
             else:
                 log(f"插入数据失败: {insert_result['error']}")
 
-        return {
-            "success": True,
-            "message": f"成功同步 {synced_count} 条数据，跳过 {skipped_count} 条重复数据",
-            "synced_count": synced_count,
-            "skipped_count": skipped_count
-        }
+        # 无论是否有新数据，都进行数据聚合
+        log(f"开始进行数据聚合，用户名: {username}")
+        try:
+            # 调用数据聚合函数
+            aggregate_result = aggregate_data(username)
+            if aggregate_result['success']:
+                log(f"数据聚合成功: {aggregate_result.get('message', '无消息')}")
+                return {
+                    "success": True,
+                    "message": f"成功同步 {synced_count} 条数据，跳过 {skipped_count} 条重复数据，并完成数据聚合",
+                    "synced_count": synced_count,
+                    "skipped_count": skipped_count,
+                    "aggregated": True
+                }
+            else:
+                log(f"数据聚合失败: {aggregate_result.get('error', '未知错误')}")
+                return {
+                    "success": True,
+                    "message": f"成功同步 {synced_count} 条数据，跳过 {skipped_count} 条重复数据，但数据聚合失败: {aggregate_result.get('error', '未知错误')}",
+                    "synced_count": synced_count,
+                    "skipped_count": skipped_count,
+                    "aggregated": False,
+                    "aggregate_error": aggregate_result.get('error', '未知错误')
+                }
+        except Exception as e:
+            log(f"数据聚合过程中发生错误: {str(e)}")
+            log(traceback.format_exc())
+            return {
+                "success": True,
+                "message": f"成功同步 {synced_count} 条数据，跳过 {skipped_count} 条重复数据，但数据聚合过程中发生错误: {str(e)}",
+                "synced_count": synced_count,
+                "skipped_count": skipped_count,
+                "aggregated": False,
+                "aggregate_error": str(e)
+            }
     except Exception as e:
         error_msg = f"同步OneNET数据错误: {str(e)}"
         log(error_msg)

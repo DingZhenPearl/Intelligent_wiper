@@ -454,10 +454,12 @@ router.get('/onenet/sync/once', async (req, res) => {
     if (result.success) {
       res.json({
         success: true,
-        message: `OneNET数据同步成功，同步了 ${result.synced_count || 0} 条数据，跳过了 ${result.skipped_count || 0} 条重复数据`,
+        message: `OneNET数据同步成功，同步了 ${result.synced_count || 0} 条数据，跳过了 ${result.skipped_count || 0} 条重复数据${result.aggregated ? '，并完成数据聚合' : ''}`,
         details: result.message,
         synced_count: result.synced_count || 0,
-        skipped_count: result.skipped_count || 0
+        skipped_count: result.skipped_count || 0,
+        aggregated: result.aggregated || false,
+        aggregate_error: result.aggregate_error
       });
     } else {
       res.status(500).json({
