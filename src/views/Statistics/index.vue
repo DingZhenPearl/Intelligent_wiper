@@ -14,6 +14,15 @@
         <span class="time-btn-icon">{{ getTimeIcon(index) }}</span>
         <span class="time-btn-label">{{ period.label }}</span>
       </button>
+
+      <!-- 添加手动聚合按钮 -->
+      <button
+        class="aggregate-btn"
+        @click="triggerAggregation"
+        :disabled="isAggregating"
+      >
+        {{ isAggregating ? '聚合中...' : '手动聚合数据' }}
+      </button>
     </div>
 
     <!-- 添加本小时雨量显示，只在小时视图中显示 -->
@@ -153,6 +162,14 @@ export default {
             const dateStr = item.value[0];
             const value = item.value[1];
 
+            // 如果第一个元素已经是日期对象，直接使用
+            if (dateStr instanceof Date && !isNaN(dateStr.getTime())) {
+              return {
+                ...item,
+                value: [dateStr, value]
+              };
+            }
+
             // 如果是字符串，尝试解析为日期
             if (typeof dateStr === 'string') {
               let date;
@@ -183,13 +200,33 @@ export default {
 
               // 如果成功解析日期
               if (date && !isNaN(date.getTime())) {
+                console.log(`成功解析日期: ${dateStr} -> ${date.toISOString()}`);
                 return {
                   ...item,
                   value: [date, value]
                 };
+              } else {
+                console.warn(`无法解析日期: ${dateStr}，保留原始格式`);
               }
             }
           }
+
+          // 如果有originalDate字段，尝试使用它创建日期对象
+          if (item.originalDate) {
+            try {
+              const date = new Date(item.originalDate);
+              if (!isNaN(date.getTime())) {
+                console.log(`使用originalDate创建日期: ${item.originalDate} -> ${date.toISOString()}`);
+                return {
+                  ...item,
+                  value: [date, item.value[1]]
+                };
+              }
+            } catch (e) {
+              console.warn(`无法从originalDate创建日期: ${item.originalDate}`, e);
+            }
+          }
+
           return item;
         } catch (e) {
           console.error('处理日期出错:', e, item);
@@ -334,21 +371,31 @@ export default {
         axisPointer: {
           label: {
             formatter: function (params) {
-              const date = new Date(params.value);
+              try {
+                const date = new Date(params.value);
 
-              // 根据当前视图选择不同的格式
-              if (period.minutes > 0) {
-                // 10分钟内视图 - 显示小时:分钟:秒
-                return `${date.getHours()}:${date.getMinutes() < 10 ? '0' + date.getMinutes() : date.getMinutes()}:${date.getSeconds() < 10 ? '0' + date.getSeconds() : date.getSeconds()}`;
-              } else if (period.hours > 0) {
-                // 一小时内视图 - 显示小时:分钟
-                return `${date.getHours()}:${date.getMinutes() < 10 ? '0' + date.getMinutes() : date.getMinutes()}`;
-              } else if (period.days > 0) {
-                // 一天内视图 - 显示小时:00
-                return `${date.getHours()}:00`;
-              } else {
-                // 总数据视图 - 显示月/日
-                return `${date.getMonth() + 1}/${date.getDate()}`;
+                // 检查日期是否有效
+                if (isNaN(date.getTime())) {
+                  return '时间未知';
+                }
+
+                // 根据当前视图选择不同的格式
+                if (period.minutes > 0) {
+                  // 10分钟内视图 - 显示小时:分钟:秒
+                  return `${date.getHours()}:${date.getMinutes() < 10 ? '0' + date.getMinutes() : date.getMinutes()}:${date.getSeconds() < 10 ? '0' + date.getSeconds() : date.getSeconds()}`;
+                } else if (period.hours > 0) {
+                  // 一小时内视图 - 显示小时:分钟
+                  return `${date.getHours()}:${date.getMinutes() < 10 ? '0' + date.getMinutes() : date.getMinutes()}`;
+                } else if (period.days > 0) {
+                  // 一天内视图 - 显示小时:00
+                  return `${date.getHours()}:00`;
+                } else {
+                  // 总数据视图 - 显示月/日
+                  return `${date.getMonth() + 1}/${date.getDate()}`;
+                }
+              } catch (e) {
+                console.error('格式化轴指针标签出错:', e);
+                return '时间未知';
               }
             }
           }
@@ -513,6 +560,56 @@ export default {
       }
     };
 
+    // 手动触发数据聚合
+    const isAggregating = ref(false);
+    const triggerAggregation = async () => {
+      try {
+        // 设置聚合状态
+        isAggregating.value = true;
+
+        // 从 localStorage 中获取用户名
+        let username = 'admin'; // 默认用户名
+        const userDataStr = localStorage.getItem('user');
+
+        if (userDataStr) {
+          try {
+            const userData = JSON.parse(userDataStr);
+            if (userData && userData.username) {
+              username = userData.username;
+            }
+          } catch (e) {
+            console.error('[统计页面] 解析用户信息出错:', e);
+          }
+        }
+
+        console.log(`[统计页面] 手动触发数据聚合，用户名: ${username}`);
+
+        // 调用后端API触发聚合
+        const response = await fetch(`/api/rainfall/aggregate?username=${encodeURIComponent(username)}`);
+        const result = await response.json();
+
+        if (result.success) {
+          console.log('[统计页面] 数据聚合成功:', result);
+
+          // 显示成功消息
+          alert('数据聚合成功，将在下次数据刷新时显示');
+
+          // 立即刷新数据
+          const periodType = getPeriodType(activePeriod.value);
+          fetchDataFromBackend(periodType);
+        } else {
+          console.error('[统计页面] 数据聚合失败:', result);
+          alert(`数据聚合失败: ${result.error || '未知错误'}`);
+        }
+      } catch (error) {
+        console.error('[统计页面] 触发数据聚合错误:', error);
+        alert(`触发数据聚合错误: ${error.message || '未知错误'}`);
+      } finally {
+        // 重置聚合状态
+        isAggregating.value = false;
+      }
+    };
+
     // 从后端获取数据
     const fetchDataFromBackend = async (periodType) => {
       try {
@@ -600,33 +697,66 @@ export default {
         trigger: 'axis',
         formatter: function (params) {
           params = params[0];
-          var date = new Date(params.name);
-          var unit = params.data.unit || 'mm'; // 使用数据中的单位信息，如果没有则默认为 mm
 
-          // 根据当前视图调整显示格式
-          if (activePeriod.value === 0) {
-            // 10分钟内视图 - 使用更清晰的格式
-            const hours = date.getHours();
-            const minutes = date.getMinutes();
-            const seconds = date.getSeconds();
-            const formattedMinutes = minutes < 10 ? '0' + minutes : minutes;
-            const formattedSeconds = seconds < 10 ? '0' + seconds : seconds;
+          // 使用数据中的单位信息，如果没有则根据当前视图设置默认单位
+          var unit = params.data && params.data.unit ? params.data.unit : (activePeriod.value === 3 ? 'mm/天' : 'mm/h');
 
-            return `${hours}:${formattedMinutes}:${formattedSeconds} - 雨量: ${params.value[1]} ${unit}`;
-          } else if (activePeriod.value === 1) {
-            // 一小时内视图 - 显示小时和分钟
-            return date.getHours() + ':' +
-                  (date.getMinutes() < 10 ? '0' : '') + date.getMinutes() +
-                  ' - 雨量: ' + params.value[1] + ' ' + unit;
-          } else if (activePeriod.value === 2) {
-            // 一天内视图 - 显示小时
-            return date.getHours() + ':00' +
-                  ' - 雨量: ' + params.value[1] + ' ' + unit;
-          } else {
-            // 总数据视图 - 显示日期
-            return (date.getMonth() + 1) + '月' + date.getDate() + '日' +
-                  ' - 雨量: ' + params.value[1] + ' ' + unit;
+          // 获取雨量值
+          var rainfallValue = params.value && params.value.length > 1 ? params.value[1] : 0;
+
+          // 尝试获取有效的日期对象
+          var dateStr = '';
+          var date;
+
+          // 首先尝试从params.value[0]获取日期
+          if (params.value && params.value.length > 0 && params.value[0] instanceof Date) {
+            date = params.value[0];
           }
+          // 然后尝试从params.name获取日期
+          else if (params.name) {
+            try {
+              date = new Date(params.name);
+              // 检查日期是否有效
+              if (isNaN(date.getTime())) {
+                date = null;
+              }
+            } catch (e) {
+              date = null;
+            }
+          }
+
+          // 如果有原始日期字符串，直接使用
+          if (params.data && params.data.originalDate) {
+            dateStr = params.data.originalDate;
+          }
+          // 如果有有效的日期对象，格式化它
+          else if (date && !isNaN(date.getTime())) {
+            // 根据当前视图调整显示格式
+            if (activePeriod.value === 0) {
+              // 10分钟内视图 - 使用更清晰的格式
+              const hours = date.getHours();
+              const minutes = date.getMinutes();
+              const seconds = date.getSeconds();
+              const formattedMinutes = minutes < 10 ? '0' + minutes : minutes;
+              const formattedSeconds = seconds < 10 ? '0' + seconds : seconds;
+              dateStr = `${hours}:${formattedMinutes}:${formattedSeconds}`;
+            } else if (activePeriod.value === 1) {
+              // 一小时内视图 - 显示小时和分钟
+              dateStr = date.getHours() + ':' +
+                      (date.getMinutes() < 10 ? '0' + date.getMinutes() : date.getMinutes());
+            } else if (activePeriod.value === 2) {
+              // 一天内视图 - 显示小时
+              dateStr = date.getHours() + ':00';
+            } else {
+              // 总数据视图 - 显示日期
+              dateStr = (date.getMonth() + 1) + '月' + date.getDate() + '日';
+            }
+          } else {
+            // 如果没有有效日期，使用默认值
+            dateStr = '时间未知';
+          }
+
+          return `${dateStr} - 雨量: ${rainfallValue} ${unit}`;
         },
         axisPointer: {
           animation: false
@@ -736,7 +866,9 @@ export default {
       currentHourTotal,
       currentHourDisplay,
       chart: chartRef,
-      getTimeIcon
+      getTimeIcon,
+      isAggregating,
+      triggerAggregation
     }
   }
 }
@@ -759,6 +891,7 @@ export default {
   .time-selector {
     display: flex;
     justify-content: center; /* 居中对齐 */
+    flex-wrap: wrap; /* 允许换行 */
     margin: 0 auto var(--spacing-lg) auto; /* 增加下方间距 */
     width: 100%;
     max-width: 800px;
@@ -766,6 +899,32 @@ export default {
     padding: var(--spacing-sm); /* 添加内边距 */
     background-color: rgba(0, 0, 0, 0.03); /* 轻微背景色 */
     border-radius: var(--border-radius-lg); /* 圆角 */
+
+    /* 手动聚合按钮样式 */
+    .aggregate-btn {
+      margin-top: var(--spacing-sm);
+      padding: var(--spacing-sm) var(--spacing-md);
+      background-color: var(--color-secondary);
+      color: white;
+      border: none;
+      border-radius: var(--border-radius-md);
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+
+      &:hover:not(:disabled) {
+        background-color: var(--color-secondary-dark);
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+      }
+
+      &:disabled {
+        background-color: #cccccc;
+        cursor: not-allowed;
+        opacity: 0.7;
+      }
+    }
 
     .time-btn {
       flex: 1;
@@ -921,6 +1080,14 @@ export default {
       flex-wrap: wrap;
       gap: var(--spacing-sm); /* 减小间距 */
       padding: var(--spacing-xs); /* 减小内边距 */
+
+      /* 移动端上的聚合按钮 */
+      .aggregate-btn {
+        width: 100%;
+        margin-top: var(--spacing-sm);
+        padding: var(--spacing-xs);
+        font-size: var(--font-size-sm);
+      }
 
       .time-btn {
         min-width: calc(50% - var(--spacing-sm)); /* 确保每行最多两个按钮 */

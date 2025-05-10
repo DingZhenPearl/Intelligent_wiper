@@ -159,6 +159,9 @@ def get_onenet_data():
                             except ValueError:
                                 timestamp = datetime.now()  # 如果无法解析，使用当前时间
 
+                    # 确保雨量值保留一位小数
+                    rainfall_value = round(rainfall_value, 1)
+
                     # 获取雨量级别和百分比
                     level, percentage = get_rainfall_level(rainfall_value)
 
@@ -166,10 +169,11 @@ def get_onenet_data():
                         "success": True,
                         "data": {
                             "timestamp": timestamp.strftime("%Y-%m-%d %H:%M:%S"),
-                            "rainfall_value": rainfall_value,
+                            "rainfall_value": rainfall_value,  # mm/h 单位
                             "rainfall_level": level,
                             "rainfall_percentage": percentage,
-                            "source": "OneNET"  # 标记数据来源
+                            "source": "OneNET",  # 标记数据来源
+                            "unit": "mm/h"  # 明确标记单位
                         }
                     }
                 else:

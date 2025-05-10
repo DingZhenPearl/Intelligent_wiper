@@ -106,19 +106,25 @@ def periodic_aggregation(username='admin'):
 
     while running:
         now = datetime.now()
-        # 每10分钟执行一次聚合
-        if (now - last_aggregate_time).total_seconds() >= 600:
+        # 每1分钟执行一次聚合，确保数据及时聚合
+        if (now - last_aggregate_time).total_seconds() >= 60:
             log(f"Performing periodic data aggregation for user {username}, last time: {last_aggregate_time}")
             try:
-                aggregate_data(username)
+                # 执行聚合并获取结果
+                result = aggregate_data(username)
                 last_aggregate_time = now
-                log(f"Data aggregation completed for user: {username}")
+
+                # 记录聚合结果
+                if result["success"]:
+                    log(f"Data aggregation completed for user: {username}, message: {result.get('message', 'No message')}")
+                else:
+                    log(f"Data aggregation returned error for user {username}: {result.get('error', 'Unknown error')}")
             except Exception as e:
                 log(f"Data aggregation failed for user {username}: {str(e)}")
                 log(traceback.format_exc())
 
-        # 休眠一分钟
-        time.sleep(60)
+        # 休眠10秒，更频繁地检查
+        time.sleep(10)
 
 def start_collection(username='admin', interval=5, use_real_data=False, verbose=False):
     """开始数据采集
@@ -155,9 +161,27 @@ def start_collection(username='admin', interval=5, use_real_data=False, verbose=
     log(f"Starting {'real' if use_real_data else 'simulated'} data collection for user: {username}, interval: {interval} seconds")
 
     # 启动定期聚合线程
+    log(f"Starting aggregation thread for user: {username}")
+    # 强制执行一次聚合，确保初始数据被聚合
+    try:
+        log(f"Performing initial data aggregation for user: {username}")
+        result = aggregate_data(username)
+        if result["success"]:
+            log(f"Initial data aggregation completed for user: {username}, message: {result.get('message', 'No message')}")
+        else:
+            log(f"Initial data aggregation returned error for user {username}: {result.get('error', 'Unknown error')}")
+        # 更新最后聚合时间
+        global last_aggregate_time
+        last_aggregate_time = datetime.now()
+    except Exception as e:
+        log(f"Initial data aggregation failed for user {username}: {str(e)}")
+        log(traceback.format_exc())
+
+    # 创建并启动聚合线程
     aggregation_thread = threading.Thread(target=lambda: periodic_aggregation(username))
     aggregation_thread.daemon = True
     aggregation_thread.start()
+    log(f"Aggregation thread started for user: {username}")
 
     try:
         while running:

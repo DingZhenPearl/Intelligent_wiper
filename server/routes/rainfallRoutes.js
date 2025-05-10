@@ -209,9 +209,10 @@ router.get('/onenet', async (req, res) => {
           data: {
             timestamp: new Date().toISOString().replace('T', ' ').substring(0, 19),
             rainfall_value: 0,
-            rainfall_level: 0,
+            rainfall_level: 'none',
             rainfall_percentage: 0,
-            source: 'OneNET'
+            source: 'OneNET',
+            unit: 'mm/h'  // 明确标记单位
           },
           warning: '当前OneNET平台没有可用数据，显示默认值'
         });
@@ -267,7 +268,7 @@ router.get('/onenet/stats', async (req, res) => {
           success: true,
           data: [],
           warning: `OneNET平台未找到${period}时间段的数据点`,
-          unit: 'mm/h'  // 统一使用相同的单位，前端会根据时间粒度自行处理
+          unit: period === 'all' ? 'mm/天' : 'mm/h'  // 根据时间粒度设置单位
         });
       } else {
         // 其他错误仍然返回500状态码
@@ -338,6 +339,47 @@ router.get('/data-source', (_, res) => {
     });
   } catch (error) {
     console.error('获取数据源设置错误:', error);
+    res.status(500).json({ error: '服务器内部错误' });
+  }
+});
+
+// 手动触发数据聚合
+router.get('/aggregate', async (req, res) => {
+  try {
+    // 使用前端传递的用户名，而不是从 session 中获取
+    let username = req.query.username || (req.session.user ? req.session.user.username : 'admin');
+
+    // 详细输出用户信息
+    console.log(`手动触发数据聚合，传入的用户名: ${username}`);
+    console.log(`手动触发数据聚合，请求参数: ${JSON.stringify(req.query)}`);
+
+    // 确保用户名不为空
+    if (!username || username.trim() === '') {
+      username = 'admin';
+    } else {
+      username = username.trim();
+    }
+    console.log(`最终使用的用户名: '${username}'`);
+
+    // 调用聚合脚本
+    const rainfallDbScriptPath = path.join(__dirname, '..', config.paths.RAINFALL_DB_SCRIPT);
+    const result = await executePythonScript(rainfallDbScriptPath, 'aggregate', { username });
+
+    if (result.success) {
+      res.json({
+        success: true,
+        message: '数据聚合成功',
+        details: result.message
+      });
+    } else {
+      res.status(500).json({
+        success: false,
+        error: result.error || '数据聚合失败',
+        details: result
+      });
+    }
+  } catch (error) {
+    console.error('手动触发数据聚合错误:', error);
     res.status(500).json({ error: '服务器内部错误' });
   }
 });

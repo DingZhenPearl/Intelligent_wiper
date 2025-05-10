@@ -198,6 +198,9 @@ def get_onenet_stats(period='10min'):
                                 except ValueError:
                                     timestamp = datetime.now()  # 如果无法解析，使用当前时间
 
+                        # 确保雨量值保留一位小数
+                        rainfall_value = round(rainfall_value, 1)
+
                         # 获取雨量级别和百分比
                         level, percentage = get_rainfall_level(rainfall_value)
 
@@ -206,13 +209,16 @@ def get_onenet_stats(period='10min'):
                             # 对于'all'时间粒度，只保留日期部分
                             processed_data.append({
                                 'value': [timestamp.strftime("%Y-%m-%d"), rainfall_value],
+                                'rainfall_level': level,
+                                'rainfall_percentage': percentage,
                                 'unit': 'mm/天'  # 日累计雨量单位
                             })
                         else:
                             processed_data.append({
                                 'value': [timestamp.strftime("%Y-%m-%d %H:%M:%S"), rainfall_value],
                                 'rainfall_level': level,
-                                'rainfall_percentage': percentage
+                                'rainfall_percentage': percentage,
+                                'unit': 'mm/h'  # 明确标记单位
                             })
 
                     # 生成当前小时数据（仅对hourly和10min有效）

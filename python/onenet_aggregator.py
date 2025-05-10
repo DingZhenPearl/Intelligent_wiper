@@ -323,10 +323,14 @@ def aggregate_by_minute(raw_data):
             avg_value = sum(values) / len(values)
             level, percentage = get_rainfall_level(avg_value)
 
+            # 确保雨量值保留一位小数
+            avg_value = round(avg_value, 1)
+
             aggregated_data.append({
                 'value': [minute_key, avg_value],
                 'rainfall_level': level,
-                'rainfall_percentage': percentage
+                'rainfall_percentage': percentage,
+                'unit': 'mm/h'  # 明确标记单位
             })
 
         log(f"按分钟聚合完成，聚合后数据点数量: {len(aggregated_data)}")
@@ -342,10 +346,14 @@ def aggregate_by_minute(raw_data):
                 rainfall_value = float(point.get("value", 0))
                 level, percentage = get_rainfall_level(rainfall_value)
 
+                # 确保雨量值保留一位小数
+                rainfall_value = round(rainfall_value, 1)
+
                 aggregated_data.append({
                     'value': [timestamp_str, rainfall_value],
                     'rainfall_level': level,
-                    'rainfall_percentage': percentage
+                    'rainfall_percentage': percentage,
+                    'unit': 'mm/h'  # 明确标记单位
                 })
 
             log(f"使用原始数据创建的聚合数据点数量: {len(aggregated_data)}")
@@ -408,10 +416,14 @@ def aggregate_by_5minutes(raw_data):
             avg_value = sum(values) / len(values)
             level, percentage = get_rainfall_level(avg_value)
 
+            # 确保雨量值保留一位小数
+            avg_value = round(avg_value, 1)
+
             aggregated_data.append({
                 'value': [five_minute_key, avg_value],
                 'rainfall_level': level,
-                'rainfall_percentage': percentage
+                'rainfall_percentage': percentage,
+                'unit': 'mm/h'  # 明确标记单位
             })
 
         log(f"按5分钟聚合完成，聚合后数据点数量: {len(aggregated_data)}")
@@ -427,10 +439,14 @@ def aggregate_by_5minutes(raw_data):
                 rainfall_value = float(point.get("value", 0))
                 level, percentage = get_rainfall_level(rainfall_value)
 
+                # 确保雨量值保留一位小数
+                rainfall_value = round(rainfall_value, 1)
+
                 aggregated_data.append({
                     'value': [timestamp_str, rainfall_value],
                     'rainfall_level': level,
-                    'rainfall_percentage': percentage
+                    'rainfall_percentage': percentage,
+                    'unit': 'mm/h'  # 明确标记单位
                 })
 
             log(f"使用原始数据创建的聚合数据点数量: {len(aggregated_data)}")
@@ -490,10 +506,14 @@ def aggregate_by_hour(raw_data):
             avg_value = sum(values) / len(values)
             level, percentage = get_rainfall_level(avg_value)
 
+            # 确保雨量值保留一位小数
+            avg_value = round(avg_value, 1)
+
             aggregated_data.append({
                 'value': [hour_key, avg_value],
                 'rainfall_level': level,
-                'rainfall_percentage': percentage
+                'rainfall_percentage': percentage,
+                'unit': 'mm/h'  # 明确标记单位
             })
 
         log(f"按小时聚合完成，聚合后数据点数量: {len(aggregated_data)}")
@@ -509,10 +529,14 @@ def aggregate_by_hour(raw_data):
                 rainfall_value = float(point.get("value", 0))
                 level, percentage = get_rainfall_level(rainfall_value)
 
+                # 确保雨量值保留一位小数
+                rainfall_value = round(rainfall_value, 1)
+
                 aggregated_data.append({
                     'value': [timestamp_str, rainfall_value],
                     'rainfall_level': level,
-                    'rainfall_percentage': percentage
+                    'rainfall_percentage': percentage,
+                    'unit': 'mm/h'  # 明确标记单位
                 })
 
             log(f"使用原始数据创建的聚合数据点数量: {len(aggregated_data)}")
@@ -574,10 +598,14 @@ def aggregate_by_day(raw_data):
             # 添加雨量级别和百分比，与其他时间粒度保持一致
             level, percentage = get_rainfall_level(avg_value)
 
+            # 确保雨量值保留一位小数
+            avg_value = round(avg_value, 1)
+
             aggregated_data.append({
                 'value': [day_key, avg_value],
                 'rainfall_level': level,
-                'rainfall_percentage': percentage
+                'rainfall_percentage': percentage,
+                'unit': 'mm/天'  # 明确标记单位为mm/天
             })
 
         log(f"按天聚合完成，聚合后数据点数量: {len(aggregated_data)}")
@@ -625,10 +653,14 @@ def aggregate_by_day(raw_data):
                 # 添加雨量级别和百分比，与其他时间粒度保持一致
                 level, percentage = get_rainfall_level(avg_value)
 
+                # 确保雨量值保留一位小数
+                avg_value = round(avg_value, 1)
+
                 aggregated_data.append({
                     'value': [day_key, avg_value],
                     'rainfall_level': level,
-                    'rainfall_percentage': percentage
+                    'rainfall_percentage': percentage,
+                    'unit': 'mm/天'  # 明确标记单位为mm/天
                 })
 
             log(f"使用原始数据创建的聚合数据点数量: {len(aggregated_data)}")
@@ -739,7 +771,7 @@ def get_aggregated_data(period='10min'):
         result = {
             'success': True,
             'data': aggregated_data,
-            'unit': 'mm/h'  # 统一使用相同的单位，前端会根据时间粒度自行处理
+            'unit': 'mm/天' if period == 'all' else 'mm/h'  # 根据时间粒度设置单位
         }
 
         if current_hour_data:

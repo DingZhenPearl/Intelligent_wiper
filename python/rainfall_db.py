@@ -361,126 +361,253 @@ def aggregate_data(username='admin'):
 
     conn = get_db_connection()
     try:
-        # 1. 聚合到10分钟表
+        # 检查是否有原始数据
         with conn.cursor() as cursor:
             cursor.execute('''
-                INSERT INTO rainfall_10min
-                (username, timestamp, avg_rainfall, max_rainfall, min_rainfall, dominant_level, data_points)
-                SELECT
-                    %s as username,
-                    DATE_FORMAT(timestamp, '%%Y-%%m-%%d %%H:%%i:00') - INTERVAL MINUTE(timestamp) %% 10 MINUTE as time_slot,
-                    ROUND(AVG(rainfall_value), 1) as avg_rainfall,
-                    MAX(rainfall_value) as max_rainfall,
-                    MIN(rainfall_value) as min_rainfall,
-                    (
-                        SELECT r2.rainfall_level
-                        FROM rainfall_raw r2
-                        WHERE r2.username = %s
-                        AND DATE_FORMAT(r2.timestamp, '%%Y-%%m-%%d %%H:%%i:00') - INTERVAL MINUTE(r2.timestamp) %% 10 MINUTE = time_slot
-                        GROUP BY r2.rainfall_level
-                        ORDER BY COUNT(*) DESC
-                        LIMIT 1
-                    ) as dominant_level,
-                    COUNT(*) as data_points
-                FROM rainfall_raw
+                SELECT COUNT(*) as count FROM rainfall_raw
                 WHERE username = %s
-                GROUP BY time_slot
-                ON DUPLICATE KEY UPDATE
-                    avg_rainfall = VALUES(avg_rainfall),
-                    max_rainfall = VALUES(max_rainfall),
-                    min_rainfall = VALUES(min_rainfall),
-                    dominant_level = VALUES(dominant_level),
-                    data_points = VALUES(data_points),
-                    updated_at = CURRENT_TIMESTAMP
-            ''', (username, username, username))
-            log(f"10分钟数据聚合完成，影响行数: {cursor.rowcount}")
+            ''', (username,))
+            result = cursor.fetchone()
+            raw_count = result['count'] if result else 0
+            log(f"原始数据点数量: {raw_count}")
+
+            if raw_count == 0:
+                log(f"没有原始数据点，跳过聚合")
+                return {"success": True, "message": "No raw data points to aggregate"}
+
+        # 1. 聚合到10分钟表
+        log(f"开始聚合10分钟数据...")
+        with conn.cursor() as cursor:
+            try:
+                # 先查询可能被聚合的数据
+                cursor.execute('''
+                    SELECT
+                        DATE_FORMAT(timestamp, '%%Y-%%m-%%d %%H:%%i:00') - INTERVAL MINUTE(timestamp) %% 10 MINUTE as time_slot,
+                        COUNT(*) as count
+                    FROM rainfall_raw
+                    WHERE username = %s
+                    GROUP BY time_slot
+                ''', (username,))
+                time_slots = cursor.fetchall()
+                log(f"找到 {len(time_slots)} 个10分钟时间段需要聚合")
+
+                # 执行聚合
+                cursor.execute('''
+                    INSERT INTO rainfall_10min
+                    (username, timestamp, avg_rainfall, max_rainfall, min_rainfall, dominant_level, data_points)
+                    SELECT
+                        %s as username,
+                        DATE_FORMAT(timestamp, '%%Y-%%m-%%d %%H:%%i:00') - INTERVAL MINUTE(timestamp) %% 10 MINUTE as time_slot,
+                        ROUND(AVG(rainfall_value), 1) as avg_rainfall,
+                        MAX(rainfall_value) as max_rainfall,
+                        MIN(rainfall_value) as min_rainfall,
+                        (
+                            SELECT r2.rainfall_level
+                            FROM rainfall_raw r2
+                            WHERE r2.username = %s
+                            AND DATE_FORMAT(r2.timestamp, '%%Y-%%m-%%d %%H:%%i:00') - INTERVAL MINUTE(r2.timestamp) %% 10 MINUTE = time_slot
+                            GROUP BY r2.rainfall_level
+                            ORDER BY COUNT(*) DESC
+                            LIMIT 1
+                        ) as dominant_level,
+                        COUNT(*) as data_points
+                    FROM rainfall_raw
+                    WHERE username = %s
+                    GROUP BY time_slot
+                    ON DUPLICATE KEY UPDATE
+                        avg_rainfall = VALUES(avg_rainfall),
+                        max_rainfall = VALUES(max_rainfall),
+                        min_rainfall = VALUES(min_rainfall),
+                        dominant_level = VALUES(dominant_level),
+                        data_points = VALUES(data_points),
+                        updated_at = CURRENT_TIMESTAMP
+                ''', (username, username, username))
+                log(f"10分钟数据聚合完成，影响行数: {cursor.rowcount}")
+            except Exception as e:
+                log(f"10分钟数据聚合错误: {str(e)}")
+                log(traceback.format_exc())
+                raise
 
         # 2. 聚合到小时表
+        log(f"开始聚合小时数据...")
         with conn.cursor() as cursor:
-            cursor.execute('''
-                INSERT INTO rainfall_hourly
-                (username, timestamp, avg_rainfall, max_rainfall, min_rainfall, total_rainfall, dominant_level, data_points)
-                SELECT
-                    %s as username,
-                    DATE_FORMAT(timestamp, '%%Y-%%m-%%d %%H:00:00') as hour_slot,
-                    ROUND(AVG(avg_rainfall), 1) as avg_rainfall,
-                    MAX(max_rainfall) as max_rainfall,
-                    MIN(min_rainfall) as min_rainfall,
-                    ROUND(SUM(avg_rainfall) / 6, 1) as total_rainfall,
-                    (
-                        SELECT r2.dominant_level
-                        FROM rainfall_10min r2
-                        WHERE r2.username = %s
-                        AND DATE_FORMAT(r2.timestamp, '%%Y-%%m-%%d %%H:00:00') = hour_slot
-                        GROUP BY r2.dominant_level
-                        ORDER BY COUNT(*) DESC
-                        LIMIT 1
-                    ) as dominant_level,
-                    SUM(data_points) as data_points
-                FROM rainfall_10min
-                WHERE username = %s
-                GROUP BY hour_slot
-                ON DUPLICATE KEY UPDATE
-                    avg_rainfall = VALUES(avg_rainfall),
-                    max_rainfall = VALUES(max_rainfall),
-                    min_rainfall = VALUES(min_rainfall),
-                    total_rainfall = VALUES(total_rainfall),
-                    dominant_level = VALUES(dominant_level),
-                    data_points = VALUES(data_points),
-                    updated_at = CURRENT_TIMESTAMP
-            ''', (username, username, username))
-            log(f"小时数据聚合完成，影响行数: {cursor.rowcount}")
+            try:
+                # 先检查10分钟表中是否有数据
+                cursor.execute('''
+                    SELECT COUNT(*) as count FROM rainfall_10min
+                    WHERE username = %s
+                ''', (username,))
+                result = cursor.fetchone()
+                ten_min_count = result['count'] if result else 0
+                log(f"10分钟数据点数量: {ten_min_count}")
+
+                if ten_min_count == 0:
+                    log(f"没有10分钟数据点，跳过小时聚合")
+                else:
+                    # 先查询可能被聚合的数据
+                    cursor.execute('''
+                        SELECT
+                            DATE_FORMAT(timestamp, '%%Y-%%m-%%d %%H:00:00') as hour_slot,
+                            COUNT(*) as count
+                        FROM rainfall_10min
+                        WHERE username = %s
+                        GROUP BY hour_slot
+                    ''', (username,))
+                    hour_slots = cursor.fetchall()
+                    log(f"找到 {len(hour_slots)} 个小时时间段需要聚合")
+
+                    # 执行聚合
+                    cursor.execute('''
+                        INSERT INTO rainfall_hourly
+                        (username, timestamp, avg_rainfall, max_rainfall, min_rainfall, total_rainfall, dominant_level, data_points)
+                        SELECT
+                            %s as username,
+                            DATE_FORMAT(timestamp, '%%Y-%%m-%%d %%H:00:00') as hour_slot,
+                            ROUND(AVG(avg_rainfall), 1) as avg_rainfall,
+                            MAX(max_rainfall) as max_rainfall,
+                            MIN(min_rainfall) as min_rainfall,
+                            ROUND(SUM(avg_rainfall) / 6, 1) as total_rainfall,
+                            (
+                                SELECT r2.dominant_level
+                                FROM rainfall_10min r2
+                                WHERE r2.username = %s
+                                AND DATE_FORMAT(r2.timestamp, '%%Y-%%m-%%d %%H:00:00') = hour_slot
+                                GROUP BY r2.dominant_level
+                                ORDER BY COUNT(*) DESC
+                                LIMIT 1
+                            ) as dominant_level,
+                            SUM(data_points) as data_points
+                        FROM rainfall_10min
+                        WHERE username = %s
+                        GROUP BY hour_slot
+                        ON DUPLICATE KEY UPDATE
+                            avg_rainfall = VALUES(avg_rainfall),
+                            max_rainfall = VALUES(max_rainfall),
+                            min_rainfall = VALUES(min_rainfall),
+                            total_rainfall = VALUES(total_rainfall),
+                            dominant_level = VALUES(dominant_level),
+                            data_points = VALUES(data_points),
+                            updated_at = CURRENT_TIMESTAMP
+                    ''', (username, username, username))
+                    log(f"小时数据聚合完成，影响行数: {cursor.rowcount}")
+            except Exception as e:
+                log(f"小时数据聚合错误: {str(e)}")
+                log(traceback.format_exc())
+                # 继续执行其他聚合，不抛出异常
 
         # 3. 聚合到日表
+        log(f"开始聚合日数据...")
         with conn.cursor() as cursor:
-            cursor.execute('''
-                INSERT INTO rainfall_daily
-                (username, date, avg_rainfall, max_rainfall, min_rainfall, total_rainfall, rainy_hours)
-                SELECT
-                    %s as username,
-                    DATE(timestamp) as day_slot,
-                    ROUND(AVG(avg_rainfall), 1) as avg_rainfall,
-                    MAX(max_rainfall) as max_rainfall,
-                    MIN(min_rainfall) as min_rainfall,
-                    ROUND(SUM(total_rainfall), 1) as total_rainfall,
-                    SUM(CASE WHEN avg_rainfall >= 0.3 THEN 1 ELSE 0 END) as rainy_hours
-                FROM rainfall_hourly
-                WHERE username = %s
-                GROUP BY day_slot
-                ON DUPLICATE KEY UPDATE
-                    avg_rainfall = VALUES(avg_rainfall),
-                    max_rainfall = VALUES(max_rainfall),
-                    min_rainfall = VALUES(min_rainfall),
-                    total_rainfall = VALUES(total_rainfall),
-                    rainy_hours = VALUES(rainy_hours),
-                    updated_at = CURRENT_TIMESTAMP
-            ''', (username, username))
-            log(f"Daily data aggregation completed, affected rows: {cursor.rowcount}")
+            try:
+                # 先检查小时表中是否有数据
+                cursor.execute('''
+                    SELECT COUNT(*) as count FROM rainfall_hourly
+                    WHERE username = %s
+                ''', (username,))
+                result = cursor.fetchone()
+                hourly_count = result['count'] if result else 0
+                log(f"小时数据点数量: {hourly_count}")
+
+                if hourly_count == 0:
+                    log(f"没有小时数据点，跳过日聚合")
+                else:
+                    # 先查询可能被聚合的数据
+                    cursor.execute('''
+                        SELECT
+                            DATE(timestamp) as day_slot,
+                            COUNT(*) as count
+                        FROM rainfall_hourly
+                        WHERE username = %s
+                        GROUP BY day_slot
+                    ''', (username,))
+                    day_slots = cursor.fetchall()
+                    log(f"找到 {len(day_slots)} 个日期需要聚合")
+
+                    # 执行聚合
+                    cursor.execute('''
+                        INSERT INTO rainfall_daily
+                        (username, date, avg_rainfall, max_rainfall, min_rainfall, total_rainfall, rainy_hours)
+                        SELECT
+                            %s as username,
+                            DATE(timestamp) as day_slot,
+                            ROUND(AVG(avg_rainfall), 1) as avg_rainfall,
+                            MAX(max_rainfall) as max_rainfall,
+                            MIN(min_rainfall) as min_rainfall,
+                            ROUND(SUM(total_rainfall), 1) as total_rainfall,
+                            SUM(CASE WHEN avg_rainfall >= 0.3 THEN 1 ELSE 0 END) as rainy_hours
+                        FROM rainfall_hourly
+                        WHERE username = %s
+                        GROUP BY day_slot
+                        ON DUPLICATE KEY UPDATE
+                            avg_rainfall = VALUES(avg_rainfall),
+                            max_rainfall = VALUES(max_rainfall),
+                            min_rainfall = VALUES(min_rainfall),
+                            total_rainfall = VALUES(total_rainfall),
+                            rainy_hours = VALUES(rainy_hours),
+                            updated_at = CURRENT_TIMESTAMP
+                    ''', (username, username))
+                    log(f"日数据聚合完成，影响行数: {cursor.rowcount}")
+            except Exception as e:
+                log(f"日数据聚合错误: {str(e)}")
+                log(traceback.format_exc())
+                # 继续执行其他聚合，不抛出异常
 
         # 4. 聚合到月表
+        log(f"开始聚合月数据...")
         with conn.cursor() as cursor:
-            cursor.execute('''
-                INSERT INTO rainfall_monthly
-                (username, year, month, avg_daily_rainfall, max_daily_rainfall, total_rainfall, rainy_days)
-                SELECT
-                    %s as username,
-                    YEAR(date) as year_val,
-                    MONTH(date) as month_val,
-                    ROUND(AVG(total_rainfall), 1) as avg_daily_rainfall,
-                    MAX(total_rainfall) as max_daily_rainfall,
-                    ROUND(SUM(total_rainfall), 1) as total_rainfall,
-                    SUM(CASE WHEN total_rainfall >= 0.3 THEN 1 ELSE 0 END) as rainy_days
-                FROM rainfall_daily
-                WHERE username = %s
-                GROUP BY year_val, month_val
-                ON DUPLICATE KEY UPDATE
-                    avg_daily_rainfall = VALUES(avg_daily_rainfall),
-                    max_daily_rainfall = VALUES(max_daily_rainfall),
-                    total_rainfall = VALUES(total_rainfall),
-                    rainy_days = VALUES(rainy_days),
-                    updated_at = CURRENT_TIMESTAMP
-            ''', (username, username))
-            log(f"Monthly data aggregation completed, affected rows: {cursor.rowcount}")
+            try:
+                # 先检查日表中是否有数据
+                cursor.execute('''
+                    SELECT COUNT(*) as count FROM rainfall_daily
+                    WHERE username = %s
+                ''', (username,))
+                result = cursor.fetchone()
+                daily_count = result['count'] if result else 0
+                log(f"日数据点数量: {daily_count}")
+
+                if daily_count == 0:
+                    log(f"没有日数据点，跳过月聚合")
+                else:
+                    # 先查询可能被聚合的数据
+                    cursor.execute('''
+                        SELECT
+                            YEAR(date) as year_val,
+                            MONTH(date) as month_val,
+                            COUNT(*) as count
+                        FROM rainfall_daily
+                        WHERE username = %s
+                        GROUP BY year_val, month_val
+                    ''', (username,))
+                    month_slots = cursor.fetchall()
+                    log(f"找到 {len(month_slots)} 个月份需要聚合")
+
+                    # 执行聚合
+                    cursor.execute('''
+                        INSERT INTO rainfall_monthly
+                        (username, year, month, avg_daily_rainfall, max_daily_rainfall, total_rainfall, rainy_days)
+                        SELECT
+                            %s as username,
+                            YEAR(date) as year_val,
+                            MONTH(date) as month_val,
+                            ROUND(AVG(total_rainfall), 1) as avg_daily_rainfall,
+                            MAX(total_rainfall) as max_daily_rainfall,
+                            ROUND(SUM(total_rainfall), 1) as total_rainfall,
+                            SUM(CASE WHEN total_rainfall >= 0.3 THEN 1 ELSE 0 END) as rainy_days
+                        FROM rainfall_daily
+                        WHERE username = %s
+                        GROUP BY year_val, month_val
+                        ON DUPLICATE KEY UPDATE
+                            avg_daily_rainfall = VALUES(avg_daily_rainfall),
+                            max_daily_rainfall = VALUES(max_daily_rainfall),
+                            total_rainfall = VALUES(total_rainfall),
+                            rainy_days = VALUES(rainy_days),
+                            updated_at = CURRENT_TIMESTAMP
+                    ''', (username, username))
+                    log(f"月数据聚合完成，影响行数: {cursor.rowcount}")
+            except Exception as e:
+                log(f"月数据聚合错误: {str(e)}")
+                log(traceback.format_exc())
+                # 继续执行，不抛出异常
 
         conn.commit()
         return {"success": True, "message": "Data aggregation successful"}
