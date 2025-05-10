@@ -261,8 +261,8 @@ const rainfallDataService = {
     return timerId;
   },
 
-  // 初始化模拟数据并启动数据采集器，每5秒生成一个新数据点
-  async generateMockData(days = 7) {
+  // 启动OneNET同步服务
+  async startOneNetSync() {
     try {
       // 从 localStorage 中获取用户名
       let username = 'admin'; // 默认用户名
@@ -284,16 +284,14 @@ const rainfallDataService = {
         console.log('[雨量数据服务] localStorage中没有用户信息，使用默认用户名:', username);
       }
 
-      // 确保 days 是一个数字
-      const daysValue = typeof days === 'number' ? days : 7;
-      console.log(`[雨量数据服务] 开始初始化模拟数据并启动数据采集器，用户名: ${username}, 天数: ${daysValue}`);
+      console.log(`[雨量数据服务] 开始启动OneNET同步服务，用户名: ${username}`);
 
       // 发送API请求，直接在URL中传递用户名
-      const response = await get(`/api/rainfall/mock?days=${daysValue}&username=${encodeURIComponent(username)}`);
+      const response = await get(`/api/rainfall/onenet/sync/start?username=${encodeURIComponent(username)}`);
 
       if (response.ok) {
         const data = await response.json();
-        console.log('[雨量数据服务] 初始化模拟数据成功:', data);
+        console.log('[雨量数据服务] 启动OneNET同步服务成功:', data);
 
         if (data.success) {
           // 更新全局数据收集状态并保存到localStorage
@@ -308,21 +306,18 @@ const rainfallDataService = {
         }
       } else {
         const errorData = await response.json();
-
-        // 不再处理401错误
-
         return { success: false, error: errorData.error };
       }
     } catch (error) {
-      console.error('[雨量数据服务] 初始化模拟数据错误:', error);
+      console.error('[雨量数据服务] 启动OneNET同步服务错误:', error);
       return { success: false, error: error.message };
     }
   },
 
-  // 停止数据采集器
-  async stopDataCollector() {
+  // 停止OneNET同步服务
+  async stopOneNetSync() {
     try {
-      console.log('[雨量数据服务] 开始停止数据采集器...');
+      console.log('[雨量数据服务] 开始停止OneNET同步服务...');
 
       // 从 localStorage 中获取用户名
       let username = 'admin'; // 默认用户名
@@ -335,7 +330,7 @@ const rainfallDataService = {
           console.log('[雨量数据服务] 解析后的用户信息:', userData);
           if (userData && userData.username) {
             username = userData.username;
-            console.log('[雨量数据服务] 停止数据采集器，当前用户名:', username);
+            console.log('[雨量数据服务] 停止OneNET同步服务，当前用户名:', username);
           }
         } catch (e) {
           console.error('[雨量数据服务] 解析用户信息出错:', e);
@@ -344,45 +339,45 @@ const rainfallDataService = {
         console.log('[雨量数据服务] localStorage中没有用户信息，使用默认用户名:', username);
       }
 
-      console.log(`[雨量数据服务] 停止数据采集器，最终使用的用户名: ${username}`);
+      console.log(`[雨量数据服务] 停止OneNET同步服务，最终使用的用户名: ${username}`);
 
       // 检查当前数据采集器状态
       const currentStatus = localStorage.getItem('collectorRunning');
       console.log(`[雨量数据服务] 当前数据采集器状态: ${currentStatus}`);
 
       // 发送API请求，直接在URL中传递用户名
-      const stopUrl = `/api/rainfall/stop?username=${encodeURIComponent(username)}`;
+      const stopUrl = `/api/rainfall/onenet/sync/stop?username=${encodeURIComponent(username)}`;
       console.log(`[雨量数据服务] 发送停止请求到: ${stopUrl}`);
       const response = await get(stopUrl);
       console.log(`[雨量数据服务] 停止请求响应状态:`, response.status, response.statusText);
 
       if (response.ok) {
         const data = await response.json();
-        console.log('[雨量数据服务] 停止数据采集器响应数据:', data);
+        console.log('[雨量数据服务] 停止OneNET同步服务响应数据:', data);
 
         if (data.success) {
           // 更新全局数据收集状态并保存到localStorage
           this.updateCollectorStatus(false);
-          console.log('[雨量数据服务] 数据采集器状态已更新为停止');
+          console.log('[雨量数据服务] OneNET同步服务状态已更新为停止');
 
           // 再次检查localStorage中的状态
           const updatedStatus = localStorage.getItem('collectorRunning');
-          console.log(`[雨量数据服务] 更新后的数据采集器状态: ${updatedStatus}`);
+          console.log(`[雨量数据服务] 更新后的OneNET同步服务状态: ${updatedStatus}`);
 
           return {
             success: true,
             message: data.message
           };
         } else {
-          console.error('[雨量数据服务] 停止数据采集器失败:', data.error);
+          console.error('[雨量数据服务] 停止OneNET同步服务失败:', data.error);
           return { success: false, error: data.error };
         }
       } else {
-        console.error('[雨量数据服务] 停止数据采集器请求失败:', response.status, response.statusText);
+        console.error('[雨量数据服务] 停止OneNET同步服务请求失败:', response.status, response.statusText);
         let errorData;
         try {
           errorData = await response.json();
-          console.error('[雨量数据服务] 停止数据采集器错误数据:', errorData);
+          console.error('[雨量数据服务] 停止OneNET同步服务错误数据:', errorData);
         } catch (jsonError) {
           console.error('[雨量数据服务] 解析错误响应失败:', jsonError);
           errorData = { error: `服务器响应错误: ${response.status} ${response.statusText}` };
@@ -390,19 +385,24 @@ const rainfallDataService = {
 
         // 即使请求失败，也将本地状态设置为停止
         this.updateCollectorStatus(false);
-        console.log('[雨量数据服务] 尽管请求失败，但本地数据采集器状态已设置为停止');
+        console.log('[雨量数据服务] 尽管请求失败，但本地OneNET同步服务状态已设置为停止');
 
         return { success: false, error: errorData.error };
       }
     } catch (error) {
-      console.error('[雨量数据服务] 停止数据采集器错误:', error);
+      console.error('[雨量数据服务] 停止OneNET同步服务错误:', error);
 
       // 即使出错，也将本地状态设置为停止
       this.updateCollectorStatus(false);
-      console.log('[雨量数据服务] 尽管出错，但本地数据采集器状态已设置为停止');
+      console.log('[雨量数据服务] 尽管出错，但本地OneNET同步服务状态已设置为停止');
 
       return { success: false, error: error.message };
     }
+  },
+
+  // 停止数据采集器 (保留此方法以兼容旧代码)
+  async stopDataCollector() {
+    return this.stopOneNetSync();
   },
 
   // 检查数据采集器状态

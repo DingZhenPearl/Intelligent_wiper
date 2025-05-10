@@ -46,10 +46,9 @@
 
 <script>
 // reactive
-import { ref, onMounted, onUnmounted, computed, watch } from 'vue'
+import { ref, onMounted, onUnmounted, computed } from 'vue'
 import ECharts from '@/components/ECharts'
 import rainfallDataService from '@/services/rainfallDataService'
-import oneNetService from '@/services/oneNetService'
 
 // 辅助变量和函数
 
@@ -63,7 +62,6 @@ export default {
     const intervalId = ref(null);
     const chartUpdateId = ref(null); // 用于时间轴更新的定时器
     const chartRef = ref(null); // 图表引用
-    const isOneNetSource = ref(oneNetService.isOneNetSource.value); // 是否使用OneNET数据源
 
     // 定义时间段选择器
     const timePeriods = [
@@ -633,11 +631,9 @@ export default {
           if (result.warning) {
             console.warn(`获取${periodType}数据警告:`, result.warning);
 
-            // 如果是OneNET数据源，显示警告信息
-            if (oneNetService.isOneNetSource.value) {
-              chartOption.value.title.text = `雨量显示 - OneNET数据`;
-              chartOption.value.title.subtext = `提示: ${result.warning}`;
-            }
+            // 显示警告信息
+            chartOption.value.title.text = `雨量显示 - OneNET数据`;
+            chartOption.value.title.subtext = `提示: ${result.warning}`;
           } else {
             // 清除之前的警告信息
             chartOption.value.title.subtext = '';
@@ -652,30 +648,24 @@ export default {
         } else {
           console.error(`获取${periodType}数据失败:`, result.error);
 
-          // 检查是否使用OneNET数据源
-          if (oneNetService.isOneNetSource.value) {
-            // 如果是OneNET数据源，显示错误信息
-            chartOption.value.title.text = `雨量显示 - OneNET数据获取失败`;
-            chartOption.value.title.subtext = `错误: ${result.error}`;
-
-            // 清空图表数据但保持图表结构
-            chartData.value = [];
-            updateChartData();
-          }
-        }
-      } catch (error) {
-        console.error(`获取${periodType}数据错误:`, error);
-
-        // 检查是否使用OneNET数据源
-        if (oneNetService.isOneNetSource.value) {
-          // 如果是OneNET数据源，显示错误信息
+          // 显示错误信息
           chartOption.value.title.text = `雨量显示 - OneNET数据获取失败`;
-          chartOption.value.title.subtext = `错误: ${error.message || '未知错误'}`;
+          chartOption.value.title.subtext = `错误: ${result.error}`;
 
           // 清空图表数据但保持图表结构
           chartData.value = [];
           updateChartData();
         }
+      } catch (error) {
+        console.error(`获取${periodType}数据错误:`, error);
+
+        // 显示错误信息
+        chartOption.value.title.text = `雨量显示 - OneNET数据获取失败`;
+        chartOption.value.title.subtext = `错误: ${error.message || '未知错误'}`;
+
+        // 清空图表数据但保持图表结构
+        chartData.value = [];
+        updateChartData();
       }
     };
 
@@ -803,33 +793,20 @@ export default {
       ]
     });
 
-    // 监听图表引用
-    watch(() => chartRef.value, (newVal) => {
-      if (newVal) {
-        // 图表实例已创建，启动时间轴更新
-        startChartTimeUpdate();
-      }
-    });
+    // 在onMounted中启动时间轴更新
 
-    // 监听OneNET数据源变化
-    watch(() => oneNetService.isOneNetSource.value, (newValue) => {
-      console.log(`[Statistics] 数据源已切换为: ${newValue ? 'OneNET平台' : '本地数据库'}`);
-      isOneNetSource.value = newValue;
-
-      // 清除错误信息
-      chartOption.value.title.subtext = '';
-
-      // 获取当前时间段的数据
-      const periodType = getPeriodType(activePeriod.value);
-
-      // 立即获取最新数据
-      fetchDataFromBackend(periodType);
-    }, { immediate: true });
+    // 数据源始终为OneNET平台
+    console.log('[Statistics] 使用OneNET平台作为数据源');
 
     // 生命周期钩子
     onMounted(() => {
       // 启动定时更新
       startDataPolling();
+
+      // 启动时间轴更新
+      if (chartRef.value) {
+        startChartTimeUpdate();
+      }
     });
 
     onUnmounted(() => {

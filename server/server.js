@@ -8,7 +8,11 @@ const path = require('path');
 const { getLocalIpAddresses } = require('./utils/networkUtils');
 const { terminateAllPythonProcesses } = require('./utils/processUtils');
 const { initializeDatabase } = require('./services/databaseService');
-const { cleanup } = require('./services/rainfallCollector');
+const {
+  cleanup,
+  startRainfallCollector,
+  startOneNetSync
+} = require('./services/rainfallCollector');
 
 // 启动前先清除可能存在的遗留数据采集器进程
 // 注意：这只是终止数据采集器进程，不会清除数据库中已存储的雨量数据
@@ -84,6 +88,12 @@ async function initializeApp() {
       }
     });
     console.log(`请确保您的防火墙已经开放了${httpPort}和${httpsPort}端口!`);
+
+    // 启动OneNET同步服务
+    console.log('启动OneNET同步服务');
+    startOneNetSync('admin').catch(error => {
+      console.error('启动OneNET同步服务失败:', error);
+    });
   } catch (error) {
     console.error('服务器初始化失败:', error);
     process.exit(1);

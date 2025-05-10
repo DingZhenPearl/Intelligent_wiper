@@ -15,44 +15,26 @@
           {{ backendMessage || '点击下方按钮开始收集数据' }}
         </div>
 
-        <!-- 数据源切换按钮 -->
-        <div class="data-source-switch">
-          <span class="data-source-label">数据源:</span>
-          <button
-            class="data-source-btn"
-            :class="{ active: !isOneNetSource }"
-            @click="switchDataSource(false)"
-          >
-            本地数据库
-          </button>
-          <button
-            class="data-source-btn"
-            :class="{ active: isOneNetSource }"
-            @click="switchDataSource(true)"
-          >
-            OneNET平台
-          </button>
-        </div>
+        <!-- 使用OneNET平台作为数据源 -->
 
         <!-- 数据收集控制按钮 -->
         <div class="data-control-buttons">
           <button
             v-if="!isDataPollingActive"
             class="mock-data-btn start"
-            @click="() => generateMockData(7)"
-            :disabled="isMockDataLoading || isOneNetSource"
+            @click="startOneNetSync"
+            :disabled="isMockDataLoading"
           >
             <span class="icon material-icons">play_arrow</span>
-            {{ isMockDataLoading ? '正在初始化...' : '开始收集数据' }}
+            {{ isMockDataLoading ? '正在初始化...' : '开始OneNET同步' }}
           </button>
           <button
             v-else
             class="mock-data-btn stop"
-            @click="stopServiceDataCheck"
-            :disabled="isOneNetSource"
+            @click="stopOneNetSync"
           >
             <span class="icon material-icons">stop</span>
-            停止收集数据
+            停止OneNET同步
           </button>
         </div>
         <div v-if="mockDataMessage" class="mock-data-message" :class="{ success: mockDataSuccess, error: !mockDataSuccess }">
@@ -99,7 +81,6 @@ import { ref, onMounted, onUnmounted, watch } from 'vue'
 import rainfallService from '@/services/rainfallService'
 import rainfallDataService from '@/services/rainfallDataService'
 import voiceService from '@/services/voiceService'
-import oneNetService from '@/services/oneNetService'
 
 export default {
   name: 'ControlPanel',
@@ -115,8 +96,8 @@ export default {
     const mockDataMessage = ref('') // 模拟数据生成结果消息
     const mockDataSuccess = ref(true) // 模拟数据生成是否成功
 
-    // 数据源相关状态
-    const isOneNetSource = ref(oneNetService.isOneNetSource.value) // 是否使用OneNET数据源
+    // 数据源始终为OneNET平台
+    const isOneNetSource = ref(true) // 始终使用OneNET数据源
 
     // 语音控制相关状态
     const isVoiceListening = ref(false) // 是否正在监听语音
@@ -137,19 +118,8 @@ export default {
       console.log(`[Home] 更新雨量级别: ${newLevel.text} (时间: ${now.getHours()}:${now.getMinutes()}:${now.getSeconds()})`);
     }, { immediate: true }); // 立即触发一次
 
-    // 监听OneNET数据源状态变化
-    watch(() => oneNetService.isOneNetSource.value, (newValue) => {
-      isOneNetSource.value = newValue;
-      console.log(`[Home] 数据源已切换为: ${newValue ? 'OneNET平台' : '本地数据库'}`);
-
-      // 如果切换到OneNET，停止本地数据采集
-      if (newValue && isDataPollingActive.value) {
-        stopServiceDataCheck();
-      }
-
-      // 立即获取最新数据
-      fetchRainfallFromBackend();
-    }, { immediate: true });
+    // 数据源始终为OneNET平台
+    console.log('[Home] 使用OneNET平台作为数据源');
 
     // 定时从后端获取雨量数据
     const dataPollingInterval = ref(null); // 存储定时器ID
@@ -182,13 +152,13 @@ export default {
       console.log('[Home] 本地轮询状态已设置为活动并保存到localStorage');
     };
 
-    // 停止数据轮询和数据采集器
-    const stopServiceDataCheck = async () => {
-      console.log('[Home] 开始停止数据采集器和轮询...');
+    // 停止数据轮询和OneNET同步服务
+    const stopOneNetSync = async () => {
+      console.log('[Home] 开始停止OneNET同步服务和轮询...');
 
       // 显示正在停止的消息
-      backendMessage.value = '正在停止数据采集器...';
-      mockDataMessage.value = '正在停止数据采集器...';
+      backendMessage.value = '正在停止OneNET同步服务...';
+      mockDataMessage.value = '正在停止OneNET同步服务...';
       mockDataSuccess.value = true;
 
       // 停止前端数据轮询
@@ -215,12 +185,12 @@ export default {
             console.error('[Home] 解析用户信息出错:', e);
           }
         }
-        console.log(`[Home] 停止数据采集器，用户名: ${username}`);
+        console.log(`[Home] 停止OneNET同步服务，用户名: ${username}`);
 
-        // 调用后端 API 停止数据采集器
-        console.log('[Home] 调用后端 API 停止数据采集器');
-        const result = await rainfallDataService.stopDataCollector();
-        console.log('[Home] 停止数据采集器API返回结果:', result);
+        // 调用后端 API 停止OneNET同步服务
+        console.log('[Home] 调用后端 API 停止OneNET同步服务');
+        const result = await rainfallDataService.stopOneNetSync();
+        console.log('[Home] 停止OneNET同步服务API返回结果:', result);
 
         if (result.success) {
           // 设置数据采集器状态为非活动
@@ -229,9 +199,9 @@ export default {
           console.log('[Home] 本地轮询状态已设置为非活动并保存到localStorage');
 
           // 设置提示消息
-          backendMessage.value = '数据采集已停止，点击按钮开始收集数据';
-          mockDataMessage.value = '数据采集器已停止';
-          console.log(`[Home] 停止数据采集器成功: ${result.message}`);
+          backendMessage.value = 'OneNET同步已停止，点击按钮开始同步数据';
+          mockDataMessage.value = 'OneNET同步服务已停止';
+          console.log(`[Home] 停止OneNET同步服务成功: ${result.message}`);
 
           // 获取最新状态
           fetchRainfallFromBackend();
@@ -241,9 +211,9 @@ export default {
             mockDataMessage.value = '';
           }, 5000);
         } else {
-          console.error(`[Home] 停止数据采集器失败: ${result.error}`);
-          backendMessage.value = `停止数据采集器失败: ${result.error || '未知错误'}`;
-          mockDataMessage.value = `停止数据采集器失败: ${result.error || '未知错误'}`;
+          console.error(`[Home] 停止OneNET同步服务失败: ${result.error}`);
+          backendMessage.value = `停止OneNET同步服务失败: ${result.error || '未知错误'}`;
+          mockDataMessage.value = `停止OneNET同步服务失败: ${result.error || '未知错误'}`;
           mockDataSuccess.value = false;
 
           // 5秒后清除错误消息
@@ -252,9 +222,9 @@ export default {
           }, 5000);
         }
       } catch (error) {
-        console.error('[Home] 停止数据采集器错误:', error);
-        backendMessage.value = `停止数据采集器错误: ${error.message || '未知错误'}`;
-        mockDataMessage.value = `停止数据采集器错误: ${error.message || '未知错误'}`;
+        console.error('[Home] 停止OneNET同步服务错误:', error);
+        backendMessage.value = `停止OneNET同步服务错误: ${error.message || '未知错误'}`;
+        mockDataMessage.value = `停止OneNET同步服务错误: ${error.message || '未知错误'}`;
         mockDataSuccess.value = false;
 
         // 5秒后清除错误消息
@@ -263,6 +233,9 @@ export default {
         }, 5000);
       }
     };
+
+    // 保留此方法以兼容旧代码
+    const stopServiceDataCheck = stopOneNetSync;
 
 
 
@@ -309,52 +282,7 @@ export default {
 
     // 智能模式是一个固定的模式，实际的自动调节逻辑在硬件端实现
 
-    // 切换数据源
-    const switchDataSource = async (useOneNet) => {
-      try {
-        console.log(`[Home] 开始切换数据源为 ${useOneNet ? 'OneNET平台' : '本地数据库'}`);
-
-        // 如果当前已经是选择的数据源，不做任何操作
-        if (isOneNetSource.value === useOneNet) {
-          console.log('[Home] 已经是选择的数据源，不做任何操作');
-          return;
-        }
-
-        // 显示切换中的消息
-        mockDataMessage.value = `正在切换数据源为 ${useOneNet ? 'OneNET平台' : '本地数据库'}...`;
-        mockDataSuccess.value = true;
-
-        // 调用服务切换数据源
-        const result = await oneNetService.switchDataSource(useOneNet);
-
-        if (result.success) {
-          mockDataMessage.value = `数据源已切换为 ${useOneNet ? 'OneNET平台' : '本地数据库'}`;
-          mockDataSuccess.value = true;
-
-          // 5秒后清除消息
-          setTimeout(() => {
-            mockDataMessage.value = '';
-          }, 5000);
-        } else {
-          mockDataMessage.value = `切换数据源失败: ${result.error || '未知错误'}`;
-          mockDataSuccess.value = false;
-
-          // 5秒后清除错误消息
-          setTimeout(() => {
-            mockDataMessage.value = '';
-          }, 5000);
-        }
-      } catch (error) {
-        console.error('[Home] 切换数据源错误:', error);
-        mockDataMessage.value = `切换数据源错误: ${error.message || '未知错误'}`;
-        mockDataSuccess.value = false;
-
-        // 5秒后清除错误消息
-        setTimeout(() => {
-          mockDataMessage.value = '';
-        }, 5000);
-      }
-    };
+    // 数据源始终为OneNET平台
 
     const changeStatus = (status, logChange = true) => {
       currentStatus.value = status
@@ -404,8 +332,8 @@ export default {
       }
     };
 
-    // 初始化模拟数据并开始实时收集
-    const generateMockData = async (days = 7) => {
+    // 启动OneNET同步服务
+    const startOneNetSync = async () => {
       try {
         // 设置加载状态
         isMockDataLoading.value = true;
@@ -426,18 +354,15 @@ export default {
           console.log('[首页] localStorage中没有用户信息');
         }
 
-        // 确保 days 是一个数字
-        const daysValue = typeof days === 'number' ? days : 7;
+        console.log(`[首页] 开始启动OneNET同步服务`);
 
-        console.log(`[首页] 开始初始化模拟数据并启动数据采集器，天数: ${daysValue}`);
-
-        // 调用服务初始化模拟数据
-        const result = await rainfallDataService.generateMockData(daysValue);
+        // 调用服务启动OneNET同步
+        const result = await rainfallDataService.startOneNetSync();
 
         if (result.success) {
           mockDataSuccess.value = true;
-          mockDataMessage.value = `数据采集器已启动，每5秒生成一个新数据点`;
-          console.log(`[首页] 模拟数据初始化成功: ${result.message}`);
+          mockDataMessage.value = `OneNET同步服务已启动，每5秒从OneNET平台同步一次数据`;
+          console.log(`[首页] OneNET同步服务启动成功: ${result.message}`);
 
           // 立即获取最新数据并启动数据轮询
           fetchRainfallFromBackend();
@@ -449,8 +374,8 @@ export default {
           }, 10000);
         } else {
           mockDataSuccess.value = false;
-          mockDataMessage.value = `初始化模拟数据失败: ${result.error || '未知错误'}`;
-          console.error(`[首页] 初始化模拟数据失败:`, result.error);
+          mockDataMessage.value = `启动OneNET同步服务失败: ${result.error || '未知错误'}`;
+          console.error(`[首页] 启动OneNET同步服务失败:`, result.error);
 
           // 5秒后清除错误消息
           setTimeout(() => {
@@ -459,8 +384,8 @@ export default {
         }
       } catch (error) {
         mockDataSuccess.value = false;
-        mockDataMessage.value = `初始化模拟数据错误: ${error.message || '未知错误'}`;
-        console.error(`[首页] 初始化模拟数据错误:`, error);
+        mockDataMessage.value = `启动OneNET同步服务错误: ${error.message || '未知错误'}`;
+        console.error(`[首页] 启动OneNET同步服务错误:`, error);
 
         // 5秒后清除错误消息
         setTimeout(() => {
@@ -821,7 +746,6 @@ export default {
       isMockDataLoading,
       mockDataMessage,
       mockDataSuccess,
-      generateMockData,
       backendMessage,
       // 数据轮询相关
       isDataPollingActive,
@@ -829,7 +753,8 @@ export default {
       stopServiceDataCheck,
       // 数据源相关
       isOneNetSource,
-      switchDataSource,
+      startOneNetSync,
+      stopOneNetSync,
       // 语音控制相关
       isVoiceListening,
       voiceResult,

@@ -5,10 +5,14 @@ const path = require('path');
 const fs = require('fs');
 const config = require('../config');
 const { executePythonScript } = require('../utils/pythonRunner');
-const { startRainfallCollector, stopRainfallCollector, setShouldRestartCollector } = require('../services/rainfallCollector');
-
-// 数据源设置文件路径
-const DATA_SOURCE_FILE = path.join(__dirname, '..', 'data', 'data_source_settings.json');
+const {
+  startRainfallCollector,
+  stopRainfallCollector,
+  setShouldRestartCollector,
+  startOneNetSync,
+  stopOneNetSync,
+  setShouldRestartOneNetSync
+} = require('../services/rainfallCollector');
 
 // 确保data目录存在
 const dataDir = path.join(__dirname, '..', 'data');
@@ -16,20 +20,8 @@ if (!fs.existsSync(dataDir)) {
     fs.mkdirSync(dataDir, { recursive: true });
 }
 
-// 从文件加载数据源设置
-let useOneNetSource = false;
-try {
-    if (fs.existsSync(DATA_SOURCE_FILE)) {
-        const settings = JSON.parse(fs.readFileSync(DATA_SOURCE_FILE, 'utf8'));
-        useOneNetSource = settings.useOneNetSource || false;
-        console.log(`从文件加载数据源设置: ${useOneNetSource ? 'OneNET平台' : '本地数据库'}`);
-    } else {
-        console.log('数据源设置文件不存在，使用默认设置: 本地数据库');
-    }
-} catch (error) {
-    console.error('加载数据源设置出错:', error);
-    console.log('使用默认设置: 本地数据库');
-}
+// 默认使用OneNET数据源
+const useOneNetSource = true;
 
 // 获取统计页面数据
 router.get('/stats', async (req, res) => {
@@ -175,10 +167,10 @@ router.get('/home', async (req, res) => {
   }
 });
 
-// 从OneNET平台获取雨量数据
+// 从OneNET平台获取雨量数据（现在从本地数据库获取）
 router.get('/onenet', async (req, res) => {
   try {
-    console.log('从OneNET平台获取雨量数据');
+    console.log('从本地数据库获取最新雨量数据（OneNET同步）');
 
     // 检查是否启用了OneNET数据源
     if (!useOneNetSource) {
@@ -189,49 +181,54 @@ router.get('/onenet', async (req, res) => {
       });
     }
 
-    // 调用OneNET API脚本获取数据
-    const oneNetApiScriptPath = path.join(__dirname, '..', config.paths.ONENET_API_SCRIPT);
-    const result = await executePythonScript(oneNetApiScriptPath, 'get');
+    // 使用前端传递的用户名，而不是从 session 中获取
+    let username = req.query.username || (req.session.user ? req.session.user.username : 'admin');
+
+    // 确保用户名不为空
+    if (!username || username.trim() === '') {
+      username = 'admin';
+    } else {
+      username = username.trim();
+    }
+    console.log(`获取OneNET同步的雨量数据，用户名: '${username}'`);
+
+    // 调用雨量API脚本获取最新数据
+    const rainfallApiScriptPath = path.join(__dirname, '..', config.paths.RAINFALL_API_SCRIPT);
+    const result = await executePythonScript(rainfallApiScriptPath, 'home', { username });
 
     if (result.success) {
+      // 添加数据源标记
+      if (result.data) {
+        result.data.source = 'OneNET';
+      }
       res.json(result);
     } else {
-      // 检查是否是"未找到数据流"或"未找到数据点"的错误
-      if (result.error && (
-          result.error.includes('未找到数据流') ||
-          result.error.includes('未找到数据点') ||
-          result.error.includes('没有找到数据流')
-        )) {
-        console.log('OneNET平台未找到数据流或数据点，返回默认数据');
-        // 返回成功状态，但包含默认数据和警告信息
-        res.json({
-          success: true,
-          data: {
-            timestamp: new Date().toISOString().replace('T', ' ').substring(0, 19),
-            rainfall_value: 0,
-            rainfall_level: 'none',
-            rainfall_percentage: 0,
-            source: 'OneNET',
-            unit: 'mm/h'  // 明确标记单位
-          },
-          warning: '当前OneNET平台没有可用数据，显示默认值'
-        });
-      } else {
-        // 其他错误仍然返回500状态码
-        res.status(500).json({ error: result.error || '获取OneNET数据失败' });
-      }
+      // 如果没有数据，返回默认值
+      console.log('本地数据库中没有OneNET同步的数据，返回默认数据');
+      res.json({
+        success: true,
+        data: {
+          timestamp: new Date().toISOString().replace('T', ' ').substring(0, 19),
+          rainfall_value: 0,
+          rainfall_level: 'none',
+          rainfall_percentage: 0,
+          source: 'OneNET',
+          unit: 'mm/h'  // 明确标记单位
+        },
+        warning: '当前本地数据库中没有OneNET同步的数据，显示默认值'
+      });
     }
   } catch (error) {
-    console.error('获取OneNET雨量数据错误:', error);
+    console.error('获取OneNET同步的雨量数据错误:', error);
     res.status(500).json({ error: '服务器内部错误' });
   }
 });
 
-// 从OneNET平台获取统计数据
+// 从OneNET平台获取统计数据（现在从本地数据库获取）
 router.get('/onenet/stats', async (req, res) => {
   try {
     const period = req.query.period || '10min';
-    console.log(`从OneNET平台获取${period}统计数据`);
+    console.log(`从本地数据库获取${period}统计数据（OneNET同步）`);
 
     // 检查是否启用了OneNET数据源
     if (!useOneNetSource) {
@@ -242,100 +239,51 @@ router.get('/onenet/stats', async (req, res) => {
       });
     }
 
-    // 调用OneNET数据聚合脚本获取数据
-    // 脚本位于项目根目录下的python目录中
-    const oneNetAggregatorScriptPath = path.join(__dirname, '..', '..', 'python', 'onenet_aggregator.py');
-    console.log(`OneNET数据聚合脚本路径: ${oneNetAggregatorScriptPath}`);
+    // 使用前端传递的用户名，而不是从 session 中获取
+    let username = req.query.username || (req.session.user ? req.session.user.username : 'admin');
 
-    // 检查脚本文件是否存在
-    const fs = require('fs');
-    if (!fs.existsSync(oneNetAggregatorScriptPath)) {
-      console.error(`OneNET数据聚合脚本不存在: ${oneNetAggregatorScriptPath}`);
-      return res.status(500).json({ error: 'OneNET数据聚合脚本不存在' });
+    // 确保用户名不为空
+    if (!username || username.trim() === '') {
+      username = 'admin';
+    } else {
+      username = username.trim();
     }
+    console.log(`获取OneNET同步的${period}统计数据，用户名: '${username}'`);
 
-    const result = await executePythonScript(oneNetAggregatorScriptPath, null, { period });
+    // 调用雨量API脚本获取统计数据
+    const rainfallApiScriptPath = path.join(__dirname, '..', config.paths.RAINFALL_API_SCRIPT);
+    const result = await executePythonScript(rainfallApiScriptPath, 'stats', { username, period });
 
     if (result.success) {
-      console.log(`成功获取OneNET ${period}聚合数据，数据点数量:`, result.data.length);
+      // 添加数据源标记
+      result.source = 'OneNET';
+      console.log(`成功获取OneNET同步的${period}统计数据，数据点数量:`, result.data ? result.data.length : 0);
       res.json(result);
     } else {
-      // 检查是否是"未找到任何数据点"的错误
-      if (result.error && result.error.includes('未找到任何数据点')) {
-        console.log(`OneNET平台未找到${period}数据点，返回空数据数组`);
-        // 返回成功状态，但包含空数据数组和警告信息
-        res.json({
-          success: true,
-          data: [],
-          warning: `OneNET平台未找到${period}时间段的数据点`,
-          unit: period === 'all' ? 'mm/天' : 'mm/h'  // 根据时间粒度设置单位
-        });
-      } else {
-        // 其他错误仍然返回500状态码
-        res.status(500).json({ error: result.error || `获取OneNET ${period}统计数据失败` });
-      }
-    }
-  } catch (error) {
-    console.error(`获取OneNET ${req.query.period || '10min'}统计数据错误:`, error);
-    res.status(500).json({ error: '服务器内部错误' });
-  }
-});
-
-// 切换数据源
-router.post('/switch-source', async (req, res) => {
-  try {
-    const { useOneNet } = req.body;
-
-    if (typeof useOneNet !== 'boolean') {
-      return res.status(400).json({
-        success: false,
-        error: '参数错误，useOneNet必须是布尔值'
+      // 如果没有数据，返回空数组
+      console.log(`本地数据库中没有OneNET同步的${period}统计数据，返回空数据数组`);
+      res.json({
+        success: true,
+        data: [],
+        warning: `本地数据库中没有OneNET同步的${period}时间段的数据点`,
+        unit: period === 'all' ? 'mm/天' : 'mm/h',  // 根据时间粒度设置单位
+        source: 'OneNET'
       });
     }
-
-    console.log(`切换数据源为: ${useOneNet ? 'OneNET平台' : '本地数据库'}`);
-
-    // 更新全局设置
-    useOneNetSource = useOneNet;
-
-    // 将设置保存到文件
-    try {
-      fs.writeFileSync(DATA_SOURCE_FILE, JSON.stringify({ useOneNetSource: useOneNet }), 'utf8');
-      console.log(`数据源设置已保存到文件: ${useOneNet ? 'OneNET平台' : '本地数据库'}`);
-    } catch (saveError) {
-      console.error('保存数据源设置出错:', saveError);
-      // 继续执行，不影响数据源切换
-    }
-
-    // 如果切换到OneNET，停止本地数据采集器
-    if (useOneNet) {
-      try {
-        console.log('切换到OneNET数据源，停止本地数据采集器');
-        await stopRainfallCollector();
-      } catch (stopError) {
-        console.error('停止数据采集器错误:', stopError);
-        // 继续执行，不影响数据源切换
-      }
-    }
-
-    res.json({
-      success: true,
-      message: `数据源已切换为 ${useOneNet ? 'OneNET平台' : '本地数据库'}`
-    });
   } catch (error) {
-    console.error('切换数据源错误:', error);
+    console.error(`获取OneNET同步的${req.query.period || '10min'}统计数据错误:`, error);
     res.status(500).json({ error: '服务器内部错误' });
   }
 });
 
-// 获取当前数据源设置
+// 获取当前数据源设置 (始终返回OneNET数据源)
 router.get('/data-source', (_, res) => {
   try {
-    console.log(`获取当前数据源设置: ${useOneNetSource ? 'OneNET平台' : '本地数据库'}`);
+    console.log('获取当前数据源设置: OneNET平台');
 
     res.json({
       success: true,
-      useOneNetSource: useOneNetSource
+      useOneNetSource: true
     });
   } catch (error) {
     console.error('获取数据源设置错误:', error);
@@ -380,6 +328,146 @@ router.get('/aggregate', async (req, res) => {
     }
   } catch (error) {
     console.error('手动触发数据聚合错误:', error);
+    res.status(500).json({ error: '服务器内部错误' });
+  }
+});
+
+// 启动OneNET同步服务
+router.get('/onenet/sync/start', async (req, res) => {
+  try {
+    // 使用前端传递的用户名，而不是从 session 中获取
+    let username = req.query.username || (req.session.user ? req.session.user.username : 'admin');
+
+    // 详细输出用户信息
+    console.log(`启动OneNET同步服务，传入的用户名: ${username}`);
+    console.log(`启动OneNET同步服务，请求参数: ${JSON.stringify(req.query)}`);
+
+    // 确保用户名不为空
+    if (!username || username.trim() === '') {
+      username = 'admin';
+    } else {
+      username = username.trim();
+    }
+    console.log(`最终使用的用户名: '${username}'`);
+
+    // 检查是否启用了OneNET数据源
+    if (!useOneNetSource) {
+      console.log('OneNET数据源未启用，先启用OneNET数据源');
+      // 更新全局设置
+      useOneNetSource = true;
+
+      // 将设置保存到文件
+      try {
+        fs.writeFileSync(DATA_SOURCE_FILE, JSON.stringify({ useOneNetSource: true }), 'utf8');
+        console.log('数据源设置已保存到文件: OneNET平台');
+      } catch (saveError) {
+        console.error('保存数据源设置出错:', saveError);
+        // 继续执行，不影响同步服务启动
+      }
+    }
+
+    // 停止本地数据采集器
+    console.log('停止本地数据采集器');
+    await stopRainfallCollector();
+
+    // 设置重启标志为true
+    setShouldRestartOneNetSync(true);
+    console.log('设置重启标志为true，允许OneNET同步服务自动重启');
+
+    // 启动OneNET同步服务
+    console.log(`准备启动OneNET同步服务，用户: ${username}`);
+    await startOneNetSync(username);
+
+    res.json({
+      success: true,
+      message: 'OneNET同步服务已启动，将每5秒从OneNET平台同步一次数据'
+    });
+  } catch (error) {
+    console.error('启动OneNET同步服务错误:', error);
+    res.status(500).json({ error: '服务器内部错误' });
+  }
+});
+
+// 停止OneNET同步服务
+router.get('/onenet/sync/stop', async (req, res) => {
+  try {
+    // 使用前端传递的用户名，而不是从 session 中获取
+    let username = req.query.username || (req.session.user ? req.session.user.username : 'admin');
+
+    // 详细输出用户信息
+    console.log(`停止OneNET同步服务，传入的用户名: ${username}`);
+    console.log(`停止OneNET同步服务，请求参数: ${JSON.stringify(req.query)}`);
+
+    // 确保用户名不为空
+    if (!username || username.trim() === '') {
+      username = 'admin';
+    } else {
+      username = username.trim();
+    }
+    console.log(`最终使用的用户名: '${username}'`);
+
+    // 停止OneNET同步服务
+    console.log(`调用stopOneNetSync函数，用户名: ${username}`);
+    const result = await stopOneNetSync(username);
+    console.log(`stopOneNetSync函数返回结果:`, result);
+
+    res.json({
+      success: true,
+      message: 'OneNET同步服务已强制停止，数据库中的数据保持不变'
+    });
+  } catch (error) {
+    console.error('停止OneNET同步服务错误:', error);
+    res.status(500).json({ error: '服务器内部错误' });
+  }
+});
+
+// 手动执行一次OneNET数据同步
+router.get('/onenet/sync/once', async (req, res) => {
+  try {
+    // 使用前端传递的用户名，而不是从 session 中获取
+    let username = req.query.username || (req.session.user ? req.session.user.username : 'admin');
+
+    // 详细输出用户信息
+    console.log(`手动执行一次OneNET数据同步，传入的用户名: ${username}`);
+    console.log(`手动执行一次OneNET数据同步，请求参数: ${JSON.stringify(req.query)}`);
+
+    // 确保用户名不为空
+    if (!username || username.trim() === '') {
+      username = 'admin';
+    } else {
+      username = username.trim();
+    }
+    console.log(`最终使用的用户名: '${username}'`);
+
+    // 调用OneNET同步脚本执行一次同步
+    const oneNetSyncScriptPath = path.join(__dirname, '..', '..', 'python', 'onenet_sync.py');
+    console.log(`OneNET同步脚本路径: ${oneNetSyncScriptPath}`);
+
+    // 检查脚本文件是否存在
+    if (!fs.existsSync(oneNetSyncScriptPath)) {
+      console.error(`OneNET同步脚本不存在: ${oneNetSyncScriptPath}`);
+      return res.status(500).json({ error: 'OneNET同步脚本不存在' });
+    }
+
+    const result = await executePythonScript(oneNetSyncScriptPath, 'sync_once', { username });
+
+    if (result.success) {
+      res.json({
+        success: true,
+        message: `OneNET数据同步成功，同步了 ${result.synced_count || 0} 条数据，跳过了 ${result.skipped_count || 0} 条重复数据`,
+        details: result.message,
+        synced_count: result.synced_count || 0,
+        skipped_count: result.skipped_count || 0
+      });
+    } else {
+      res.status(500).json({
+        success: false,
+        error: result.error || 'OneNET数据同步失败',
+        details: result
+      });
+    }
+  } catch (error) {
+    console.error('手动执行OneNET数据同步错误:', error);
     res.status(500).json({ error: '服务器内部错误' });
   }
 });

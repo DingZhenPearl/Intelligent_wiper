@@ -1,31 +1,18 @@
 // src/services/oneNetService.js
 import { ref } from 'vue';
-import { get, post } from './api';
+import { get } from './api';
 
 // OneNET服务
 const oneNetService = {
-  // 是否使用OneNET数据源
-  isOneNetSource: ref(localStorage.getItem('useOneNetSource') === 'true'),
+  // 始终使用OneNET数据源
+  isOneNetSource: ref(true),
 
-  // 初始化，从服务器获取数据源设置
+  // 初始化
   async init() {
     try {
-      console.log('[OneNET服务] 初始化，从服务器获取数据源设置');
-
-      const response = await get('/api/rainfall/data-source');
-
-      if (response.ok) {
-        const data = await response.json();
-        console.log('[OneNET服务] 获取数据源设置成功:', data);
-
-        if (data.success) {
-          // 更新数据源设置
-          this.updateDataSource(data.useOneNetSource);
-          console.log(`[OneNET服务] 数据源已设置为: ${data.useOneNetSource ? 'OneNET平台' : '本地数据库'}`);
-        }
-      } else {
-        console.error('[OneNET服务] 获取数据源设置失败:', response.status, response.statusText);
-      }
+      console.log('[OneNET服务] 初始化');
+      // 确保localStorage中的设置也是正确的
+      localStorage.setItem('useOneNetSource', 'true');
     } catch (error) {
       console.error('[OneNET服务] 初始化错误:', error);
     }
@@ -64,12 +51,7 @@ const oneNetService = {
     'all': null
   }),
 
-  // 更新数据源设置并保存到localStorage
-  updateDataSource(useOneNet) {
-    this.isOneNetSource.value = useOneNet;
-    localStorage.setItem('useOneNetSource', useOneNet ? 'true' : 'false');
-    console.log(`[OneNET服务] 更新数据源为 ${useOneNet ? 'OneNET' : '本地数据库'} 并保存到localStorage`);
-  },
+  // 数据源始终为OneNET
 
   // 从OneNET平台获取雨量数据
   async fetchRainfallData() {
@@ -179,40 +161,7 @@ const oneNetService = {
     }
   },
 
-  // 切换数据源
-  async switchDataSource(useOneNet) {
-    try {
-      console.log(`[OneNET服务] 开始切换数据源为 ${useOneNet ? 'OneNET' : '本地数据库'}`);
-
-      // 更新本地设置
-      this.updateDataSource(useOneNet);
-
-      // 通知后端切换数据源
-      const response = await post('/api/rainfall/switch-source', {
-        useOneNet: useOneNet
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        console.log('[OneNET服务] 切换数据源成功:', data);
-
-        if (data.success) {
-          return {
-            success: true,
-            message: data.message
-          };
-        } else {
-          return { success: false, error: data.error };
-        }
-      } else {
-        const errorData = await response.json();
-        return { success: false, error: errorData.error };
-      }
-    } catch (error) {
-      console.error('[OneNET服务] 切换数据源错误:', error);
-      return { success: false, error: error.message };
-    }
-  }
+  // 数据源始终为OneNET，不提供切换功能
 };
 
 export default oneNetService;
