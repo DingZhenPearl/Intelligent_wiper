@@ -2,12 +2,34 @@
 const express = require('express');
 const router = express.Router();
 const path = require('path');
+const fs = require('fs');
 const config = require('../config');
 const { executePythonScript } = require('../utils/pythonRunner');
 const { startRainfallCollector, stopRainfallCollector, setShouldRestartCollector } = require('../services/rainfallCollector');
 
-// 全局变量，存储当前数据源设置
+// 数据源设置文件路径
+const DATA_SOURCE_FILE = path.join(__dirname, '..', 'data', 'data_source_settings.json');
+
+// 确保data目录存在
+const dataDir = path.join(__dirname, '..', 'data');
+if (!fs.existsSync(dataDir)) {
+    fs.mkdirSync(dataDir, { recursive: true });
+}
+
+// 从文件加载数据源设置
 let useOneNetSource = false;
+try {
+    if (fs.existsSync(DATA_SOURCE_FILE)) {
+        const settings = JSON.parse(fs.readFileSync(DATA_SOURCE_FILE, 'utf8'));
+        useOneNetSource = settings.useOneNetSource || false;
+        console.log(`从文件加载数据源设置: ${useOneNetSource ? 'OneNET平台' : '本地数据库'}`);
+    } else {
+        console.log('数据源设置文件不存在，使用默认设置: 本地数据库');
+    }
+} catch (error) {
+    console.error('加载数据源设置出错:', error);
+    console.log('使用默认设置: 本地数据库');
+}
 
 // 获取统计页面数据
 router.get('/stats', async (req, res) => {
@@ -174,7 +196,29 @@ router.get('/onenet', async (req, res) => {
     if (result.success) {
       res.json(result);
     } else {
-      res.status(500).json({ error: result.error || '获取OneNET数据失败' });
+      // 检查是否是"未找到数据流"或"未找到数据点"的错误
+      if (result.error && (
+          result.error.includes('未找到数据流') ||
+          result.error.includes('未找到数据点') ||
+          result.error.includes('没有找到数据流')
+        )) {
+        console.log('OneNET平台未找到数据流或数据点，返回默认数据');
+        // 返回成功状态，但包含默认数据和警告信息
+        res.json({
+          success: true,
+          data: {
+            timestamp: new Date().toISOString().replace('T', ' ').substring(0, 19),
+            rainfall_value: 0,
+            rainfall_level: 0,
+            rainfall_percentage: 0,
+            source: 'OneNET'
+          },
+          warning: '当前OneNET平台没有可用数据，显示默认值'
+        });
+      } else {
+        // 其他错误仍然返回500状态码
+        res.status(500).json({ error: result.error || '获取OneNET数据失败' });
+      }
     }
   } catch (error) {
     console.error('获取OneNET雨量数据错误:', error);
@@ -197,14 +241,38 @@ router.get('/onenet/stats', async (req, res) => {
       });
     }
 
-    // 调用OneNET统计API脚本获取数据
-    const oneNetStatsScriptPath = path.join(__dirname, '..', config.paths.ONENET_STATS_SCRIPT);
-    const result = await executePythonScript(oneNetStatsScriptPath, 'stats', { period });
+    // 调用OneNET数据聚合脚本获取数据
+    // 脚本位于项目根目录下的python目录中
+    const oneNetAggregatorScriptPath = path.join(__dirname, '..', '..', 'python', 'onenet_aggregator.py');
+    console.log(`OneNET数据聚合脚本路径: ${oneNetAggregatorScriptPath}`);
+
+    // 检查脚本文件是否存在
+    const fs = require('fs');
+    if (!fs.existsSync(oneNetAggregatorScriptPath)) {
+      console.error(`OneNET数据聚合脚本不存在: ${oneNetAggregatorScriptPath}`);
+      return res.status(500).json({ error: 'OneNET数据聚合脚本不存在' });
+    }
+
+    const result = await executePythonScript(oneNetAggregatorScriptPath, null, { period });
 
     if (result.success) {
+      console.log(`成功获取OneNET ${period}聚合数据，数据点数量:`, result.data.length);
       res.json(result);
     } else {
-      res.status(500).json({ error: result.error || `获取OneNET ${period}统计数据失败` });
+      // 检查是否是"未找到任何数据点"的错误
+      if (result.error && result.error.includes('未找到任何数据点')) {
+        console.log(`OneNET平台未找到${period}数据点，返回空数据数组`);
+        // 返回成功状态，但包含空数据数组和警告信息
+        res.json({
+          success: true,
+          data: [],
+          warning: `OneNET平台未找到${period}时间段的数据点`,
+          unit: 'mm/h'  // 统一使用相同的单位，前端会根据时间粒度自行处理
+        });
+      } else {
+        // 其他错误仍然返回500状态码
+        res.status(500).json({ error: result.error || `获取OneNET ${period}统计数据失败` });
+      }
     }
   } catch (error) {
     console.error(`获取OneNET ${req.query.period || '10min'}统计数据错误:`, error);
@@ -229,6 +297,15 @@ router.post('/switch-source', async (req, res) => {
     // 更新全局设置
     useOneNetSource = useOneNet;
 
+    // 将设置保存到文件
+    try {
+      fs.writeFileSync(DATA_SOURCE_FILE, JSON.stringify({ useOneNetSource: useOneNet }), 'utf8');
+      console.log(`数据源设置已保存到文件: ${useOneNet ? 'OneNET平台' : '本地数据库'}`);
+    } catch (saveError) {
+      console.error('保存数据源设置出错:', saveError);
+      // 继续执行，不影响数据源切换
+    }
+
     // 如果切换到OneNET，停止本地数据采集器
     if (useOneNet) {
       try {
@@ -246,6 +323,21 @@ router.post('/switch-source', async (req, res) => {
     });
   } catch (error) {
     console.error('切换数据源错误:', error);
+    res.status(500).json({ error: '服务器内部错误' });
+  }
+});
+
+// 获取当前数据源设置
+router.get('/data-source', (_, res) => {
+  try {
+    console.log(`获取当前数据源设置: ${useOneNetSource ? 'OneNET平台' : '本地数据库'}`);
+
+    res.json({
+      success: true,
+      useOneNetSource: useOneNetSource
+    });
+  } catch (error) {
+    console.error('获取数据源设置错误:', error);
     res.status(500).json({ error: '服务器内部错误' });
   }
 });

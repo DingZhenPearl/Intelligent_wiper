@@ -7,6 +7,30 @@ const oneNetService = {
   // 是否使用OneNET数据源
   isOneNetSource: ref(localStorage.getItem('useOneNetSource') === 'true'),
 
+  // 初始化，从服务器获取数据源设置
+  async init() {
+    try {
+      console.log('[OneNET服务] 初始化，从服务器获取数据源设置');
+
+      const response = await get('/api/rainfall/data-source');
+
+      if (response.ok) {
+        const data = await response.json();
+        console.log('[OneNET服务] 获取数据源设置成功:', data);
+
+        if (data.success) {
+          // 更新数据源设置
+          this.updateDataSource(data.useOneNetSource);
+          console.log(`[OneNET服务] 数据源已设置为: ${data.useOneNetSource ? 'OneNET平台' : '本地数据库'}`);
+        }
+      } else {
+        console.error('[OneNET服务] 获取数据源设置失败:', response.status, response.statusText);
+      }
+    } catch (error) {
+      console.error('[OneNET服务] 初始化错误:', error);
+    }
+  },
+
   // 最后更新时间
   lastUpdateTime: ref(null),
 
@@ -67,9 +91,20 @@ const oneNetService = {
           // 更新最后更新时间
           this.lastUpdateTime.value = new Date();
 
+          // 检查是否有警告信息
+          if (data.warning) {
+            console.warn(`[OneNET服务] 警告: ${data.warning}`);
+            // 存储警告信息，但不影响成功状态
+            this.error.value = data.warning;
+          } else {
+            // 清除之前的错误信息
+            this.error.value = null;
+          }
+
           return {
             success: true,
-            data: data.data
+            data: data.data,
+            warning: data.warning
           };
         } else {
           this.error.value = data.error || '获取OneNET数据失败';
@@ -109,11 +144,22 @@ const oneNetService = {
           // 更新最后更新时间
           this.statsLastUpdateTime.value[period] = new Date();
 
+          // 检查是否有警告信息
+          if (data.warning) {
+            console.warn(`[OneNET服务] ${period}统计数据警告: ${data.warning}`);
+            // 存储警告信息，但不影响成功状态
+            this.statsError.value[period] = data.warning;
+          } else {
+            // 清除之前的错误信息
+            this.statsError.value[period] = null;
+          }
+
           return {
             success: true,
-            data: data.data,
+            data: data.data || [],
             currentHour: data.currentHour,
-            unit: data.unit
+            unit: data.unit,
+            warning: data.warning
           };
         } else {
           this.statsError.value[period] = data.error || `获取OneNET ${period}数据失败`;

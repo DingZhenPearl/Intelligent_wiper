@@ -141,42 +141,64 @@ export default {
       }
 
       // 处理数据并更新图表
-      if (activePeriod.value === 3) { // 全部视图需要特殊处理
-        // 确保日期格式正确
-        const processedData = chartData.value.map(item => {
-          // 尝试将日期字符串转换为日期对象
-          try {
-            // 如果是字符串，尝试解析
-            if (typeof item.value[0] === 'string') {
-              const parts = item.value[0].split('/');
-              if (parts.length === 2) {
-                const month = parseInt(parts[0]);
-                const day = parseInt(parts[1]);
-                const date = new Date();
-                date.setMonth(month - 1);
-                date.setDate(day);
-                date.setHours(0, 0, 0, 0);
+      // 打印原始数据，用于调试
+      console.log(`处理前的${activePeriod.value}视图数据:`, chartData.value);
 
-                // 创建新的数据点
+      // 确保所有数据点都有正确的格式
+      const processedData = chartData.value.map(item => {
+        // 尝试将日期字符串转换为日期对象
+        try {
+          // 确保item.value是数组且有两个元素
+          if (Array.isArray(item.value) && item.value.length === 2) {
+            const dateStr = item.value[0];
+            const value = item.value[1];
+
+            // 如果是字符串，尝试解析为日期
+            if (typeof dateStr === 'string') {
+              let date;
+
+              // 尝试不同的日期格式
+              if (dateStr.includes('/')) {
+                // 格式: "月/日"
+                const parts = dateStr.split('/');
+                if (parts.length === 2) {
+                  const month = parseInt(parts[0]);
+                  const day = parseInt(parts[1]);
+                  date = new Date();
+                  date.setMonth(month - 1);
+                  date.setDate(day);
+                  date.setHours(0, 0, 0, 0);
+                }
+              } else if (dateStr.includes('-') && dateStr.includes(':')) {
+                // 格式: "YYYY-MM-DD HH:MM:SS"
+                date = new Date(dateStr);
+              } else if (dateStr.includes(':')) {
+                // 格式: "HH:MM:SS" 或 "HH:MM"
+                const parts = dateStr.split(':');
+                date = new Date();
+                date.setHours(parseInt(parts[0]));
+                date.setMinutes(parts.length > 1 ? parseInt(parts[1]) : 0);
+                date.setSeconds(parts.length > 2 ? parseInt(parts[2]) : 0);
+              }
+
+              // 如果成功解析日期
+              if (date && !isNaN(date.getTime())) {
                 return {
                   ...item,
-                  value: [date, item.value[1]]
+                  value: [date, value]
                 };
               }
             }
-            return item;
-          } catch (e) {
-            console.error('处理日期出错:', e);
-            return item;
           }
-        });
+          return item;
+        } catch (e) {
+          console.error('处理日期出错:', e, item);
+          return item;
+        }
+      });
 
-        console.log('处理后的全部视图数据:', processedData);
-        chartOption.value.series[0].data = processedData;
-      } else {
-        // 其他视图直接使用原始数据
-        chartOption.value.series[0].data = chartData.value;
-      }
+      console.log(`处理后的${activePeriod.value}视图数据:`, processedData);
+      chartOption.value.series[0].data = processedData;
 
       // 更新图表标题，根据当前视图
       const periodLabels = {
@@ -197,283 +219,152 @@ export default {
     const updateXAxisConfig = (period) => {
       const now = new Date();
 
-      if (period.minutes > 0) {
-        // 10分钟内视图 - 使用秒级别的时间轴
-        const currentHour = now.getHours();
-        const currentMinute = now.getMinutes();
-        const currentSecond = now.getSeconds();
+      // 所有视图都使用时间类型的X轴
+      const startTime = new Date(now);
+      let endTime = new Date(now);
+      let markLineData = [];
 
-        // 生成过去10分钟的标签，每5秒一个
-        const labels = [];
-        const startTime = new Date(now);
+      if (period.minutes > 0) {
+        // 10分钟内视图
         startTime.setMinutes(now.getMinutes() - period.minutes, 0, 0);
 
-        // 生成从过去10分钟到现在的每5秒的标签
-        for (let t = startTime.getTime(); t <= now.getTime(); t += 5000) { // 每5秒一个标签
-          const time = new Date(t);
-          const h = time.getHours();
-          const m = time.getMinutes();
-          const s = time.getSeconds();
-          // 使用更紧凑的格式，但保留完整信息便于处理
-          labels.push(`${h}:${m < 10 ? '0' + m : m}:${s < 10 ? '0' + s : s}`);
-        }
-
-        console.log(`生成了10分钟视图的 ${labels.length} 个时间标签`);
-
-        chartOption.value.xAxis = {
-          type: 'category',
-          data: labels,
-          boundaryGap: false,
-          splitLine: {
-            show: true,
-            lineStyle: {
-              color: '#ddd',
-              type: 'dashed'
-            }
-          },
-          axisLabel: {
-            interval: function(index, value) {
-              // 获取当前标签的分钟值
-              const parts = value.split(':');
-              const currentMinute = parts[1];
-
-              // 如果是第一个标签，显示
-              if (index === 0) return true;
-
-              // 获取前一个标签的分钟值
-              const prevValue = labels[index - 1];
-              const prevParts = prevValue.split(':');
-              const prevMinute = prevParts[1];
-
-              // 如果当前分钟与前一个不同，则显示标签
-              return currentMinute !== prevMinute;
-            },
-            formatter: function(value) {
-              // 只显示小时和分钟
-              const parts = value.split(':');
-              return `${parts[0]}:${parts[1]}`;
-            },
-            showMinLabel: true,
-            showMaxLabel: true,
-            // 增加标签间距，避免重叠
-            margin: 8
-          },
-          axisPointer: {
-            label: {
-              formatter: function (params) {
-                return params.value;
-              }
-            }
-          },
-          // 添加当前时间的标记线
-          markLine: {
-            symbol: 'none',
-            silent: true,
-            lineStyle: {
-              color: '#ff0000',
-              width: 2,
-              type: 'solid'
-            },
-            data: [
-              {
-                xAxis: `${currentHour}:${currentMinute < 10 ? '0' + currentMinute : currentMinute}:${currentSecond < 10 ? '0' + currentSecond : currentSecond}`,
-                label: {
-                  formatter: '当前时间',
-                  position: 'start'
-                }
-              }
-            ]
+        // 当前时间标记线
+        markLineData = [{
+          xAxis: now.getTime(),
+          label: {
+            formatter: '当前时间',
+            position: 'start'
           }
-        };
+        }];
       } else if (period.hours > 0) {
-        // 一小时内视图 - 使用分钟级别的时间轴
-        const currentHour = now.getHours();
-        const currentMinute = now.getMinutes();
-
-        // 生成过去一小时的标签，每10分钟一个
-        const labels = [];
-        const startTime = new Date(now);
+        // 一小时内视图
         startTime.setHours(now.getHours() - period.hours, 0, 0, 0);
 
-        // 生成从过去一小时到现在的每10分钟的标签
-        for (let t = startTime.getTime(); t <= now.getTime(); t += 10 * 60 * 1000) { // 每10分钟一个标签
-          const time = new Date(t);
-          const h = time.getHours();
-          const m = time.getMinutes();
-          labels.push(`${h}:${m < 10 ? '0' + m : m}`);
-        }
-
-        chartOption.value.xAxis = {
-          type: 'category',
-          data: labels,
-          boundaryGap: false,
-          splitLine: {
-            show: true,
-            lineStyle: {
-              color: '#ddd',
-              type: 'dashed'
-            }
-          },
-          axisLabel: {
-            interval: 0, // 显示所有标签
-            showMinLabel: true,
-            showMaxLabel: true
-          },
-          axisPointer: {
-            label: {
-              formatter: function (params) {
-                return params.value;
-              }
-            }
-          },
-          // 添加当前时间的标记线
-          markLine: {
-            symbol: 'none',
-            silent: true,
-            lineStyle: {
-              color: '#ff0000',
-              width: 2,
-              type: 'solid'
-            },
-            data: [
-              {
-                xAxis: `${currentHour}:${currentMinute < 10 ? '0' + currentMinute : currentMinute}`,
-                label: {
-                  formatter: '当前时间',
-                  position: 'start'
-                }
-              }
-            ]
+        // 当前时间标记线
+        markLineData = [{
+          xAxis: now.getTime(),
+          label: {
+            formatter: '当前时间',
+            position: 'start'
           }
-        };
+        }];
       } else if (period.days > 0) {
-        // 一天内视图 - 使用小时级别的时间轴
-        const currentHour = now.getHours();
-
-        // 生成过去一天的标签，每小时一个
-        const labels = [];
-        const startTime = new Date(now);
+        // 一天内视图
         startTime.setDate(startTime.getDate() - period.days);
         startTime.setHours(0, 0, 0, 0);
 
-        // 生成从过去一天到现在的每小时的标签
-        for (let t = startTime.getTime(); t <= now.getTime(); t += 60 * 60 * 1000) { // 每小时一个标签
-          const time = new Date(t);
-          const h = time.getHours();
-          labels.push(`${h}:00`);
-        }
-
-        chartOption.value.xAxis = {
-          type: 'category',
-          data: labels,
-          boundaryGap: false,
-          splitLine: {
-            show: true,
-            lineStyle: {
-              color: '#ddd',
-              type: 'dashed'
-            }
-          },
-          axisLabel: {
-            interval: 2, // 每3小时显示一个标签
-            showMinLabel: true,
-            showMaxLabel: true
-          },
-          axisPointer: {
-            label: {
-              formatter: function (params) {
-                return params.value;
-              }
-            }
-          },
-          // 添加当前时间的标记线
-          markLine: {
-            symbol: 'none',
-            silent: true,
-            lineStyle: {
-              color: '#ff0000',
-              width: 2,
-              type: 'solid'
-            },
-            data: [
-              {
-                xAxis: `${currentHour}:00`,
-                label: {
-                  formatter: '当前时间',
-                  position: 'start'
-                }
-              }
-            ]
+        // 当前时间标记线
+        markLineData = [{
+          xAxis: now.getTime(),
+          label: {
+            formatter: '当前时间',
+            position: 'start'
           }
-        };
+        }];
       } else {
-        // 总数据视图 - 使用天级别的时间轴
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-
-        // 生成过去30天的标签，每天一个
-        const labels = [];
-        const startTime = new Date(today);
+        // 总数据视图
         startTime.setDate(startTime.getDate() - 30);
+        startTime.setHours(0, 0, 0, 0);
+        endTime = new Date(now);
+        endTime.setHours(23, 59, 59, 999);
 
-        // 生成从过去30天到今天的每天的标签
-        for (let t = startTime.getTime(); t <= today.getTime(); t += 24 * 60 * 60 * 1000) { // 每天一个标签
-          const time = new Date(t);
-          const m = time.getMonth() + 1;
-          const d = time.getDate();
-          labels.push(`${m}/${d}`);
-        }
+        // 今天标记线
+        const today = new Date(now);
+        today.setHours(0, 0, 0, 0);
+        markLineData = [{
+          xAxis: today.getTime(),
+          label: {
+            formatter: '今天',
+            position: 'start'
+          }
+        }];
+      }
 
-        chartOption.value.xAxis = {
-          type: 'time',  // 使用时间类型
-          boundaryGap: false,
-          min: startTime.getTime(),
-          max: today.getTime(),
-          splitLine: {
-            show: true,
-            lineStyle: {
-              color: '#ddd',
-              type: 'dashed'
+      console.log(`时间范围: ${startTime.toLocaleString()} - ${endTime.toLocaleString()}`);
+
+      // 设置X轴配置
+      chartOption.value.xAxis = {
+        type: 'time',
+        boundaryGap: false,
+        min: startTime.getTime(),
+        max: endTime.getTime(),
+        splitLine: {
+          show: true,
+          lineStyle: {
+            color: '#ddd',
+            type: 'dashed'
+          }
+        },
+        axisLabel: {
+          formatter: function(value) {
+            const date = new Date(value);
+
+            // 根据当前视图选择不同的格式
+            if (period.minutes > 0) {
+              // 10分钟内视图 - 显示小时:分钟
+              return `${date.getHours()}:${date.getMinutes() < 10 ? '0' + date.getMinutes() : date.getMinutes()}`;
+            } else if (period.hours > 0) {
+              // 一小时内视图 - 显示小时:分钟
+              return `${date.getHours()}:${date.getMinutes() < 10 ? '0' + date.getMinutes() : date.getMinutes()}`;
+            } else if (period.days > 0) {
+              // 一天内视图 - 显示小时:00
+              return `${date.getHours()}:00`;
+            } else {
+              // 总数据视图 - 显示月/日
+              return `${date.getMonth() + 1}/${date.getDate()}`;
             }
           },
-          axisLabel: {
-            formatter: function(value) {
-              const date = new Date(value);
-              return `${date.getMonth() + 1}/${date.getDate()}`;
-            },
-            interval: 2, // 每3天显示一个标签
-            showMinLabel: true,
-            showMaxLabel: true
+          interval: function(index) {
+            // 根据当前视图选择不同的间隔
+            if (period.minutes > 0) {
+              return index % 2 === 0; // 每2个标签显示1个
+            } else if (period.hours > 0) {
+              return index % 3 === 0; // 每3个标签显示1个
+            } else if (period.days > 0) {
+              return index % 4 === 0; // 每4个标签显示1个
+            } else {
+              return index % 3 === 0; // 每3个标签显示1个
+            }
           },
-          axisPointer: {
-            label: {
-              formatter: function (params) {
-                const date = new Date(params.value);
+          showMinLabel: true,
+          showMaxLabel: true,
+          // 增加标签间距，避免重叠
+          margin: 8
+        },
+        axisPointer: {
+          label: {
+            formatter: function (params) {
+              const date = new Date(params.value);
+
+              // 根据当前视图选择不同的格式
+              if (period.minutes > 0) {
+                // 10分钟内视图 - 显示小时:分钟:秒
+                return `${date.getHours()}:${date.getMinutes() < 10 ? '0' + date.getMinutes() : date.getMinutes()}:${date.getSeconds() < 10 ? '0' + date.getSeconds() : date.getSeconds()}`;
+              } else if (period.hours > 0) {
+                // 一小时内视图 - 显示小时:分钟
+                return `${date.getHours()}:${date.getMinutes() < 10 ? '0' + date.getMinutes() : date.getMinutes()}`;
+              } else if (period.days > 0) {
+                // 一天内视图 - 显示小时:00
+                return `${date.getHours()}:00`;
+              } else {
+                // 总数据视图 - 显示月/日
                 return `${date.getMonth() + 1}/${date.getDate()}`;
               }
             }
-          },
-          // 添加当前时间的标记线
-          markLine: {
-            symbol: 'none',
-            silent: true,
-            lineStyle: {
-              color: '#ff0000',
-              width: 2,
-              type: 'solid'
-            },
-            data: [
-              {
-                xAxis: today.getTime(),
-                label: {
-                  formatter: '今天',
-                  position: 'start'
-                }
-              }
-            ]
           }
-        };
-      }
+        },
+        // 添加当前时间的标记线
+        markLine: {
+          symbol: 'none',
+          silent: true,
+          lineStyle: {
+            color: '#ff0000',
+            width: 2,
+            type: 'solid'
+          },
+          data: markLineData
+        }
+      };
     };
 
     // 实时更新时间轴
@@ -630,15 +521,29 @@ export default {
         const result = await rainfallDataService.fetchStatisticsData(periodType);
 
         if (result.success) {
-          console.log(`成功获取${periodType}数据:`, result.data.length, '个数据点');
+          console.log(`成功获取${periodType}数据:`, result.data ? result.data.length : 0, '个数据点');
 
           // 更新图表数据
-          chartData.value = result.data;
+          chartData.value = result.data || [];
 
           // 更新当前小时数据（如果有）
           if (result.currentHour) {
             // 更新当前小时累计雨量
             currentHourTotal.value = result.currentHour.total_rainfall.toFixed(1);
+          }
+
+          // 检查是否有警告信息
+          if (result.warning) {
+            console.warn(`获取${periodType}数据警告:`, result.warning);
+
+            // 如果是OneNET数据源，显示警告信息
+            if (oneNetService.isOneNetSource.value) {
+              chartOption.value.title.text = `雨量显示 - OneNET数据`;
+              chartOption.value.title.subtext = `提示: ${result.warning}`;
+            }
+          } else {
+            // 清除之前的警告信息
+            chartOption.value.title.subtext = '';
           }
 
           // 更新图表

@@ -50,7 +50,12 @@ function handlePythonStderr(stderr) {
  */
 function executePythonScript(scriptPath, action, params = {}) {
   return new Promise((resolve) => {
-    let args = [`--action=${action}`];
+    let args = [];
+
+    // 只有当action不为null或undefined时才添加action参数
+    if (action !== null && action !== undefined) {
+      args.push(`--action=${action}`);
+    }
 
     // 添加其他参数 - 改用独立参数传递，避免引号问题
     Object.entries(params).forEach(([key, value]) => {
@@ -86,6 +91,10 @@ function executePythonScript(scriptPath, action, params = {}) {
         return line;
       }
     };
+
+    console.log(`脚本路径: ${scriptPath}`);
+    console.log(`脚本目录: ${path.dirname(scriptPath)}`);
+    console.log(`脚本文件名: ${path.basename(scriptPath)}`);
 
     // 尝试使用PythonShell执行脚本
     PythonShell.run(path.basename(scriptPath), options).then(results => {
@@ -131,7 +140,13 @@ function executePythonScript(scriptPath, action, params = {}) {
 
       // 如果PythonShell失败，直接使用exec方法
       console.log('使用exec方法执行Python脚本...');
-      const command = `python "${scriptPath}" ${args.join(' ')}`;
+
+      // 切换到脚本所在目录，然后执行脚本
+      const scriptDir = path.dirname(scriptPath);
+      const scriptName = path.basename(scriptPath);
+      const command = `cd "${scriptDir}" && python "${scriptName}" ${args.join(' ')}`;
+
+      console.log(`执行命令: ${command}`);
 
       // 设置环境变量，确保Python使用UTF-8编码
       const execOptions = {
@@ -193,7 +208,22 @@ function executePythonScript(scriptPath, action, params = {}) {
  * @returns {Object} - 默认响应
  */
 function createDefaultResponse(action, params) {
-  if (action === 'stats') {
+  // 处理聚合数据的情况（action为null且有period参数）
+  if ((action === null || action === undefined) && params.period) {
+    return {
+      success: true,
+      period: params.period,
+      data: [],
+      currentHour: {
+        hour: new Date().getHours(),
+        avg_rainfall: 0.0,
+        total_rainfall: 0.0,
+        data_points: 0,
+        minutes_passed: (new Date().getMinutes() + (new Date().getSeconds() / 60))
+      },
+      unit: 'mm/h'  // 统一使用相同的单位，前端会根据时间粒度自行处理
+    };
+  } else if (action === 'stats') {
     return {
       success: true,
       period: params.period || '10min',
@@ -205,7 +235,7 @@ function createDefaultResponse(action, params) {
         data_points: 0,
         minutes_passed: (new Date().getMinutes() + (new Date().getSeconds() / 60))
       },
-      unit: params.period === 'all' ? 'mm/天' : 'mm/h'
+      unit: 'mm/h'  // 统一使用相同的单位，前端会根据时间粒度自行处理
     };
   } else if (action === 'home') {
     return {

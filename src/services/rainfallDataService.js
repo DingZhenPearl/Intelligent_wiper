@@ -150,11 +150,22 @@ const rainfallDataService = {
           // 更新最后更新时间
           this.lastUpdateTime.value[period] = new Date();
 
+          // 检查是否有警告信息
+          if (data.warning) {
+            console.warn(`[雨量数据服务] OneNET数据警告: ${data.warning}`);
+            // 存储警告信息，但不影响成功状态
+            this.error.value[period] = data.warning;
+          } else {
+            // 清除之前的错误信息
+            this.error.value[period] = '';
+          }
+
           return {
             success: true,
-            data: data.data,
+            data: data.data || [],
             currentHour: data.currentHour,
-            unit: data.unit
+            unit: data.unit,
+            warning: data.warning
           };
         } else {
           this.error.value[period] = data.error || '获取OneNET数据失败';
