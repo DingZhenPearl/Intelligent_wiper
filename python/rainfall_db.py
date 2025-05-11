@@ -9,14 +9,46 @@ import io
 import time
 from datetime import datetime, timedelta
 import random
+import os
 
-# 不设置 stdout 编码，使用系统默认编码
-# Windows环境下通常是cp936或gbk
+# 设置环境变量，确保Python使用UTF-8编码
+os.environ['PYTHONIOENCODING'] = 'utf-8'
+
+# 尝试设置stdout和stderr的编码为UTF-8
+try:
+    # Python 3.7+
+    if hasattr(sys.stdout, 'reconfigure'):
+        sys.stdout.reconfigure(encoding='utf-8')
+        sys.stderr.reconfigure(encoding='utf-8')
+    else:
+        # 兼容旧版本
+        if sys.stdout.encoding != 'utf-8':
+            sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+        if sys.stderr.encoding != 'utf-8':
+            sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
+except Exception as e:
+    print(f"无法设置标准输出编码: {e}", file=sys.stderr)
 
 # 添加日志记录
 def log(message):
-    print(f"LOG: {message}", file=sys.stderr)
-    sys.stderr.flush()  # 确保日志立即输出
+    try:
+        # 确保消息是字符串
+        if not isinstance(message, str):
+            message = str(message)
+        # 使用 utf-8 编码输出日志
+        print(f"LOG: {message}", file=sys.stderr)
+        sys.stderr.flush()  # 确保日志立即输出
+    except Exception as e:
+        # 如果出现编码错误，尝试使用 ASCII 编码
+        print(f"LOG: [编码错误] {str(e)}", file=sys.stderr)
+        try:
+            # 尝试将消息转换为 ASCII
+            ascii_message = message.encode('ascii', 'replace').decode('ascii')
+            print(f"LOG: {ascii_message}", file=sys.stderr)
+        except:
+            # 如果仍然失败，输出一个通用消息
+            print("LOG: [无法显示日志消息]", file=sys.stderr)
+        sys.stderr.flush()
 
 # 使用与db_service.py相同的数据库配置
 db_config = {
@@ -110,13 +142,31 @@ def init_rainfall_tables():
                     max_rainfall DECIMAL(5,1) NOT NULL COMMENT '最大雨量 (mm/h)',
                     min_rainfall DECIMAL(5,1) NOT NULL COMMENT '最小雨量 (mm/h)',
                     dominant_level ENUM('none', 'light', 'medium', 'heavy') NOT NULL COMMENT '主要雨量级别',
-                    data_points INT NOT NULL COMMENT '数据点数量',
+                    data_points INT NOT NULL COMMENT '实际数据点数量',
+                    expected_points INT NOT NULL DEFAULT 120 COMMENT '应有数据点数量 (10分钟内应有120个5秒点)',
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
                     INDEX idx_username (username),
                     UNIQUE KEY uk_username_timestamp (username, timestamp)
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='10分钟聚合雨量数据';
             ''')
+
+            # 检查并添加expected_points列（如果不存在）
+            cursor.execute('''
+                SELECT COUNT(*) as count
+                FROM information_schema.COLUMNS
+                WHERE TABLE_SCHEMA = DATABASE()
+                AND TABLE_NAME = 'rainfall_10min'
+                AND COLUMN_NAME = 'expected_points'
+            ''')
+            result = cursor.fetchone()
+            if result and result['count'] == 0:
+                log("向rainfall_10min表添加expected_points列")
+                cursor.execute('''
+                    ALTER TABLE rainfall_10min
+                    ADD COLUMN expected_points INT NOT NULL DEFAULT 120 COMMENT '应有数据点数量 (10分钟内应有120个5秒点)' AFTER data_points
+                ''')
+                log("expected_points列添加成功")
 
             # 创建小时聚合数据表
             # 使用IF NOT EXISTS确保不会删除现有数据
@@ -130,13 +180,31 @@ def init_rainfall_tables():
                     min_rainfall DECIMAL(5,1) NOT NULL COMMENT '最小雨量 (mm/h)',
                     total_rainfall DECIMAL(6,1) NOT NULL COMMENT '累计雨量 (mm)',
                     dominant_level ENUM('none', 'light', 'medium', 'heavy') NOT NULL COMMENT '主要雨量级别',
-                    data_points INT NOT NULL COMMENT '数据点数量',
+                    data_points INT NOT NULL COMMENT '实际数据点数量',
+                    expected_points INT NOT NULL DEFAULT 6 COMMENT '应有数据点数量 (1小时内应有6个10分钟点)',
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
                     INDEX idx_username (username),
                     UNIQUE KEY uk_username_timestamp (username, timestamp)
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='小时聚合雨量数据';
             ''')
+
+            # 检查并添加expected_points列（如果不存在）
+            cursor.execute('''
+                SELECT COUNT(*) as count
+                FROM information_schema.COLUMNS
+                WHERE TABLE_SCHEMA = DATABASE()
+                AND TABLE_NAME = 'rainfall_hourly'
+                AND COLUMN_NAME = 'expected_points'
+            ''')
+            result = cursor.fetchone()
+            if result and result['count'] == 0:
+                log("向rainfall_hourly表添加expected_points列")
+                cursor.execute('''
+                    ALTER TABLE rainfall_hourly
+                    ADD COLUMN expected_points INT NOT NULL DEFAULT 6 COMMENT '应有数据点数量 (1小时内应有6个10分钟点)' AFTER data_points
+                ''')
+                log("expected_points列添加成功")
 
             # 创建日聚合数据表
             # 使用IF NOT EXISTS确保不会删除现有数据
@@ -150,12 +218,47 @@ def init_rainfall_tables():
                     min_rainfall DECIMAL(5,1) NOT NULL COMMENT '最小雨量 (mm/h)',
                     total_rainfall DECIMAL(6,1) NOT NULL COMMENT '累计雨量 (mm/天)',
                     rainy_hours INT NOT NULL COMMENT '有雨小时数',
+                    data_points INT NOT NULL DEFAULT 0 COMMENT '实际数据点数量',
+                    expected_points INT NOT NULL DEFAULT 24 COMMENT '应有数据点数量 (1天内应有24个小时点)',
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
                     INDEX idx_username (username),
                     UNIQUE KEY uk_username_date (username, date)
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='日聚合雨量数据';
             ''')
+
+            # 检查并添加data_points和expected_points列（如果不存在）
+            cursor.execute('''
+                SELECT COUNT(*) as count
+                FROM information_schema.COLUMNS
+                WHERE TABLE_SCHEMA = DATABASE()
+                AND TABLE_NAME = 'rainfall_daily'
+                AND COLUMN_NAME = 'data_points'
+            ''')
+            result = cursor.fetchone()
+            if result and result['count'] == 0:
+                log("向rainfall_daily表添加data_points列")
+                cursor.execute('''
+                    ALTER TABLE rainfall_daily
+                    ADD COLUMN data_points INT NOT NULL DEFAULT 0 COMMENT '实际数据点数量' AFTER rainy_hours
+                ''')
+                log("data_points列添加成功")
+
+            cursor.execute('''
+                SELECT COUNT(*) as count
+                FROM information_schema.COLUMNS
+                WHERE TABLE_SCHEMA = DATABASE()
+                AND TABLE_NAME = 'rainfall_daily'
+                AND COLUMN_NAME = 'expected_points'
+            ''')
+            result = cursor.fetchone()
+            if result and result['count'] == 0:
+                log("向rainfall_daily表添加expected_points列")
+                cursor.execute('''
+                    ALTER TABLE rainfall_daily
+                    ADD COLUMN expected_points INT NOT NULL DEFAULT 24 COMMENT '应有数据点数量 (1天内应有24个小时点)' AFTER data_points
+                ''')
+                log("expected_points列添加成功")
 
             # 创建月聚合数据表
             # 使用IF NOT EXISTS确保不会删除现有数据
@@ -169,12 +272,47 @@ def init_rainfall_tables():
                     max_daily_rainfall DECIMAL(6,1) NOT NULL COMMENT '最大日雨量 (mm/天)',
                     total_rainfall DECIMAL(8,1) NOT NULL COMMENT '月累计雨量 (mm)',
                     rainy_days INT NOT NULL COMMENT '有雨天数',
+                    data_points INT NOT NULL DEFAULT 0 COMMENT '实际数据点数量',
+                    expected_points INT NOT NULL DEFAULT 0 COMMENT '应有数据点数量 (根据月份天数计算)',
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
                     INDEX idx_username (username),
                     UNIQUE KEY uk_username_year_month (username, year, month)
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='月聚合雨量数据';
             ''')
+
+            # 检查并添加data_points和expected_points列（如果不存在）
+            cursor.execute('''
+                SELECT COUNT(*) as count
+                FROM information_schema.COLUMNS
+                WHERE TABLE_SCHEMA = DATABASE()
+                AND TABLE_NAME = 'rainfall_monthly'
+                AND COLUMN_NAME = 'data_points'
+            ''')
+            result = cursor.fetchone()
+            if result and result['count'] == 0:
+                log("向rainfall_monthly表添加data_points列")
+                cursor.execute('''
+                    ALTER TABLE rainfall_monthly
+                    ADD COLUMN data_points INT NOT NULL DEFAULT 0 COMMENT '实际数据点数量' AFTER rainy_days
+                ''')
+                log("data_points列添加成功")
+
+            cursor.execute('''
+                SELECT COUNT(*) as count
+                FROM information_schema.COLUMNS
+                WHERE TABLE_SCHEMA = DATABASE()
+                AND TABLE_NAME = 'rainfall_monthly'
+                AND COLUMN_NAME = 'expected_points'
+            ''')
+            result = cursor.fetchone()
+            if result and result['count'] == 0:
+                log("向rainfall_monthly表添加expected_points列")
+                cursor.execute('''
+                    ALTER TABLE rainfall_monthly
+                    ADD COLUMN expected_points INT NOT NULL DEFAULT 0 COMMENT '应有数据点数量 (根据月份天数计算)' AFTER data_points
+                ''')
+                log("expected_points列添加成功")
 
         conn.commit()
         return {"success": True, "message": "雨量数据表初始化成功"}
@@ -375,7 +513,7 @@ def aggregate_data(username='admin'):
                 log(f"没有原始数据点，跳过聚合")
                 return {"success": True, "message": "No raw data points to aggregate"}
 
-        # 1. 聚合到10分钟表
+        # 1. 聚合到10分钟表 - 修改后的逻辑
         log(f"开始聚合10分钟数据...")
         with conn.cursor() as cursor:
             try:
@@ -391,44 +529,97 @@ def aggregate_data(username='admin'):
                 time_slots = cursor.fetchall()
                 log(f"找到 {len(time_slots)} 个10分钟时间段需要聚合")
 
-                # 执行聚合
-                cursor.execute('''
-                    INSERT INTO rainfall_10min
-                    (username, timestamp, avg_rainfall, max_rainfall, min_rainfall, dominant_level, data_points)
-                    SELECT
-                        %s as username,
-                        DATE_FORMAT(timestamp, '%%Y-%%m-%%d %%H:%%i:00') - INTERVAL MINUTE(timestamp) %% 10 MINUTE as time_slot,
-                        ROUND(AVG(rainfall_value), 1) as avg_rainfall,
-                        MAX(rainfall_value) as max_rainfall,
-                        MIN(rainfall_value) as min_rainfall,
-                        (
-                            SELECT r2.rainfall_level
-                            FROM rainfall_raw r2
-                            WHERE r2.username = %s
-                            AND DATE_FORMAT(r2.timestamp, '%%Y-%%m-%%d %%H:%%i:00') - INTERVAL MINUTE(r2.timestamp) %% 10 MINUTE = time_slot
-                            GROUP BY r2.rainfall_level
-                            ORDER BY COUNT(*) DESC
+                # 对每个10分钟时间段单独处理
+                for slot in time_slots:
+                    time_slot = slot['time_slot']
+                    actual_count = slot['count']
+
+                    # 计算这10分钟内应该有的所有5秒原始点数量
+                    # 10分钟 = 600秒，每5秒一个点，应该有120个点
+                    expected_points = 120
+
+                    log(f"处理10分钟时间段: {time_slot}, 实际数据点: {actual_count}, 应有数据点: {expected_points}")
+
+                    # 查询该时间段内的实际数据
+                    cursor.execute('''
+                        SELECT
+                            SUM(rainfall_value) as total_rainfall,
+                            MAX(rainfall_value) as max_rainfall,
+                            MIN(rainfall_value) as min_rainfall,
+                            COUNT(*) as actual_points
+                        FROM rainfall_raw
+                        WHERE username = %s
+                        AND timestamp >= %s
+                        AND timestamp < %s + INTERVAL 10 MINUTE
+                    ''', (username, time_slot, time_slot))
+
+                    result = cursor.fetchone()
+
+                    if result and result['actual_points'] > 0:
+                        total_rainfall = result['total_rainfall'] or 0
+                        max_rainfall = result['max_rainfall'] or 0
+                        min_rainfall = result['min_rainfall'] or 0
+                        actual_points = result['actual_points']
+
+                        # 计算平均值，使用应有的点数作为分母
+                        # 确保所有值都是浮点数，避免decimal和float混合计算
+                        total_rainfall_float = float(total_rainfall)
+                        expected_points_float = float(expected_points)
+
+                        # 使用浮点数计算
+                        avg_rainfall = round(total_rainfall_float / expected_points_float, 1)
+
+                        # 记录详细的计算过程，用于调试
+                        log(f"  10分钟聚合 - 强制使用预期点数计算平均值: {total_rainfall} / {expected_points} = {round(float(total_rainfall) / float(expected_points), 3)}")
+                        log(f"  10分钟聚合 - 验证平均值: 原始值=[{total_rainfall}], 平均值={avg_rainfall}")
+                        log(f"  总雨量: {total_rainfall}, 实际点数: {actual_points}, 预期点数: {expected_points}, 平均值: {avg_rainfall}")
+                        log(f"  10分钟聚合 - 原始点值: [{total_rainfall}]")
+                        log(f"  10分钟聚合 - 计算平均值: {total_rainfall} / {expected_points} = {avg_rainfall}")
+
+                        log(f"10分钟段 {time_slot}: 总雨量={total_rainfall}, 平均雨量={avg_rainfall}, 实际点数={actual_points}, 应有点数={expected_points}")
+
+                        # 获取主要雨量级别
+                        cursor.execute('''
+                            SELECT rainfall_level, COUNT(*) as level_count
+                            FROM rainfall_raw
+                            WHERE username = %s
+                            AND timestamp >= %s
+                            AND timestamp < %s + INTERVAL 10 MINUTE
+                            GROUP BY rainfall_level
+                            ORDER BY level_count DESC
                             LIMIT 1
-                        ) as dominant_level,
-                        COUNT(*) as data_points
-                    FROM rainfall_raw
-                    WHERE username = %s
-                    GROUP BY time_slot
-                    ON DUPLICATE KEY UPDATE
-                        avg_rainfall = VALUES(avg_rainfall),
-                        max_rainfall = VALUES(max_rainfall),
-                        min_rainfall = VALUES(min_rainfall),
-                        dominant_level = VALUES(dominant_level),
-                        data_points = VALUES(data_points),
-                        updated_at = CURRENT_TIMESTAMP
-                ''', (username, username, username))
-                log(f"10分钟数据聚合完成，影响行数: {cursor.rowcount}")
+                        ''', (username, time_slot, time_slot))
+
+                        level_result = cursor.fetchone()
+                        dominant_level = level_result['rainfall_level'] if level_result else 'none'
+
+                        # 插入或更新10分钟聚合数据
+                        cursor.execute('''
+                            INSERT INTO rainfall_10min
+                            (username, timestamp, avg_rainfall, max_rainfall, min_rainfall, dominant_level, data_points, expected_points)
+                            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                            ON DUPLICATE KEY UPDATE
+                                avg_rainfall = VALUES(avg_rainfall),
+                                max_rainfall = VALUES(max_rainfall),
+                                min_rainfall = VALUES(min_rainfall),
+                                dominant_level = VALUES(dominant_level),
+                                data_points = VALUES(data_points),
+                                expected_points = VALUES(expected_points),
+                                updated_at = CURRENT_TIMESTAMP
+                        ''', (
+                            username, time_slot, avg_rainfall, max_rainfall, min_rainfall,
+                            dominant_level, actual_points, expected_points
+                        ))
+
+                        log(f"10分钟数据聚合完成: {time_slot}, 平均雨量={avg_rainfall}")
+
+                log(f"所有10分钟数据聚合完成，处理了 {len(time_slots)} 个时间段")
             except Exception as e:
                 log(f"10分钟数据聚合错误: {str(e)}")
                 log(traceback.format_exc())
                 raise
 
-        # 2. 聚合到小时表
+        # 2. 聚合到小时表 - 修改后的逻辑
         log(f"开始聚合小时数据...")
         with conn.cursor() as cursor:
             try:
@@ -456,46 +647,126 @@ def aggregate_data(username='admin'):
                     hour_slots = cursor.fetchall()
                     log(f"找到 {len(hour_slots)} 个小时时间段需要聚合")
 
-                    # 执行聚合
-                    cursor.execute('''
-                        INSERT INTO rainfall_hourly
-                        (username, timestamp, avg_rainfall, max_rainfall, min_rainfall, total_rainfall, dominant_level, data_points)
-                        SELECT
-                            %s as username,
-                            DATE_FORMAT(timestamp, '%%Y-%%m-%%d %%H:00:00') as hour_slot,
-                            ROUND(AVG(avg_rainfall), 1) as avg_rainfall,
-                            MAX(max_rainfall) as max_rainfall,
-                            MIN(min_rainfall) as min_rainfall,
-                            ROUND(SUM(avg_rainfall) / 6, 1) as total_rainfall,
-                            (
-                                SELECT r2.dominant_level
-                                FROM rainfall_10min r2
-                                WHERE r2.username = %s
-                                AND DATE_FORMAT(r2.timestamp, '%%Y-%%m-%%d %%H:00:00') = hour_slot
-                                GROUP BY r2.dominant_level
-                                ORDER BY COUNT(*) DESC
+                    # 对每个小时时间段单独处理
+                    for slot in hour_slots:
+                        hour_slot = slot['hour_slot']
+                        actual_count = slot['count']
+
+                        # 计算这1小时内应该有的所有10分钟点数量
+                        # 1小时 = 60分钟，每10分钟一个点，应该有6个点
+                        expected_points = 6
+
+                        log(f"处理小时时间段: {hour_slot}, 实际数据点: {actual_count}, 应有数据点: {expected_points}")
+
+                        # 查询该时间段内的实际数据
+                        cursor.execute('''
+                            SELECT
+                                SUM(avg_rainfall * data_points) as total_rainfall_value,
+                                MAX(max_rainfall) as max_rainfall,
+                                MIN(min_rainfall) as min_rainfall,
+                                SUM(data_points) as total_data_points
+                            FROM rainfall_10min
+                            WHERE username = %s
+                            AND timestamp >= %s
+                            AND timestamp < %s + INTERVAL 1 HOUR
+                        ''', (username, hour_slot, hour_slot))
+
+                        result = cursor.fetchone()
+
+                        if result and result['total_data_points'] > 0:
+                            total_rainfall_value = result['total_rainfall_value'] or 0
+                            max_rainfall = result['max_rainfall'] or 0
+                            min_rainfall = result['min_rainfall'] or 0
+                            # 获取实际数据点数量，但不使用该变量（仅用于日志记录）
+                            actual_data_points = result['total_data_points'] or 0
+
+                            # 计算平均值，使用应有的点数作为分母
+                            # 这里我们需要考虑每个10分钟段内的实际数据点数量
+                            # 计算每个10分钟段的原始数据点总数
+                            total_expected_raw_points = expected_points * 120  # 6个10分钟段 * 每段120个5秒点
+
+                            # 计算平均雨量 (mm/h)
+                            # 这里我们需要考虑10分钟段的原始数据
+                            # 10分钟段的平均雨量已经考虑了缺失的5秒点
+                            # 所以我们只需要考虑缺失的10分钟段
+
+                            # 查询该小时内的10分钟数据点
+                            cursor.execute('''
+                                SELECT avg_rainfall
+                                FROM rainfall_10min
+                                WHERE username = %s
+                                AND timestamp >= %s
+                                AND timestamp < %s + INTERVAL 1 HOUR
+                                ORDER BY timestamp
+                            ''', (username, hour_slot, hour_slot))
+
+                            ten_min_data = cursor.fetchall()
+                            ten_min_values = [float(r['avg_rainfall']) for r in ten_min_data] if ten_min_data else []
+
+                            # 修改计算方式 - 使用10分钟点的总和除以6（一小时有6个10分钟段）
+                            if ten_min_values:
+                                # 计算10分钟点的总和，然后除以6（一小时有6个10分钟段）
+                                # 无论实际有多少个10分钟点，都除以6，缺失的点视为0
+                                avg_rainfall = round(sum(ten_min_values) / 6, 1)
+
+                                # 计算累计雨量 - 每个10分钟段的累计雨量 = 10分钟平均雨量(mm/h) * (10/60)小时
+                                # 小时累计雨量 = 所有10分钟段的累计雨量之和
+                                total_rainfall = round(sum([val * (10/60) for val in ten_min_values]), 1)
+                            else:
+                                avg_rainfall = 0.0
+                                total_rainfall = 0.0
+
+                            # 记录详细的计算过程，用于调试
+                            log(f"  小时聚合 - 10分钟点值: {ten_min_values}")
+                            log(f"  小时聚合 - 平均值: 10分钟点总和 / 6 = {sum(ten_min_values) if ten_min_values else 0} / 6 = {avg_rainfall}")
+                            log(f"  小时聚合 - 累计雨量: 10分钟点的累计雨量总和 = {total_rainfall}")
+                            log(f"  实际点数: {actual_count}, 预期点数: {expected_points}")
+
+                            log(f"小时段 {hour_slot}: 总雨量值={total_rainfall_value}, 平均雨量={avg_rainfall}, 累计雨量={total_rainfall}, 实际10分钟点数={actual_count}, 应有10分钟点数={expected_points}, 实际原始点数={actual_data_points}")
+
+                            # 获取主要雨量级别
+                            cursor.execute('''
+                                SELECT dominant_level, COUNT(*) as level_count
+                                FROM rainfall_10min
+                                WHERE username = %s
+                                AND timestamp >= %s
+                                AND timestamp < %s + INTERVAL 1 HOUR
+                                GROUP BY dominant_level
+                                ORDER BY level_count DESC
                                 LIMIT 1
-                            ) as dominant_level,
-                            SUM(data_points) as data_points
-                        FROM rainfall_10min
-                        WHERE username = %s
-                        GROUP BY hour_slot
-                        ON DUPLICATE KEY UPDATE
-                            avg_rainfall = VALUES(avg_rainfall),
-                            max_rainfall = VALUES(max_rainfall),
-                            min_rainfall = VALUES(min_rainfall),
-                            total_rainfall = VALUES(total_rainfall),
-                            dominant_level = VALUES(dominant_level),
-                            data_points = VALUES(data_points),
-                            updated_at = CURRENT_TIMESTAMP
-                    ''', (username, username, username))
-                    log(f"小时数据聚合完成，影响行数: {cursor.rowcount}")
+                            ''', (username, hour_slot, hour_slot))
+
+                            level_result = cursor.fetchone()
+                            dominant_level = level_result['dominant_level'] if level_result else 'none'
+
+                            # 插入或更新小时聚合数据
+                            cursor.execute('''
+                                INSERT INTO rainfall_hourly
+                                (username, timestamp, avg_rainfall, max_rainfall, min_rainfall, total_rainfall, dominant_level, data_points, expected_points)
+                                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                                ON DUPLICATE KEY UPDATE
+                                    avg_rainfall = VALUES(avg_rainfall),
+                                    max_rainfall = VALUES(max_rainfall),
+                                    min_rainfall = VALUES(min_rainfall),
+                                    total_rainfall = VALUES(total_rainfall),
+                                    dominant_level = VALUES(dominant_level),
+                                    data_points = VALUES(data_points),
+                                    expected_points = VALUES(expected_points),
+                                    updated_at = CURRENT_TIMESTAMP
+                            ''', (
+                                username, hour_slot, avg_rainfall, max_rainfall, min_rainfall,
+                                total_rainfall, dominant_level, actual_count, expected_points
+                            ))
+
+                            log(f"小时数据聚合完成: {hour_slot}, 平均雨量={avg_rainfall}, 累计雨量={total_rainfall}")
+
+                    log(f"所有小时数据聚合完成，处理了 {len(hour_slots)} 个时间段")
             except Exception as e:
                 log(f"小时数据聚合错误: {str(e)}")
                 log(traceback.format_exc())
                 # 继续执行其他聚合，不抛出异常
 
-        # 3. 聚合到日表
+        # 3. 聚合到日表 - 修改后的逻辑
         log(f"开始聚合日数据...")
         with conn.cursor() as cursor:
             try:
@@ -523,36 +794,104 @@ def aggregate_data(username='admin'):
                     day_slots = cursor.fetchall()
                     log(f"找到 {len(day_slots)} 个日期需要聚合")
 
-                    # 执行聚合
-                    cursor.execute('''
-                        INSERT INTO rainfall_daily
-                        (username, date, avg_rainfall, max_rainfall, min_rainfall, total_rainfall, rainy_hours)
-                        SELECT
-                            %s as username,
-                            DATE(timestamp) as day_slot,
-                            ROUND(AVG(avg_rainfall), 1) as avg_rainfall,
-                            MAX(max_rainfall) as max_rainfall,
-                            MIN(min_rainfall) as min_rainfall,
-                            ROUND(SUM(total_rainfall), 1) as total_rainfall,
-                            SUM(CASE WHEN avg_rainfall >= 0.3 THEN 1 ELSE 0 END) as rainy_hours
-                        FROM rainfall_hourly
-                        WHERE username = %s
-                        GROUP BY day_slot
-                        ON DUPLICATE KEY UPDATE
-                            avg_rainfall = VALUES(avg_rainfall),
-                            max_rainfall = VALUES(max_rainfall),
-                            min_rainfall = VALUES(min_rainfall),
-                            total_rainfall = VALUES(total_rainfall),
-                            rainy_hours = VALUES(rainy_hours),
-                            updated_at = CURRENT_TIMESTAMP
-                    ''', (username, username))
-                    log(f"日数据聚合完成，影响行数: {cursor.rowcount}")
+                    # 对每个日期单独处理
+                    for slot in day_slots:
+                        day_slot = slot['day_slot']
+                        actual_count = slot['count']
+
+                        # 计算这1天内应该有的所有小时点数量
+                        # 1天 = 24小时，每小时一个点，应该有24个点
+                        expected_points = 24
+
+                        log(f"处理日期: {day_slot}, 实际数据点: {actual_count}, 应有数据点: {expected_points}")
+
+                        # 查询该日期内的实际数据
+                        cursor.execute('''
+                            SELECT
+                                SUM(avg_rainfall * data_points) as total_rainfall_value,
+                                MAX(max_rainfall) as max_rainfall,
+                                MIN(min_rainfall) as min_rainfall,
+                                SUM(data_points) as total_data_points,
+                                SUM(total_rainfall) as day_total_rainfall,
+                                SUM(CASE WHEN avg_rainfall >= 0.3 THEN 1 ELSE 0 END) as rainy_hours
+                            FROM rainfall_hourly
+                            WHERE username = %s
+                            AND DATE(timestamp) = %s
+                        ''', (username, day_slot))
+
+                        result = cursor.fetchone()
+
+                        if result:
+                            total_rainfall_value = result['total_rainfall_value'] or 0
+                            max_rainfall = result['max_rainfall'] or 0
+                            min_rainfall = result['min_rainfall'] or 0
+                            # 获取实际数据点数量，用于日志记录
+                            actual_data_points = result['total_data_points'] or 0
+                            day_total_rainfall = result['day_total_rainfall'] or 0
+                            rainy_hours = result['rainy_hours'] or 0
+
+                            # 计算平均值，使用应有的点数作为分母
+                            # 这里我们需要考虑每个小时内的实际数据点数量
+                            # 计算每个小时的原始数据点总数
+                            total_expected_raw_points = expected_points * 6 * 120  # 24小时 * 每小时6个10分钟段 * 每段120个5秒点
+
+                            # 计算平均雨量 (mm/h)
+                            if total_expected_raw_points > 0:
+                                # 这里我们需要考虑小时段的原始数据
+                                # 小时段的平均雨量已经考虑了缺失的10分钟点和5秒点
+                                # 所以我们只需要考虑缺失的小时段
+                                if actual_count > 0:
+                                    # 使用小时聚合数据的平均雨量，除以24小时
+                                    # 小时聚合数据的平均雨量已经考虑了缺失的10分钟点和5秒点
+                                    # 所以我们需要计算：小时平均雨量 * 实际小时数 / 24小时
+
+                                    # 确保所有值都是浮点数，避免decimal和float混合计算
+                                    day_total_rainfall_float = float(day_total_rainfall)
+                                    expected_points_float = float(expected_points)
+
+                                    # 使用浮点数计算
+                                    avg_rainfall = round(day_total_rainfall_float / expected_points_float, 1)
+
+                                    # 记录详细的计算过程，用于调试
+                                    log(f"  日聚合 - 计算平均值: {day_total_rainfall} / {expected_points} = {avg_rainfall}")
+                                else:
+                                    avg_rainfall = 0.0
+                            else:
+                                avg_rainfall = 0.0
+
+                            # 累计雨量保持不变，是各小时累计雨量的总和
+                            total_rainfall = round(day_total_rainfall, 1)
+
+                            log(f"日期 {day_slot}: 总雨量值={total_rainfall_value}, 平均雨量={avg_rainfall}, 累计雨量={total_rainfall}, 实际小时点数={actual_count}, 应有小时点数={expected_points}, 实际原始点数={actual_data_points}, 有雨小时数={rainy_hours}")
+
+                            # 插入或更新日聚合数据
+                            cursor.execute('''
+                                INSERT INTO rainfall_daily
+                                (username, date, avg_rainfall, max_rainfall, min_rainfall, total_rainfall, rainy_hours, data_points, expected_points)
+                                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                                ON DUPLICATE KEY UPDATE
+                                    avg_rainfall = VALUES(avg_rainfall),
+                                    max_rainfall = VALUES(max_rainfall),
+                                    min_rainfall = VALUES(min_rainfall),
+                                    total_rainfall = VALUES(total_rainfall),
+                                    rainy_hours = VALUES(rainy_hours),
+                                    data_points = VALUES(data_points),
+                                    expected_points = VALUES(expected_points),
+                                    updated_at = CURRENT_TIMESTAMP
+                            ''', (
+                                username, day_slot, avg_rainfall, max_rainfall, min_rainfall,
+                                total_rainfall, rainy_hours, actual_count, expected_points
+                            ))
+
+                            log(f"日数据聚合完成: {day_slot}, 平均雨量={avg_rainfall}, 累计雨量={total_rainfall}")
+
+                    log(f"所有日数据聚合完成，处理了 {len(day_slots)} 个日期")
             except Exception as e:
                 log(f"日数据聚合错误: {str(e)}")
                 log(traceback.format_exc())
                 # 继续执行其他聚合，不抛出异常
 
-        # 4. 聚合到月表
+        # 4. 聚合到月表 - 修改后的逻辑
         log(f"开始聚合月数据...")
         with conn.cursor() as cursor:
             try:
@@ -581,29 +920,90 @@ def aggregate_data(username='admin'):
                     month_slots = cursor.fetchall()
                     log(f"找到 {len(month_slots)} 个月份需要聚合")
 
-                    # 执行聚合
-                    cursor.execute('''
-                        INSERT INTO rainfall_monthly
-                        (username, year, month, avg_daily_rainfall, max_daily_rainfall, total_rainfall, rainy_days)
-                        SELECT
-                            %s as username,
-                            YEAR(date) as year_val,
-                            MONTH(date) as month_val,
-                            ROUND(AVG(total_rainfall), 1) as avg_daily_rainfall,
-                            MAX(total_rainfall) as max_daily_rainfall,
-                            ROUND(SUM(total_rainfall), 1) as total_rainfall,
-                            SUM(CASE WHEN total_rainfall >= 0.3 THEN 1 ELSE 0 END) as rainy_days
-                        FROM rainfall_daily
-                        WHERE username = %s
-                        GROUP BY year_val, month_val
-                        ON DUPLICATE KEY UPDATE
-                            avg_daily_rainfall = VALUES(avg_daily_rainfall),
-                            max_daily_rainfall = VALUES(max_daily_rainfall),
-                            total_rainfall = VALUES(total_rainfall),
-                            rainy_days = VALUES(rainy_days),
-                            updated_at = CURRENT_TIMESTAMP
-                    ''', (username, username))
-                    log(f"月数据聚合完成，影响行数: {cursor.rowcount}")
+                    # 对每个月份单独处理
+                    for slot in month_slots:
+                        year_val = slot['year_val']
+                        month_val = slot['month_val']
+                        actual_count = slot['count']
+
+                        # 计算这个月应该有的天数
+                        # 使用calendar模块获取月份的天数
+                        import calendar
+                        days_in_month = calendar.monthrange(year_val, month_val)[1]
+                        expected_points = days_in_month
+
+                        log(f"处理月份: {year_val}-{month_val}, 实际数据点: {actual_count}, 应有数据点: {expected_points}")
+
+                        # 查询该月份内的实际数据
+                        cursor.execute('''
+                            SELECT
+                                SUM(total_rainfall) as month_total_rainfall,
+                                AVG(total_rainfall) as avg_daily_rainfall,
+                                MAX(total_rainfall) as max_daily_rainfall,
+                                SUM(CASE WHEN total_rainfall >= 0.3 THEN 1 ELSE 0 END) as rainy_days,
+                                SUM(data_points) as total_data_points
+                            FROM rainfall_daily
+                            WHERE username = %s
+                            AND YEAR(date) = %s
+                            AND MONTH(date) = %s
+                        ''', (username, year_val, month_val))
+
+                        result = cursor.fetchone()
+
+                        if result:
+                            month_total_rainfall = result['month_total_rainfall'] or 0
+                            avg_daily_rainfall = result['avg_daily_rainfall'] or 0
+                            max_daily_rainfall = result['max_daily_rainfall'] or 0
+                            rainy_days = result['rainy_days'] or 0
+                            # 获取实际数据点数量，用于日志记录
+                            actual_data_points = result['total_data_points'] or 0
+
+                            # 月聚合保持原有逻辑，使用各天累计雨量的总和
+                            total_rainfall = round(month_total_rainfall, 1)
+
+                            # 平均日雨量，考虑应有的天数
+                            if expected_points > 0:
+                                # 如果实际天数少于应有天数，将缺少的天视为0
+                                if actual_count < expected_points:
+                                    # 调整平均值计算，将缺少的天视为0
+                                    # 确保所有值都是浮点数，避免decimal和float混合计算
+                                    month_total_rainfall_float = float(month_total_rainfall)
+                                    expected_points_float = float(expected_points)
+
+                                    # 使用浮点数计算
+                                    avg_daily_rainfall = round(month_total_rainfall_float / expected_points_float, 1)
+
+                                    # 记录详细的计算过程，用于调试
+                                    log(f"  月聚合 - 计算平均值: {month_total_rainfall} / {expected_points} = {avg_daily_rainfall}")
+                                else:
+                                    # 如果实际天数等于或大于应有天数，使用原有平均值
+                                    avg_daily_rainfall = round(avg_daily_rainfall, 1)
+                            else:
+                                avg_daily_rainfall = 0.0
+
+                            log(f"月份 {year_val}-{month_val}: 总雨量={total_rainfall}, 平均日雨量={avg_daily_rainfall}, 最大日雨量={max_daily_rainfall}, 实际天数={actual_count}, 应有天数={expected_points}, 实际原始点数={actual_data_points}, 有雨天数={rainy_days}")
+
+                            # 插入或更新月聚合数据
+                            cursor.execute('''
+                                INSERT INTO rainfall_monthly
+                                (username, year, month, avg_daily_rainfall, max_daily_rainfall, total_rainfall, rainy_days, data_points, expected_points)
+                                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                                ON DUPLICATE KEY UPDATE
+                                    avg_daily_rainfall = VALUES(avg_daily_rainfall),
+                                    max_daily_rainfall = VALUES(max_daily_rainfall),
+                                    total_rainfall = VALUES(total_rainfall),
+                                    rainy_days = VALUES(rainy_days),
+                                    data_points = VALUES(data_points),
+                                    expected_points = VALUES(expected_points),
+                                    updated_at = CURRENT_TIMESTAMP
+                            ''', (
+                                username, year_val, month_val, avg_daily_rainfall, max_daily_rainfall,
+                                total_rainfall, rainy_days, actual_count, expected_points
+                            ))
+
+                            log(f"月数据聚合完成: {year_val}-{month_val}, 平均日雨量={avg_daily_rainfall}, 累计雨量={total_rainfall}")
+
+                    log(f"所有月数据聚合完成，处理了 {len(month_slots)} 个月份")
             except Exception as e:
                 log(f"月数据聚合错误: {str(e)}")
                 log(traceback.format_exc())
@@ -853,13 +1253,24 @@ if __name__ == '__main__':
         else:
             result = {"success": False, "error": "Unknown operation"}
 
-        # Output result in standard JSON format
-        print(json.dumps(result, ensure_ascii=False, default=str))
-        sys.stdout.flush()
+        # Output result in standard JSON format with UTF-8 encoding
+        try:
+            json_output = json.dumps(result, ensure_ascii=False, default=str)
+            print(json_output)
+            sys.stdout.flush()
+        except Exception as json_err:
+            log(f"JSON序列化错误: {str(json_err)}")
+            # 尝试使用ASCII编码输出
+            print(json.dumps(result, ensure_ascii=True, default=str))
+            sys.stdout.flush()
 
     except Exception as e:
-        log(f"Script execution error: {str(e)}")
+        log(f"脚本执行错误: {str(e)}")
         log(traceback.format_exc())
-        error_result = {"success": False, "error": f"Script execution error: {str(e)}"}
-        print(json.dumps(error_result, ensure_ascii=False))
+        error_result = {"success": False, "error": f"脚本执行错误: {str(e)}"}
+        try:
+            print(json.dumps(error_result, ensure_ascii=False))
+        except:
+            # 如果UTF-8编码失败，使用ASCII编码
+            print(json.dumps(error_result, ensure_ascii=True))
         sys.stdout.flush()

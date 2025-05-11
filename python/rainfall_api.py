@@ -168,29 +168,43 @@ def get_statistics_data(username='admin', period='10min'):
                 return result
 
         elif period == 'daily':
-            # 获取最近24小时的数据，使用小时聚合数据
-            start_time = now - timedelta(days=1)
+            # 获取当天的数据，使用小时聚合数据
+            # 设置开始时间为今天的0点
+            start_time = now.replace(hour=0, minute=0, second=0, microsecond=0)
+            log(f"一天视图: 使用当天开始时间 = {start_time.strftime('%Y-%m-%d %H:%M:%S')}")
             result = get_data_by_timerange(username, 'hourly', start_time, now)
 
             if result["success"]:
                 # 转换为前端所需格式
                 formatted_data = []
 
-                # 生成过去24小时的每小时的时间点
+                # 生成当天的每小时时间点
                 time_slots = []
-                slot_start = start_time.replace(minute=0, second=0, microsecond=0)
+                # 确保开始时间是当天的0点
+                today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+                slot_start = today_start
                 log(f"一天视图: 开始时间 = {slot_start.strftime('%Y-%m-%d %H:%M')}, 结束时间 = {now.strftime('%Y-%m-%d %H:%M')}")
+
+                # 只生成当天的时间点
                 while slot_start <= now:
-                    time_slots.append(slot_start)
+                    # 确保时间点是当天的
+                    if slot_start.date() == now.date():
+                        time_slots.append(slot_start)
                     slot_start += timedelta(hours=1)
-                log(f"一天视图: 生成了 {len(time_slots)} 个时间点")
+
+                log(f"一天视图: 生成了 {len(time_slots)} 个当天的时间点")
 
                 # 对每个时间点处理
                 for slot in time_slots:
                     # 查找该时间点的数据
                     # 将时间戳的分钟、秒和微秒设为0进行比较
-                    slot_data = [item for item in result["data"] if item["timestamp"].replace(minute=0, second=0, microsecond=0) == slot]
-                    log(f"一天视图: 时间点 {slot.strftime('%H:00')} 找到 {len(slot_data)} 个数据点")
+                    # 同时确保数据点是当天的
+                    slot_data = [
+                        item for item in result["data"]
+                        if (item["timestamp"].replace(minute=0, second=0, microsecond=0) == slot and
+                            item["timestamp"].date() == now.date())
+                    ]
+                    log(f"一天视图: 时间点 {slot.strftime('%H:00')} 找到 {len(slot_data)} 个当天的数据点")
 
                     if slot_data:  # 如果有数据，使用实际数据
                         item = slot_data[0]  # 取第一个数据点
