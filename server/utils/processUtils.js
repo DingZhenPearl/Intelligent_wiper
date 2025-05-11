@@ -13,15 +13,20 @@ async function terminateAllPythonProcesses() {
     if (process.platform === 'win32') {
       // Windows系统 - 终止所有Python进程
       try {
-        // 先尝试使用taskkill终止python.exe
-        require('child_process').execSync('taskkill /F /IM python.exe /T', { stdio: 'ignore' });
+        // 先尝试使用taskkill终止python.exe，设置编码为UTF-8
+        require('child_process').execSync('chcp 65001 >nul && taskkill /F /IM python.exe /T', {
+          stdio: 'pipe',
+          encoding: 'utf8'
+        });
         console.log('已终止所有Python进程');
       } catch (e) {
         console.error('终止Python进程失败:', e.message);
         // 如果失败，尝试列出进程
         try {
           console.log('当前运行的Python进程:');
-          console.log(require('child_process').execSync('tasklist /FI "IMAGENAME eq python.exe"', { encoding: 'utf8' }));
+          console.log(require('child_process').execSync('chcp 65001 >nul && tasklist /FI "IMAGENAME eq python.exe"', {
+            encoding: 'utf8'
+          }));
         } catch (listError) {
           console.error('无法列出Python进程:', listError.message);
         }
@@ -35,7 +40,7 @@ async function terminateAllPythonProcesses() {
         console.error('终止Python进程失败:', e.message);
       }
     }
-    
+
     // 等待一小段时间，确保进程已经完全终止
     await new Promise(resolve => setTimeout(resolve, 1000));
   } catch (execError) {
@@ -64,7 +69,7 @@ async function terminateSpecificPythonProcess(scriptPath) {
       require('child_process').execSync(`pkill -f "${scriptPath}"`, { stdio: 'ignore' });
     }
     console.log(`已尝试终止脚本 ${path.basename(scriptPath)} 的进程`);
-    
+
     // 等待一小段时间，确保进程已经完全终止
     await new Promise(resolve => setTimeout(resolve, 1000));
   } catch (execError) {
