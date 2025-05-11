@@ -162,6 +162,88 @@ const oneNetService = {
   },
 
   // 数据源始终为OneNET，不提供切换功能
+
+  // 原始数据加载状态
+  rawDataLoading: ref(false),
+
+  // 原始数据错误信息
+  rawDataError: ref(null),
+
+  // 原始数据最后更新时间
+  rawDataLastUpdateTime: ref(null),
+
+  // 直接从OneNET平台获取原始数据
+  async fetchRawData(timeRange = '1h') {
+    try {
+      // 设置加载状态
+      this.rawDataLoading.value = true;
+      this.rawDataError.value = null;
+
+      console.log(`[OneNET服务] 开始直接从OneNET平台获取原始数据，时间范围: ${timeRange}`);
+
+      // 从 localStorage 中获取用户名
+      let username = 'admin'; // 默认用户名
+      const userDataStr = localStorage.getItem('user');
+
+      if (userDataStr) {
+        try {
+          const userData = JSON.parse(userDataStr);
+          if (userData && userData.username) {
+            username = userData.username;
+          }
+        } catch (e) {
+          console.error('[OneNET服务] 解析用户信息出错:', e);
+        }
+      }
+
+      // 调用后端API获取OneNET原始数据
+      const response = await get(`/api/rainfall/onenet/raw?username=${encodeURIComponent(username)}&timeRange=${timeRange}`);
+
+      if (response.ok) {
+        const data = await response.json();
+        console.log(`[OneNET服务] 获取OneNET原始数据成功:`, data);
+
+        if (data.success) {
+          // 更新最后更新时间
+          this.rawDataLastUpdateTime.value = new Date();
+
+          // 处理数据点，转换为ECharts格式
+          const chartData = (data.datapoints || []).map(point => {
+            return {
+              value: [
+                point.timestamp, // 时间戳
+                point.value      // 雨量值
+              ]
+            };
+          });
+
+          // 按时间排序
+          chartData.sort((a, b) => {
+            return new Date(a.value[0]) - new Date(b.value[0]);
+          });
+
+          return {
+            success: true,
+            data: chartData,
+            message: data.message
+          };
+        } else {
+          this.rawDataError.value = data.error || '获取OneNET原始数据失败';
+          return { success: false, error: data.error };
+        }
+      } else {
+        const errorData = await response.json();
+        this.rawDataError.value = errorData.error || '获取OneNET原始数据失败';
+        return { success: false, error: errorData.error };
+      }
+    } catch (error) {
+      console.error(`[OneNET服务] 获取OneNET原始数据错误:`, error);
+      this.rawDataError.value = error.message || '网络错误';
+      return { success: false, error: error.message };
+    } finally {
+      this.rawDataLoading.value = false;
+    }
+  }
 };
 
 export default oneNetService;

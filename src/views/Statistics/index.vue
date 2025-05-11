@@ -15,6 +15,16 @@
         <span class="time-btn-label">{{ period.label }}</span>
       </button>
 
+      <!-- 添加原始数据按钮 -->
+      <button
+        class="time-btn"
+        :class="{ active: showRawData }"
+        @click="toggleRawData"
+      >
+        <span class="time-btn-icon">📊</span>
+        <span class="time-btn-label">原始数据</span>
+      </button>
+
       <!-- 添加手动聚合按钮 -->
       <button
         class="aggregate-btn"
@@ -33,10 +43,19 @@
       </div>
     </div>
 
+    <!-- 显示聚合数据图表或原始数据图表 -->
     <div class="chart-container">
       <e-charts
+        v-if="!showRawData"
         ref="chart"
         :option="chartOption"
+        :auto-resize="true"
+        style="width: 100%; height: 100%;"
+      />
+      <e-charts
+        v-else
+        ref="rawChart"
+        :option="rawChartOption"
         :auto-resize="true"
         style="width: 100%; height: 100%;"
       />
@@ -49,6 +68,7 @@
 import { ref, onMounted, onUnmounted, computed } from 'vue'
 import ECharts from '@/components/ECharts'
 import rainfallDataService from '@/services/rainfallDataService'
+import oneNetService from '@/services/oneNetService'
 
 // 辅助变量和函数
 
@@ -59,9 +79,13 @@ export default {
   },
   setup() {
     const chartData = ref([]);
+    const rawChartData = ref([]); // 原始数据
     const intervalId = ref(null);
+    const rawIntervalId = ref(null); // 原始数据更新定时器
     const chartUpdateId = ref(null); // 用于时间轴更新的定时器
     const chartRef = ref(null); // 图表引用
+    const rawChartRef = ref(null); // 原始数据图表引用
+    const showRawData = ref(false); // 是否显示原始数据
 
     // 定义时间段选择器
     const timePeriods = [
@@ -71,6 +95,9 @@ export default {
       { label: '总数据', days: 0, hours: 0, minutes: 0, all: true }
     ];
     const activePeriod = ref(0); // 默认选择"10分钟内"
+
+    // 原始数据固定使用6小时时间范围
+    const rawDataTimeRange = '6h';
 
     // 计算当前小时显示
     const currentHourDisplay = computed(() => {
@@ -558,6 +585,26 @@ export default {
       }
     };
 
+    // 切换原始数据显示
+    const toggleRawData = () => {
+      showRawData.value = !showRawData.value;
+      console.log(`切换到${showRawData.value ? '原始数据' : '聚合数据'}显示`);
+
+      // 如果切换到原始数据，确保已获取原始数据
+      if (showRawData.value) {
+        // 无论是否已有数据，都重新获取一次最新数据
+        fetchRawData();
+
+        // 确保显示全部范围
+        if (rawChartOption.value && rawChartOption.value.dataZoom) {
+          rawChartOption.value.dataZoom[0].start = 0;
+          rawChartOption.value.dataZoom[0].end = 100;
+          rawChartOption.value.dataZoom[1].start = 0;
+          rawChartOption.value.dataZoom[1].end = 100;
+        }
+      }
+    };
+
     // 手动触发数据聚合
     const isAggregating = ref(false);
     const triggerAggregation = async () => {
@@ -793,6 +840,231 @@ export default {
       ]
     });
 
+    // 原始数据图表配置
+    const rawChartOption = ref({
+      title: {
+        text: 'OneNET原始数据 - 6小时',
+        subtext: '',
+        textStyle: {
+          fontSize: 16
+        },
+        subtextStyle: {
+          color: '#e74c3c',  // 红色错误信息
+          fontSize: 14
+        },
+        left: 'center'
+      },
+      tooltip: {
+        trigger: 'item',  // 改为item触发，更适合散点图
+        formatter: function (params) {
+          // 获取雨量值
+          var rainfallValue = params.value && params.value.length > 1 ? params.value[1] : 0;
+
+          // 尝试获取有效的日期对象
+          var dateStr = '';
+          var date;
+
+          // 首先尝试从params.value[0]获取日期
+          if (params.value && params.value.length > 0) {
+            if (params.value[0] instanceof Date) {
+              date = params.value[0];
+            } else if (typeof params.value[0] === 'string') {
+              try {
+                date = new Date(params.value[0]);
+              } catch (e) {
+                date = null;
+              }
+            }
+          }
+
+          // 如果有有效的日期对象，格式化它
+          if (date && !isNaN(date.getTime())) {
+            const year = date.getFullYear();
+            const month = date.getMonth() + 1;
+            const day = date.getDate();
+            const hours = date.getHours();
+            const minutes = date.getMinutes();
+            const seconds = date.getSeconds();
+
+            // 格式化为 YYYY-MM-DD HH:MM:SS
+            dateStr = `${year}-${month < 10 ? '0' + month : month}-${day < 10 ? '0' + day : day} ${hours < 10 ? '0' + hours : hours}:${minutes < 10 ? '0' + minutes : minutes}:${seconds < 10 ? '0' + seconds : seconds}`;
+          } else {
+            dateStr = params.value[0] || '时间未知';
+          }
+
+          // 添加序号信息
+          const index = params.dataIndex + 1;
+
+          return `数据点 #${index}<br/>时间: ${dateStr}<br/>雨量: ${rainfallValue} mm`;
+        },
+        backgroundColor: 'rgba(50, 50, 50, 0.9)',
+        borderColor: '#e74c3c',
+        textStyle: {
+          color: '#fff'
+        },
+        extraCssText: 'box-shadow: 0 0 8px rgba(0, 0, 0, 0.3);'
+      },
+      xAxis: {
+        type: 'category',  // 改为类别轴，使点均匀分布
+        splitLine: {
+          show: false
+        },
+        axisLabel: {
+          formatter: function(value) {
+            // 尝试将值解析为日期
+            try {
+              const date = new Date(value);
+              if (!isNaN(date.getTime())) {
+                return `${date.getHours()}:${date.getMinutes() < 10 ? '0' + date.getMinutes() : date.getMinutes()}`;
+              }
+            } catch (e) {
+              console.log('日期解析错误:', e);
+            }
+            // 如果解析失败，返回原始值
+            return value;
+          },
+          interval: 'auto',  // 自动计算显示间隔，避免标签重叠
+          rotate: 30,        // 旋转标签，避免重叠
+          hideOverlap: true  // 隐藏重叠的标签
+        },
+        // 启用缩放功能
+        scale: true
+      },
+      yAxis: {
+        type: 'value',
+        boundaryGap: [0, '100%'],
+        splitLine: {
+          show: true
+        },
+        name: '雨量 (mm)'
+      },
+      grid: {
+        containLabel: true,
+        left: '3%',
+        right: '4%',
+        bottom: '3%',
+        top: '60px'
+      },
+      // 添加缩放功能
+      dataZoom: [
+        {
+          type: 'inside',
+          start: 0,
+          end: 100,
+          filterMode: 'filter'
+        },
+        {
+          type: 'slider',
+          start: 0,
+          end: 100,
+          filterMode: 'filter'
+        }
+      ],
+      series: [
+        {
+          name: '原始雨量数据',
+          type: 'scatter',  // 使用散点图显示原始数据
+          symbolSize: 8,    // 点的大小
+          itemStyle: {
+            color: '#e74c3c'  // 红色点
+          },
+          data: []
+        }
+      ]
+    });
+
+    // 获取原始数据
+    const fetchRawData = async () => {
+      try {
+        console.log(`开始获取OneNET原始数据，时间范围: ${rawDataTimeRange}`);
+
+        // 调用OneNET服务获取原始数据
+        const result = await oneNetService.fetchRawData(rawDataTimeRange);
+
+        if (result.success) {
+          console.log(`成功获取OneNET原始数据:`, result.data ? result.data.length : 0, '个数据点');
+
+          // 更新图表数据
+          rawChartData.value = result.data || [];
+
+          // 处理数据以适应category类型的x轴
+          // 对于category类型，我们需要提供[类别, 值]格式的数据
+          const processedData = rawChartData.value.map(point => {
+            // 确保时间戳格式化为可读的字符串
+            let timestamp = point.value[0];
+            if (timestamp instanceof Date) {
+              timestamp = timestamp.toISOString();
+            } else if (typeof timestamp === 'string') {
+              // 尝试解析为日期并格式化
+              try {
+                const date = new Date(timestamp);
+                if (!isNaN(date.getTime())) {
+                  timestamp = date.toISOString();
+                }
+              } catch (e) {
+                // 如果解析失败，保持原样
+              }
+            }
+
+            return {
+              value: [
+                timestamp,  // 时间戳作为类别
+                point.value[1]  // 雨量值
+              ]
+            };
+          });
+
+          // 按时间排序
+          processedData.sort((a, b) => {
+            return new Date(a.value[0]) - new Date(b.value[0]);
+          });
+
+          // 更新图表
+          rawChartOption.value.series[0].data = processedData;
+
+          // 如果有消息，显示在副标题中
+          if (result.message) {
+            rawChartOption.value.title.subtext = `${result.message}`;
+          } else {
+            rawChartOption.value.title.subtext = '';
+          }
+
+          // 始终显示全部范围，不自动缩放
+          if (processedData.length > 0) {
+            // 始终设置为显示全部范围
+            rawChartOption.value.dataZoom[0].start = 0;
+            rawChartOption.value.dataZoom[0].end = 100;
+            rawChartOption.value.dataZoom[1].start = 0;
+            rawChartOption.value.dataZoom[1].end = 100;
+
+            // 更新图表标题，显示数据点数量
+            rawChartOption.value.title.text = `OneNET原始数据 - ${processedData.length}个数据点`;
+          }
+        } else {
+          console.error(`获取OneNET原始数据失败:`, result.error);
+
+          // 显示错误信息
+          rawChartOption.value.title.subtext = `错误: ${result.error}`;
+
+          // 清空图表数据但保持图表结构
+          rawChartData.value = [];
+          rawChartOption.value.series[0].data = [];
+
+          // 重置图表标题
+          rawChartOption.value.title.text = 'OneNET原始数据 - 无数据';
+        }
+      } catch (error) {
+        console.error(`获取OneNET原始数据错误:`, error);
+
+        // 显示错误信息
+        rawChartOption.value.title.subtext = `错误: ${error.message || '未知错误'}`;
+
+        // 清空图表数据但保持图表结构
+        rawChartData.value = [];
+        rawChartOption.value.series[0].data = [];
+      }
+    };
+
     // 在onMounted中启动时间轴更新
 
     // 数据源始终为OneNET平台
@@ -802,6 +1074,14 @@ export default {
     onMounted(() => {
       // 启动定时更新
       startDataPolling();
+
+      // 获取原始数据
+      fetchRawData();
+
+      // 设置定时器，每5秒更新一次原始数据，与聚合数据保持一致
+      rawIntervalId.value = setInterval(() => {
+        fetchRawData();
+      }, 5000);
 
       // 启动时间轴更新
       if (chartRef.value) {
@@ -814,6 +1094,11 @@ export default {
       if (intervalId.value) {
         clearInterval(intervalId.value);
         intervalId.value = null;
+      }
+
+      if (rawIntervalId.value) {
+        clearInterval(rawIntervalId.value);
+        rawIntervalId.value = null;
       }
 
       if (chartUpdateId.value) {
@@ -837,15 +1122,19 @@ export default {
 
     return {
       chartOption,
+      rawChartOption,
       timePeriods,
       activePeriod,
       changePeriod,
       currentHourTotal,
       currentHourDisplay,
       chart: chartRef,
+      rawChart: rawChartRef,
       getTimeIcon,
       isAggregating,
-      triggerAggregation
+      triggerAggregation,
+      showRawData,
+      toggleRawData
     }
   }
 }
@@ -1040,7 +1329,10 @@ export default {
     min-height: 300px;
     width: 100%;
     margin: 0 auto;
+    margin-bottom: var(--spacing-lg);
   }
+
+
 }
 
 /* 移动端适配 */
@@ -1109,6 +1401,8 @@ export default {
     .chart-container {
       min-height: 250px;
     }
+
+
   }
 }
 </style>

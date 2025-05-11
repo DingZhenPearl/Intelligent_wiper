@@ -390,12 +390,158 @@ def stop_sync():
     running = False
     log("OneNET同步服务停止命令已发送")
 
+def get_raw_data(username='admin', time_range='1h'):
+    """直接从OneNET平台获取原始数据，不存储到数据库
+
+    参数:
+        username: 用户名，默认为'admin'
+        time_range: 时间范围，如'10m'表示10分钟，'1h'表示1小时，'1d'表示1天，默认为'1h'
+
+    返回:
+        dict: 包含原始数据点的字典
+    """
+    try:
+        log(f"直接从OneNET平台获取原始数据，用户名: {username}，时间范围: {time_range}")
+
+        # 生成token
+        token = generate_token()
+        if not token:
+            return {"success": False, "error": "生成token失败"}
+
+        # 构建API URL
+        url = f"{ONENET_API_BASE}/datapoint/history-datapoints"
+
+        # 设置请求头，包含JWT token
+        headers = {
+            "authorization": token,
+            "Content-Type": "application/json"
+        }
+
+        # 设置时间范围
+        now = datetime.now()
+
+        # 解析时间范围
+        if time_range.endswith('m') or time_range.endswith('M'):
+            try:
+                minutes = int(time_range[:-1])
+                start_time = now - timedelta(minutes=minutes)
+            except ValueError:
+                start_time = now - timedelta(minutes=10)  # 默认10分钟
+        elif time_range.endswith('h') or time_range.endswith('H'):
+            try:
+                hours = int(time_range[:-1])
+                start_time = now - timedelta(hours=hours)
+            except ValueError:
+                start_time = now - timedelta(hours=1)  # 默认1小时
+        elif time_range.endswith('d') or time_range.endswith('D'):
+            try:
+                days = int(time_range[:-1])
+                start_time = now - timedelta(days=days)
+            except ValueError:
+                start_time = now - timedelta(days=1)  # 默认1天
+        else:
+            # 默认获取过去1小时的数据
+            start_time = now - timedelta(hours=1)
+
+        # 设置请求参数
+        params = {
+            "product_id": PRODUCT_ID,
+            "device_name": DEVICE_NAME,
+            "identifier": DATASTREAM_ID,  # 数据流ID
+            "start_time": start_time.strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "end_time": now.strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "limit": 1000  # 最多获取1000个数据点
+        }
+
+        log(f"请求OneNET API: {url}, 参数: {params}")
+
+        # 发送GET请求
+        response = requests.get(url, params=params, headers=headers)
+
+        # 检查响应状态码
+        if response.status_code == 200:
+            # 解析响应数据
+            response_data = response.json()
+
+            log(f"OneNET API响应状态码: {response.status_code}")
+
+            # 检查是否成功获取数据
+            if response_data.get("code") == 0 and "data" in response_data:
+                data = response_data["data"]
+
+                # 尝试不同的数据结构解析方式
+                datapoints = []
+
+                # 方式1: 直接在data中查找datapoints
+                if "datapoints" in data and isinstance(data["datapoints"], list):
+                    datapoints = data["datapoints"]
+                    log(f"使用方式1解析数据点，找到 {len(datapoints)} 个数据点")
+
+                # 方式2: 在data.items中查找
+                elif "items" in data and isinstance(data["items"], list):
+                    datapoints = data["items"]
+                    log(f"使用方式2解析数据点，找到 {len(datapoints)} 个数据点")
+
+                # 方式3: 在datastreams结构中查找
+                elif "datastreams" in data and isinstance(data["datastreams"], list):
+                    # 查找rain_info数据流
+                    for stream in data["datastreams"]:
+                        if stream.get("id") == DATASTREAM_ID and "datapoints" in stream:
+                            datapoints = stream["datapoints"]
+                            log(f"使用方式3解析数据点，找到 {len(datapoints)} 个数据点")
+                            break
+
+                # 如果找到了数据点
+                if datapoints:
+                    # 处理数据点，确保格式一致
+                    processed_datapoints = []
+                    for point in datapoints:
+                        timestamp_str = point.get("at")
+                        value = point.get("value")
+
+                        # 确保值是浮点数
+                        try:
+                            value = float(value)
+                        except (ValueError, TypeError):
+                            log(f"无法将值转换为浮点数: {value}")
+                            continue
+
+                        # 添加到处理后的数据点列表
+                        processed_datapoints.append({
+                            "timestamp": timestamp_str,
+                            "value": value
+                        })
+
+                    return {
+                        "success": True,
+                        "datapoints": processed_datapoints,
+                        "message": f"成功获取 {len(processed_datapoints)} 个原始数据点"
+                    }
+                else:
+                    error_msg = "未找到任何数据点"
+                    log(error_msg)
+                    return {"success": False, "error": error_msg}
+            else:
+                error_msg = f"OneNET API返回错误: {response_data.get('msg')}"
+                log(error_msg)
+                return {"success": False, "error": error_msg}
+        else:
+            error_msg = f"OneNET API请求失败，状态码: {response.status_code}"
+            log(error_msg)
+            return {"success": False, "error": error_msg}
+    except Exception as e:
+        error_msg = f"获取OneNET原始数据错误: {str(e)}"
+        log(error_msg)
+        log(traceback.format_exc())
+        return {"success": False, "error": error_msg}
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='OneNET数据同步工具')
-    parser.add_argument('--action', choices=['start', 'stop', 'sync_once'],
+    parser.add_argument('--action', choices=['start', 'stop', 'sync_once', 'get_raw_data'],
                         default='sync_once', help='执行的操作')
     parser.add_argument('--username', default='admin', help='用户名')
     parser.add_argument('--interval', type=int, default=5, help='同步间隔（秒）')
+    parser.add_argument('--timeRange', default='1h', help='获取原始数据的时间范围，如10m、1h、1d')
 
     args = parser.parse_args()
 
@@ -405,4 +551,7 @@ if __name__ == "__main__":
         stop_sync()
     elif args.action == 'sync_once':
         result = sync_onenet_data(args.username)
+        print(json.dumps(result, ensure_ascii=False))
+    elif args.action == 'get_raw_data':
+        result = get_raw_data(args.username, args.timeRange)
         print(json.dumps(result, ensure_ascii=False))

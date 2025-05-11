@@ -474,4 +474,65 @@ router.get('/onenet/sync/once', async (req, res) => {
   }
 });
 
+// 直接从OneNET平台获取原始数据
+router.get('/onenet/raw', async (req, res) => {
+  try {
+    console.log('直接从OneNET平台获取原始数据');
+
+    // 检查是否启用了OneNET数据源
+    if (!useOneNetSource) {
+      console.log('OneNET数据源未启用，返回错误');
+      return res.status(400).json({
+        success: false,
+        error: 'OneNET数据源未启用'
+      });
+    }
+
+    // 使用前端传递的用户名，而不是从 session 中获取
+    let username = req.query.username || (req.session.user ? req.session.user.username : 'admin');
+
+    // 确保用户名不为空
+    if (!username || username.trim() === '') {
+      username = 'admin';
+    } else {
+      username = username.trim();
+    }
+    console.log(`直接获取OneNET原始数据，用户名: '${username}'`);
+
+    // 获取时间范围参数，默认获取过去1小时的数据
+    const timeRange = req.query.timeRange || '1h';
+    console.log(`获取OneNET原始数据，时间范围: ${timeRange}`);
+
+    // 调用OneNET同步脚本获取原始数据
+    const oneNetSyncScriptPath = path.join(__dirname, '..', '..', 'python', 'onenet_sync.py');
+    console.log(`OneNET同步脚本路径: ${oneNetSyncScriptPath}`);
+
+    // 检查脚本文件是否存在
+    if (!fs.existsSync(oneNetSyncScriptPath)) {
+      console.error(`OneNET同步脚本不存在: ${oneNetSyncScriptPath}`);
+      return res.status(500).json({ error: 'OneNET同步脚本不存在' });
+    }
+
+    const result = await executePythonScript(oneNetSyncScriptPath, 'get_raw_data', { username, timeRange });
+
+    if (result.success) {
+      console.log(`成功获取OneNET原始数据，数据点数量:`, result.datapoints ? result.datapoints.length : 0);
+      res.json({
+        success: true,
+        datapoints: result.datapoints || [],
+        message: result.message
+      });
+    } else {
+      console.error('获取OneNET原始数据失败:', result.error);
+      res.status(500).json({
+        success: false,
+        error: result.error || '获取OneNET原始数据失败'
+      });
+    }
+  } catch (error) {
+    console.error('获取OneNET原始数据错误:', error);
+    res.status(500).json({ error: '服务器内部错误' });
+  }
+});
+
 module.exports = router;
