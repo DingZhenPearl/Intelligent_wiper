@@ -111,6 +111,7 @@ import rainfallService from '@/services/rainfallService'
 import rainfallDataService from '@/services/rainfallDataService'
 import voiceService from '@/services/voiceService'
 import wiperService from '@/services/wiperService'
+import oneNetService from '@/services/oneNetService'
 
 export default {
   name: 'ControlPanel',
@@ -128,6 +129,8 @@ export default {
 
     // 数据源始终为OneNET平台
     const isOneNetSource = ref(true) // 始终使用OneNET数据源
+
+    // OneNET同步相关变量和函数已移除
 
     // 语音控制相关状态
     const isVoiceListening = ref(false) // 是否正在监听语音
@@ -274,8 +277,8 @@ export default {
       try {
         console.log('[Home] 开始从后端获取雨量数据');
 
-        // 从后端获取数据
-        const result = await rainfallDataService.fetchHomeData();
+        // 直接从OneNET服务获取数据
+        const result = await oneNetService.fetchRainfallData();
 
         if (result.success) {
           const data = result.data;
@@ -295,12 +298,35 @@ export default {
             backendMessage.value = '';
           }
 
-          console.log(`[Home] 从后端获取雨量数据成功: ${data.rainfall_value} mm/h (${data.rainfall_level}, ${data.rainfall_percentage}%) (时间: ${now.getHours()}:${now.getMinutes()}:${now.getSeconds()})`);
+          console.log(`[Home] 从OneNET获取雨量数据成功: ${data.rainfall_value} mm/h (${data.rainfall_level}, ${data.rainfall_percentage}%) (时间: ${now.getHours()}:${now.getMinutes()}:${now.getSeconds()})`);
         } else {
-          console.error('[Home] 从后端获取雨量数据失败:', result.error);
-          backendMessage.value = result.error || '获取数据失败';
+          // 如果从OneNET获取失败，尝试从后端获取
+          console.log('[Home] 从OneNET获取数据失败，尝试从后端获取');
+          const backendResult = await rainfallDataService.fetchHomeData();
 
-          // 不再处理未登录错误
+          if (backendResult.success) {
+            const data = backendResult.data;
+            const now = new Date();
+
+            // 更新共享服务中的雨量数据
+            rainfallService.updateRainfallData(
+              data.rainfall_value,
+              { level: data.rainfall_level, text: getRainfallLevelText(data.rainfall_percentage) },
+              data.rainfall_percentage
+            );
+
+            // 如果有消息，显示它
+            if (backendResult.message) {
+              backendMessage.value = backendResult.message;
+            } else {
+              backendMessage.value = '';
+            }
+
+            console.log(`[Home] 从后端获取雨量数据成功: ${data.rainfall_value} mm/h (${data.rainfall_level}, ${data.rainfall_percentage}%) (时间: ${now.getHours()}:${now.getMinutes()}:${now.getSeconds()})`);
+          } else {
+            console.error('[Home] 从后端获取雨量数据也失败:', backendResult.error);
+            backendMessage.value = backendResult.error || '获取数据失败';
+          }
         }
       } catch (error) {
         console.error('[Home] 从后端获取雨量数据错误:', error);
@@ -751,134 +777,68 @@ export default {
       console.log('[Home] 语音事件监听器移除完成');
     };
 
-    // 修改现有的onMounted和onUnmounted方法
-    const originalOnMounted = onMounted;
-    const originalOnUnmounted = onUnmounted;
-
-    // 重新定义onMounted，添加语音服务初始化
-    originalOnMounted(async () => {
-      console.log('首页组件已挂载');
+    // 组件挂载后初始化
+    onMounted(async () => {
+      console.log('[Home] 组件已挂载');
 
       try {
-        // 初始化语音服务
-        const initSuccess = voiceService.init();
-        console.log(`[首页] 语音服务初始化${initSuccess ? '成功' : '失败'}`);
-
-        // 确保任何可能的语音识别会话都已停止
-        await voiceService.cleanupResources();
-
         // 设置语音事件监听器
         setupVoiceEventListeners();
 
-        // 同步UI状态与服务状态
-        isVoiceListening.value = voiceService.isListening.value;
-      } catch (err) {
-        console.error('[首页] 初始化语音服务出错:', err);
-      }
-
-      // 检查用户登录状态
-      const userDataStr = localStorage.getItem('user');
-      console.log(`[首页] localStorage中的用户信息: ${userDataStr}`);
-      const isLoggedIn = !!userDataStr;
-      console.log(`[首页] 用户登录状态: ${isLoggedIn ? '已登录' : '未登录'}`);
-
-      // 检查localStorage中的轮询状态
-      const homePagePollingActive = localStorage.getItem('homePagePollingActive');
-      console.log(`[首页] localStorage中的轮询状态: ${homePagePollingActive}`);
-
-      // 检查localStorage中的数据采集器状态
-      const collectorRunning = localStorage.getItem('collectorRunning');
-      console.log(`[首页] localStorage中的数据采集器状态: ${collectorRunning}`);
-
-      // 检查数据采集器状态
-      try {
-        console.log('[首页] 开始检查数据采集器状态...');
+        // 检查数据采集器状态
         const statusResult = await rainfallDataService.checkCollectorStatus();
-        console.log('[首页] 检查数据采集器状态结果:', statusResult);
+        console.log('[Home] 数据采集器状态检查结果:', statusResult);
 
         if (statusResult.success) {
-          // 更新数据采集器状态
           isDataPollingActive.value = statusResult.isRunning;
-          console.log(`[首页] 检查到数据采集器状态: ${isDataPollingActive.value ? '运行中' : '已停止'}`);
-
-          // 如果数据采集器正在运行，启动数据轮询
-          if (isDataPollingActive.value) {
-            console.log('[首页] 数据采集器正在运行，启动数据轮询');
-            // 强制启动数据轮询，不考虑当前状态
+          if (statusResult.isRunning) {
+            // 数据采集器已在运行，启动数据轮询
+            console.log('[Home] 数据采集器已在运行，启动前端数据轮询');
             startServiceDataCheck();
-            backendMessage.value = '数据采集器正在运行中';
           } else {
-            // 数据采集器已停止，确保状态一致
-            console.log('[首页] 数据采集器已停止，重置所有状态');
-            isDataPollingActive.value = false;
-            localStorage.setItem('homePagePollingActive', 'false');
-            localStorage.setItem('collectorRunning', 'false');
-
-            // 只获取一次数据，不启动轮询
-            fetchRainfallFromBackend();
-            backendMessage.value = '点击按钮开始收集数据';
+            // 数据采集器未在运行，显示启动提示
+            console.log('[Home] 数据采集器未在运行，显示启动提示');
+            backendMessage.value = 'OneNET同步未运行，点击按钮开始同步';
           }
         } else {
-          console.error(`[首页] 检查数据采集器状态失败: ${statusResult.error}`);
-
-          // 假设数据采集器已停止，重置所有状态
-          console.log('[首页] 检查失败，假设数据采集器已停止，重置所有状态');
-          isDataPollingActive.value = false;
-          localStorage.setItem('homePagePollingActive', 'false');
-          localStorage.setItem('collectorRunning', 'false');
-
-          // 只获取一次数据，不启动轮询
-          fetchRainfallFromBackend();
-          backendMessage.value = '点击按钮开始收集数据';
+          // 检查状态出错，显示错误信息
+          console.error('[Home] 检查数据采集器状态出错:', statusResult.error);
+          backendMessage.value = `检查同步状态出错: ${statusResult.error || '未知错误'}`;
         }
       } catch (error) {
-        console.error(`[首页] 检查数据采集器状态错误: ${error}`);
-
-        // 假设数据采集器已停止，重置所有状态
-        console.log('[首页] 检查出错，假设数据采集器已停止，重置所有状态');
-        isDataPollingActive.value = false;
-        localStorage.setItem('homePagePollingActive', 'false');
-        localStorage.setItem('collectorRunning', 'false');
-
-        // 只获取一次数据，不启动轮询
-        fetchRainfallFromBackend();
-        backendMessage.value = '点击按钮开始收集数据';
+        console.error('[Home] 初始化错误:', error);
+        backendMessage.value = `初始化错误: ${error.message || '未知错误'}`;
       }
     });
 
-    // 重新定义onUnmounted，添加语音服务清理
-    originalOnUnmounted(async () => {
-      console.log("首页组件已卸载");
+    // 组件卸载清理资源
+    onUnmounted(async () => {
+      console.log("[Home] 组件已卸载");
 
       try {
         // 确保停止语音监听
         if (voiceService.isListening.value || isVoiceListening.value) {
-          console.log('[首页] 组件卸载时停止语音识别');
+          console.log('[Home] 组件卸载时停止语音识别');
           await voiceService.cleanupResources();
         }
 
         // 移除语音事件监听器
         removeVoiceEventListeners();
 
-        console.log('[首页] 语音服务资源已清理');
+        console.log('[Home] 语音服务资源已清理');
       } catch (err) {
-        console.error('[首页] 清理语音服务资源出错:', err);
+        console.error('[Home] 清理语音服务资源出错:', err);
       }
 
       // 清理定时器，但保留轮询状态
       if (dataPollingInterval.value) {
-        console.log('[首页] 卸载，清理定时器，但保留轮询状态');
+        console.log('[Home] 卸载时清理定时器');
         clearInterval(dataPollingInterval.value);
         dataPollingInterval.value = null;
-
-        // 只重置本地定时器状态，不重置轮询状态
-        // isDataPollingActive.value = false; // 不重置轮询状态
-
-        // 记录当前时间
-        const now = new Date();
-        console.log(`[首页] 卸载时间: ${now.toLocaleString()}, 轮询状态: ${isDataPollingActive.value ? '活动' : '非活动'}, localStorage中的状态: ${localStorage.getItem('homePagePollingActive')}`);
       }
     });
+
+    // OneNET自动同步状态相关函数已移除
 
     return {
       rainfall,
@@ -1525,5 +1485,7 @@ export default {
       max-width: 1600px;
     }
   }
+
+  /* 开关按钮样式已移除 */
 }
 </style>

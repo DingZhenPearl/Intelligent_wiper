@@ -1,6 +1,7 @@
 // server/services/rainfallCollector.js
 const path = require('path');
 const { spawn } = require('child_process');
+const fs = require('fs');
 const config = require('../config');
 const { terminateAllPythonProcesses } = require('../utils/processUtils');
 
@@ -9,6 +10,26 @@ let collectorProcess = null;
 let oneNetSyncProcess = null; // OneNET同步进程
 let shouldRestartCollector = true; // 控制是否应该重启采集器
 let shouldRestartOneNetSync = true; // 控制是否应该重启OneNET同步服务
+
+// 初始化时读取OneNET同步设置
+try {
+  const settingsFilePath = path.join(__dirname, '..', 'data', 'onenet_sync_settings.json');
+  if (fs.existsSync(settingsFilePath)) {
+    const settings = JSON.parse(fs.readFileSync(settingsFilePath, 'utf8'));
+    if (settings && settings.autoSync !== undefined) {
+      shouldRestartOneNetSync = settings.autoSync;
+      console.log(`从配置文件中读取OneNET同步自动重启标志: ${shouldRestartOneNetSync}`);
+    }
+  } else {
+    // 如果设置文件不存在，创建一个默认的
+    fs.writeFileSync(settingsFilePath, JSON.stringify({ autoSync: true }, null, 2), 'utf8');
+    console.log('创建了默认的OneNET同步设置文件，默认启用自动同步');
+  }
+} catch (error) {
+  console.error('读取或创建OneNET同步设置文件时出错:', error);
+  // 出错时使用默认值
+  shouldRestartOneNetSync = true;
+}
 
 /**
  * 启动雨量数据采集器 (现在直接调用OneNET同步服务)

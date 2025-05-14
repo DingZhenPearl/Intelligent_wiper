@@ -20,8 +20,22 @@ if (!fs.existsSync(dataDir)) {
     fs.mkdirSync(dataDir, { recursive: true });
 }
 
-// 默认使用OneNET数据源
-const useOneNetSource = true;
+// 数据源设置文件
+const DATA_SOURCE_FILE = path.join(dataDir, 'data_source_settings.json');
+
+// 始终使用OneNET数据源
+let useOneNetSource = true;
+
+// 确保数据源设置文件存在并设置为使用OneNET数据源
+try {
+  // 如果文件不存在或者存在但设置不是true，则创建/更新设置文件
+  fs.writeFileSync(DATA_SOURCE_FILE, JSON.stringify({ useOneNetSource: true }), 'utf8');
+  console.log('已确保数据源设置为使用OneNET平台');
+} catch (error) {
+  console.error('创建或更新数据源设置文件时出错:', error);
+  // 出错时仍然使用默认值
+  useOneNetSource = true;
+}
 
 // 获取统计页面数据
 router.get('/stats', async (req, res) => {
@@ -172,14 +186,8 @@ router.get('/onenet', async (req, res) => {
   try {
     console.log('从本地数据库获取最新雨量数据（OneNET同步）');
 
-    // 检查是否启用了OneNET数据源
-    if (!useOneNetSource) {
-      console.log('OneNET数据源未启用，返回错误');
-      return res.status(400).json({
-        success: false,
-        error: 'OneNET数据源未启用'
-      });
-    }
+    // OneNET数据源始终启用
+    useOneNetSource = true; // 确保始终启用
 
     // 使用前端传递的用户名，而不是从 session 中获取
     let username = req.query.username || (req.session.user ? req.session.user.username : 'admin');
@@ -230,14 +238,8 @@ router.get('/onenet/stats', async (req, res) => {
     const period = req.query.period || '10min';
     console.log(`从本地数据库获取${period}统计数据（OneNET同步）`);
 
-    // 检查是否启用了OneNET数据源
-    if (!useOneNetSource) {
-      console.log('OneNET数据源未启用，返回错误');
-      return res.status(400).json({
-        success: false,
-        error: 'OneNET数据源未启用'
-      });
-    }
+    // OneNET数据源始终启用
+    useOneNetSource = true; // 确保始终启用
 
     // 使用前端传递的用户名，而不是从 session 中获取
     let username = req.query.username || (req.session.user ? req.session.user.username : 'admin');
@@ -350,20 +352,16 @@ router.get('/onenet/sync/start', async (req, res) => {
     }
     console.log(`最终使用的用户名: '${username}'`);
 
-    // 检查是否启用了OneNET数据源
-    if (!useOneNetSource) {
-      console.log('OneNET数据源未启用，先启用OneNET数据源');
-      // 更新全局设置
-      useOneNetSource = true;
+    // OneNET数据源始终启用
+    useOneNetSource = true; // 确保始终启用
 
-      // 将设置保存到文件
-      try {
-        fs.writeFileSync(DATA_SOURCE_FILE, JSON.stringify({ useOneNetSource: true }), 'utf8');
-        console.log('数据源设置已保存到文件: OneNET平台');
-      } catch (saveError) {
-        console.error('保存数据源设置出错:', saveError);
-        // 继续执行，不影响同步服务启动
-      }
+    // 将设置保存到文件
+    try {
+      fs.writeFileSync(DATA_SOURCE_FILE, JSON.stringify({ useOneNetSource: true }), 'utf8');
+      console.log('数据源设置已保存到文件: OneNET平台');
+    } catch (saveError) {
+      console.error('保存数据源设置出错:', saveError);
+      // 继续执行，不影响同步服务启动
     }
 
     // 停止本地数据采集器
@@ -479,14 +477,8 @@ router.get('/onenet/raw', async (req, res) => {
   try {
     console.log('直接从OneNET平台获取原始数据');
 
-    // 检查是否启用了OneNET数据源
-    if (!useOneNetSource) {
-      console.log('OneNET数据源未启用，返回错误');
-      return res.status(400).json({
-        success: false,
-        error: 'OneNET数据源未启用'
-      });
-    }
+    // OneNET数据源始终启用
+    useOneNetSource = true; // 确保始终启用
 
     // 使用前端传递的用户名，而不是从 session 中获取
     let username = req.query.username || (req.session.user ? req.session.user.username : 'admin');
@@ -531,6 +523,124 @@ router.get('/onenet/raw', async (req, res) => {
     }
   } catch (error) {
     console.error('获取OneNET原始数据错误:', error);
+    res.status(500).json({ error: '服务器内部错误' });
+  }
+});
+
+// 设置OneNET自动同步状态
+router.get('/onenet/sync/enable', async (req, res) => {
+  try {
+    // 获取启用状态参数
+    const enabled = req.query.enabled === 'true' || req.query.enabled === true;
+
+    // 使用前端传递的用户名，而不是从 session 中获取
+    let username = req.query.username || (req.session.user ? req.session.user.username : 'admin');
+
+    // 详细输出用户信息
+    console.log(`设置OneNET自动同步状态，传入的用户名: ${username}，启用状态: ${enabled}`);
+    console.log(`设置OneNET自动同步状态，请求参数: ${JSON.stringify(req.query)}`);
+
+    // 确保用户名不为空
+    if (!username || username.trim() === '') {
+      username = 'admin';
+    } else {
+      username = username.trim();
+    }
+    console.log(`最终使用的用户名: '${username}'`);
+
+    // 将设置保存到配置文件或数据库中
+    // 这里假设我们使用一个文件来保存设置
+    const settingsFilePath = path.join(__dirname, '..', 'data', 'onenet_sync_settings.json');
+
+    // 读取现有设置或创建新的
+    let settings = {};
+    try {
+      if (fs.existsSync(settingsFilePath)) {
+        settings = JSON.parse(fs.readFileSync(settingsFilePath, 'utf8'));
+      }
+    } catch (readError) {
+      console.error('读取OneNET同步设置文件出错:', readError);
+      // 继续使用空设置对象
+    }
+
+    // 更新设置
+    settings.autoSync = enabled;
+
+    // 保存设置
+    try {
+      fs.writeFileSync(settingsFilePath, JSON.stringify(settings, null, 2), 'utf8');
+      console.log(`OneNET自动同步设置已保存: ${enabled ? '开启' : '关闭'}`);
+    } catch (writeError) {
+      console.error('保存OneNET同步设置出错:', writeError);
+      return res.status(500).json({ error: '保存设置失败' });
+    }
+
+    // 如果禁用自动同步，但OneNET同步服务正在运行，则停止它
+    if (!enabled) {
+      const { getCollectorStatus, stopOneNetSync, setShouldRestartOneNetSync } = require('../services/rainfallCollector');
+      const status = getCollectorStatus();
+
+      if (status.isOneNetSyncRunning) {
+        console.log('禁用自动同步，停止现有的OneNET同步服务');
+        // 设置不要自动重启
+        setShouldRestartOneNetSync(false);
+        // 停止同步服务
+        await stopOneNetSync(username);
+      } else {
+        console.log('OneNET同步服务未运行，只需设置不要自动重启');
+        setShouldRestartOneNetSync(false);
+      }
+    } else {
+      // 如果启用自动同步，设置自动重启标志
+      const { setShouldRestartOneNetSync } = require('../services/rainfallCollector');
+      setShouldRestartOneNetSync(true);
+      console.log('启用自动同步，设置OneNET同步服务自动重启标志');
+    }
+
+    res.json({
+      success: true,
+      message: `OneNET自动同步已${enabled ? '开启' : '关闭'}`
+    });
+  } catch (error) {
+    console.error('设置OneNET自动同步状态错误:', error);
+    res.status(500).json({ error: '服务器内部错误' });
+  }
+});
+
+// 获取OneNET同步状态
+router.get('/onenet/sync/status', async (_, res) => {
+  try {
+    console.log('获取OneNET同步状态');
+
+    // 将设置保存到配置文件或数据库中
+    const settingsFilePath = path.join(__dirname, '..', 'data', 'onenet_sync_settings.json');
+
+    // 读取设置文件
+    let autoSync = true; // 默认值
+    try {
+      if (fs.existsSync(settingsFilePath)) {
+        const settings = JSON.parse(fs.readFileSync(settingsFilePath, 'utf8'));
+        if (settings && settings.autoSync !== undefined) {
+          autoSync = settings.autoSync;
+        }
+      }
+    } catch (readError) {
+      console.error('读取OneNET同步设置文件出错:', readError);
+      // 继续使用默认值
+    }
+
+    // 获取服务运行状态
+    const { getCollectorStatus } = require('../services/rainfallCollector');
+    const status = getCollectorStatus();
+
+    res.json({
+      success: true,
+      autoSync,
+      isRunning: status.isOneNetSyncRunning,
+      shouldRestart: status.shouldRestartOneNetSync
+    });
+  } catch (error) {
+    console.error('获取OneNET同步状态错误:', error);
     res.status(500).json({ error: '服务器内部错误' });
   }
 });

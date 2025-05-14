@@ -437,9 +437,35 @@ const rainfallDataService = {
       const storedStatus = localStorage.getItem('collectorRunning');
       console.log(`[雨量数据服务] localStorage中的数据采集器状态: ${storedStatus}`);
 
-      // 获取一次数据，更新数据显示
+      // 直接从后端获取OneNET同步状态
       try {
-        // 尝试从服务器获取状态信息
+        console.log(`[雨量数据服务] 直接从后端获取OneNET同步状态...`);
+        const syncStatusResponse = await get(`/api/rainfall/onenet/sync/status`);
+
+        if (syncStatusResponse.ok) {
+          const syncStatusData = await syncStatusResponse.json();
+          console.log(`[雨量数据服务] OneNET同步状态:`, syncStatusData);
+
+          if (syncStatusData.success) {
+            // 使用后端返回的同步状态
+            const isRunning = syncStatusData.isRunning;
+            console.log(`[雨量数据服务] 后端返回的OneNET同步状态: ${isRunning ? '运行中' : '已停止'}`);
+
+            // 更新本地状态
+            this.updateCollectorStatus(isRunning);
+            return {
+              success: true,
+              isRunning: isRunning
+            };
+          }
+        }
+      } catch (syncStatusError) {
+        console.error('[雨量数据服务] 获取OneNET同步状态错误:', syncStatusError);
+        // 继续尝试其他方法获取状态
+      }
+
+      // 如果无法直接获取同步状态，尝试从服务器获取状态信息
+      try {
         console.log(`[雨量数据服务] 尝试从服务器获取状态信息...`);
         const response = await get(`/api/status`);
         if (response.ok) {
@@ -509,6 +535,66 @@ const rainfallDataService = {
       console.error('[雨量数据服务] 检查数据采集器状态错误:', error);
       // 出错时假设数据采集器已停止
       this.updateCollectorStatus(false);
+      return { success: false, error: error.message };
+    }
+  },
+
+  // 原始数据转换为Chart.js格式
+  convertToChartJsFormat(rawData) {
+    // ... 此方法的实现保持不变
+    return rawData;
+  },
+
+  // 停止检查数据采集器状态的定时器
+  async stopCollectorStatusTimer() {
+    if (this.collectorStatusTimer) {
+      clearInterval(this.collectorStatusTimer);
+      this.collectorStatusTimer = null;
+      console.log('[雨量数据服务] 停止了数据采集器状态检查定时器');
+    }
+  },
+
+  // 设置OneNET自动同步状态
+  async setOneNetSyncEnable(enabled) {
+    try {
+      console.log(`[雨量数据服务] 设置OneNET自动同步状态: ${enabled ? '开启' : '关闭'}`);
+
+      // 从 localStorage 中获取用户名
+      let username = 'admin'; // 默认用户名
+      const userDataStr = localStorage.getItem('user');
+
+      if (userDataStr) {
+        try {
+          const userData = JSON.parse(userDataStr);
+          if (userData && userData.username) {
+            username = userData.username;
+          }
+        } catch (e) {
+          console.error('[雨量数据服务] 解析用户信息出错:', e);
+        }
+      }
+
+      // 调用后端API设置自动同步状态
+      const response = await get(`/api/rainfall/onenet/sync/enable?enabled=${enabled}&username=${encodeURIComponent(username)}`);
+
+      if (response.ok) {
+        const data = await response.json();
+        console.log(`[雨量数据服务] 设置OneNET自动同步状态成功:`, data);
+
+        if (data.success) {
+          return {
+            success: true,
+            message: data.message
+          };
+        } else {
+          return { success: false, error: data.error };
+        }
+      } else {
+        const errorData = await response.json();
+        return { success: false, error: errorData.error };
+      }
+    } catch (error) {
+      console.error('[雨量数据服务] 设置OneNET自动同步状态错误:', error);
       return { success: false, error: error.message };
     }
   }
