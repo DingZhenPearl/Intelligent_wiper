@@ -71,6 +71,35 @@
           <span class="icon material-icons">{{ voiceSuccess ? 'check_circle' : 'error' }}</span>
           <span>{{ voiceResult }}</span>
         </div>
+
+        <!-- MQTT服务控制 -->
+        <div class="mqtt-control">
+          <h3>OneNET MQTT控制</h3>
+          <div class="mqtt-buttons">
+            <button
+              class="mqtt-btn start"
+              @click="startMqttService"
+              :disabled="isWiperControlLoading"
+            >
+              <span class="icon material-icons">play_arrow</span>
+              启动MQTT服务
+            </button>
+            <button
+              class="mqtt-btn stop"
+              @click="stopMqttService"
+              :disabled="isWiperControlLoading"
+            >
+              <span class="icon material-icons">stop</span>
+              停止MQTT服务
+            </button>
+          </div>
+
+          <!-- 雨刷控制消息 -->
+          <div v-if="wiperControlMessage" class="wiper-control-message" :class="{ 'success': wiperControlSuccess, 'error': !wiperControlSuccess }">
+            <span class="icon material-icons">{{ wiperControlSuccess ? 'check_circle' : 'error' }}</span>
+            <span>{{ wiperControlMessage }}</span>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -81,6 +110,7 @@ import { ref, onMounted, onUnmounted, watch } from 'vue'
 import rainfallService from '@/services/rainfallService'
 import rainfallDataService from '@/services/rainfallDataService'
 import voiceService from '@/services/voiceService'
+import wiperService from '@/services/wiperService'
 
 export default {
   name: 'ControlPanel',
@@ -284,23 +314,139 @@ export default {
 
     // 数据源始终为OneNET平台
 
-    const changeStatus = (status, logChange = true) => {
-      currentStatus.value = status
-      // 这里可以添加与后端通信的逻辑
-      if (logChange) {
-        console.log(`雨刷状态切换为: ${status}`)
-      }
-    }
+    // 雨刷控制消息
+    const wiperControlMessage = ref('');
+    const wiperControlSuccess = ref(true);
 
-    const toggleWiper = () => {
+    // 雨刷控制状态
+    const isWiperControlLoading = ref(false);
+
+    // 显示雨刷控制结果消息
+    const showWiperControlMessage = (message, success = true) => {
+      wiperControlMessage.value = message;
+      wiperControlSuccess.value = success;
+
+      // 5秒后清除消息
+      setTimeout(() => {
+        wiperControlMessage.value = '';
+      }, 5000);
+    };
+
+    // 启动MQTT服务
+    const startMqttService = async () => {
+      try {
+        console.log('[Home] 启动MQTT控制服务');
+
+        // 设置加载状态
+        isWiperControlLoading.value = true;
+
+        // 调用服务启动MQTT控制服务
+        const result = await wiperService.startMqttService();
+
+        if (result.success) {
+          showWiperControlMessage('MQTT控制服务已启动，可以通过OneNET平台控制雨刷');
+          console.log('[Home] MQTT控制服务启动成功');
+        } else {
+          showWiperControlMessage(`启动MQTT控制服务失败: ${result.error || '未知错误'}`, false);
+          console.error('[Home] 启动MQTT控制服务失败:', result.error);
+        }
+      } catch (error) {
+        showWiperControlMessage(`启动MQTT控制服务错误: ${error.message || '未知错误'}`, false);
+        console.error('[Home] 启动MQTT控制服务错误:', error);
+      } finally {
+        // 重置加载状态
+        isWiperControlLoading.value = false;
+      }
+    };
+
+    // 停止MQTT服务
+    const stopMqttService = async () => {
+      try {
+        console.log('[Home] 停止MQTT控制服务');
+
+        // 设置加载状态
+        isWiperControlLoading.value = true;
+
+        // 调用服务停止MQTT控制服务
+        const result = await wiperService.stopMqttService();
+
+        if (result.success) {
+          showWiperControlMessage('MQTT控制服务已停止');
+          console.log('[Home] MQTT控制服务停止成功');
+        } else {
+          showWiperControlMessage(`停止MQTT控制服务失败: ${result.error || '未知错误'}`, false);
+          console.error('[Home] 停止MQTT控制服务失败:', result.error);
+        }
+      } catch (error) {
+        showWiperControlMessage(`停止MQTT控制服务错误: ${error.message || '未知错误'}`, false);
+        console.error('[Home] 停止MQTT控制服务错误:', error);
+      } finally {
+        // 重置加载状态
+        isWiperControlLoading.value = false;
+      }
+    };
+
+    // 修改雨刷状态
+    const changeStatus = async (status, logChange = true) => {
+      try {
+        // 设置加载状态
+        isWiperControlLoading.value = true;
+
+        if (logChange) {
+          console.log(`[Home] 准备切换雨刷状态为: ${status}`);
+        }
+
+        // 将前端状态映射到OneNET状态
+        let oneNetStatus = status;
+        if (status === 'interval') oneNetStatus = 'low';
+        if (status === 'smart') oneNetStatus = 'medium';
+
+        // 调用服务控制雨刷
+        const result = await wiperService.control(oneNetStatus);
+
+        if (result.success) {
+          // 更新本地状态
+          currentStatus.value = status;
+
+          if (logChange) {
+            console.log(`[Home] 雨刷状态已切换为: ${status}`);
+            showWiperControlMessage(`雨刷已切换到${getStatusText(status)}模式`);
+          }
+        } else {
+          console.error('[Home] 控制雨刷失败:', result.error);
+          showWiperControlMessage(`控制雨刷失败: ${result.error || '未知错误'}`, false);
+        }
+      } catch (error) {
+        console.error('[Home] 控制雨刷错误:', error);
+        showWiperControlMessage(`控制雨刷错误: ${error.message || '未知错误'}`, false);
+      } finally {
+        // 重置加载状态
+        isWiperControlLoading.value = false;
+      }
+    };
+
+    // 获取状态文本
+    const getStatusText = (status) => {
+      const statusMap = {
+        'off': '关闭',
+        'interval': '间歇',
+        'low': '低速',
+        'high': '高速',
+        'smart': '智能'
+      };
+      return statusMap[status] || status;
+    };
+
+    // 切换雨刷开关
+    const toggleWiper = async () => {
       if (currentStatus.value === 'off') {
         // 如果当前是关闭状态，则切换到智能模式
-        changeStatus('smart')
+        await changeStatus('smart');
       } else {
         // 如果当前是其他状态，则切换到关闭状态
-        changeStatus('off')
+        await changeStatus('off');
       }
-    }
+    };
 
     // 根据雨量百分比获取颜色
     const getRainfallColor = (percentage) => {
@@ -759,7 +905,13 @@ export default {
       isVoiceListening,
       voiceResult,
       voiceSuccess,
-      toggleVoiceControl
+      toggleVoiceControl,
+      // MQTT控制相关
+      startMqttService,
+      stopMqttService,
+      wiperControlMessage,
+      wiperControlSuccess,
+      isWiperControlLoading
     }
   }
 }
@@ -1073,6 +1225,93 @@ export default {
 
     .icon {
       font-size: var(--font-size-md);
+    }
+  }
+
+  .mqtt-control {
+    margin-top: var(--spacing-lg);
+    width: 100%;
+    max-width: 400px;
+
+    h3 {
+      margin-bottom: var(--spacing-sm);
+      color: #333;
+      font-size: var(--font-size-lg);
+      text-align: center;
+    }
+
+    .mqtt-buttons {
+      display: flex;
+      justify-content: center;
+      gap: var(--spacing-md);
+      margin-bottom: var(--spacing-sm);
+    }
+
+    .mqtt-btn {
+      border: none;
+      border-radius: var(--border-radius-md);
+      padding: var(--spacing-sm) var(--spacing-md);
+      font-size: var(--font-size-sm);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: var(--spacing-xs);
+      transition: background-color 0.3s ease;
+      flex: 1;
+      justify-content: center;
+
+      &.start {
+        background-color: #4285f4;
+        color: white;
+
+        &:hover:not(:disabled) {
+          background-color: #3367d6;
+        }
+      }
+
+      &.stop {
+        background-color: #ea4335;
+        color: white;
+
+        &:hover:not(:disabled) {
+          background-color: #d33426;
+        }
+      }
+
+      &:disabled {
+        background-color: #a0a0a0;
+        cursor: not-allowed;
+      }
+
+      .icon {
+        font-size: calc(var(--font-size-sm) * 1.2);
+      }
+    }
+
+    .wiper-control-message {
+      margin-top: var(--spacing-md);
+      padding: var(--spacing-xs) var(--spacing-sm);
+      border-radius: var(--border-radius-sm);
+      font-size: var(--font-size-sm);
+      display: flex;
+      align-items: center;
+      gap: var(--spacing-xs);
+
+      &.success {
+        background-color: rgba(52, 168, 83, 0.1);
+        color: #34a853;
+        border: 1px solid rgba(52, 168, 83, 0.3);
+      }
+
+      &.error {
+        background-color: rgba(234, 67, 53, 0.1);
+        color: #ea4335;
+        border: 1px solid rgba(234, 67, 53, 0.3);
+      }
+
+      .icon {
+        font-size: calc(var(--font-size-sm) * 1.2);
+      }
     }
   }
 
