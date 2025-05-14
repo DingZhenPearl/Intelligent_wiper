@@ -72,33 +72,10 @@
           <span>{{ voiceResult }}</span>
         </div>
 
-        <!-- MQTT服务控制 -->
-        <div class="mqtt-control">
-          <h3>OneNET MQTT控制</h3>
-          <div class="mqtt-buttons">
-            <button
-              class="mqtt-btn start"
-              @click="startMqttService"
-              :disabled="isWiperControlLoading"
-            >
-              <span class="icon material-icons">play_arrow</span>
-              启动MQTT服务
-            </button>
-            <button
-              class="mqtt-btn stop"
-              @click="stopMqttService"
-              :disabled="isWiperControlLoading"
-            >
-              <span class="icon material-icons">stop</span>
-              停止MQTT服务
-            </button>
-          </div>
-
-          <!-- 雨刷控制消息 -->
-          <div v-if="wiperControlMessage" class="wiper-control-message" :class="{ 'success': wiperControlSuccess, 'error': !wiperControlSuccess }">
-            <span class="icon material-icons">{{ wiperControlSuccess ? 'check_circle' : 'error' }}</span>
-            <span>{{ wiperControlMessage }}</span>
-          </div>
+        <!-- 雨刷控制消息 -->
+        <div v-if="wiperControlMessage" class="wiper-control-message" :class="{ 'success': wiperControlSuccess, 'error': !wiperControlSuccess }">
+          <span class="icon material-icons">{{ wiperControlSuccess ? 'check_circle' : 'error' }}</span>
+          <span>{{ wiperControlMessage }}</span>
         </div>
       </div>
     </div>
@@ -358,59 +335,7 @@ export default {
       }, 5000);
     };
 
-    // 启动MQTT服务
-    const startMqttService = async () => {
-      try {
-        console.log('[Home] 启动MQTT控制服务');
 
-        // 设置加载状态
-        isWiperControlLoading.value = true;
-
-        // 调用服务启动MQTT控制服务
-        const result = await wiperService.startMqttService();
-
-        if (result.success) {
-          showWiperControlMessage('MQTT控制服务已启动，可以通过OneNET平台控制雨刷');
-          console.log('[Home] MQTT控制服务启动成功');
-        } else {
-          showWiperControlMessage(`启动MQTT控制服务失败: ${result.error || '未知错误'}`, false);
-          console.error('[Home] 启动MQTT控制服务失败:', result.error);
-        }
-      } catch (error) {
-        showWiperControlMessage(`启动MQTT控制服务错误: ${error.message || '未知错误'}`, false);
-        console.error('[Home] 启动MQTT控制服务错误:', error);
-      } finally {
-        // 重置加载状态
-        isWiperControlLoading.value = false;
-      }
-    };
-
-    // 停止MQTT服务
-    const stopMqttService = async () => {
-      try {
-        console.log('[Home] 停止MQTT控制服务');
-
-        // 设置加载状态
-        isWiperControlLoading.value = true;
-
-        // 调用服务停止MQTT控制服务
-        const result = await wiperService.stopMqttService();
-
-        if (result.success) {
-          showWiperControlMessage('MQTT控制服务已停止');
-          console.log('[Home] MQTT控制服务停止成功');
-        } else {
-          showWiperControlMessage(`停止MQTT控制服务失败: ${result.error || '未知错误'}`, false);
-          console.error('[Home] 停止MQTT控制服务失败:', result.error);
-        }
-      } catch (error) {
-        showWiperControlMessage(`停止MQTT控制服务错误: ${error.message || '未知错误'}`, false);
-        console.error('[Home] 停止MQTT控制服务错误:', error);
-      } finally {
-        // 重置加载状态
-        isWiperControlLoading.value = false;
-      }
-    };
 
     // 修改雨刷状态
     const changeStatus = async (status, logChange = true) => {
@@ -422,13 +347,9 @@ export default {
           console.log(`[Home] 准备切换雨刷状态为: ${status}`);
         }
 
-        // 将前端状态映射到OneNET状态
-        let oneNetStatus = status;
-        if (status === 'interval') oneNetStatus = 'low';
-        if (status === 'smart') oneNetStatus = 'medium';
-
+        // 直接使用前端状态
         // 调用服务控制雨刷
-        const result = await wiperService.control(oneNetStatus);
+        const result = await wiperService.control(status);
 
         if (result.success) {
           // 更新本地状态
@@ -866,9 +787,7 @@ export default {
       voiceResult,
       voiceSuccess,
       toggleVoiceControl,
-      // MQTT控制相关
-      startMqttService,
-      stopMqttService,
+      // 雨刷控制消息相关
       wiperControlMessage,
       wiperControlSuccess,
       isWiperControlLoading
@@ -1188,90 +1107,30 @@ export default {
     }
   }
 
-  .mqtt-control {
-    margin-top: var(--spacing-lg);
-    width: 100%;
-    max-width: 400px;
 
-    h3 {
-      margin-bottom: var(--spacing-sm);
-      color: #333;
-      font-size: var(--font-size-lg);
-      text-align: center;
+  .wiper-control-message {
+    margin-top: var(--spacing-md);
+    padding: var(--spacing-xs) var(--spacing-sm);
+    border-radius: var(--border-radius-sm);
+    font-size: var(--font-size-sm);
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-xs);
+
+    &.success {
+      background-color: rgba(52, 168, 83, 0.1);
+      color: #34a853;
+      border: 1px solid rgba(52, 168, 83, 0.3);
     }
 
-    .mqtt-buttons {
-      display: flex;
-      justify-content: center;
-      gap: var(--spacing-md);
-      margin-bottom: var(--spacing-sm);
+    &.error {
+      background-color: rgba(234, 67, 53, 0.1);
+      color: #ea4335;
+      border: 1px solid rgba(234, 67, 53, 0.3);
     }
 
-    .mqtt-btn {
-      border: none;
-      border-radius: var(--border-radius-md);
-      padding: var(--spacing-sm) var(--spacing-md);
-      font-size: var(--font-size-sm);
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      gap: var(--spacing-xs);
-      transition: background-color 0.3s ease;
-      flex: 1;
-      justify-content: center;
-
-      &.start {
-        background-color: #4285f4;
-        color: white;
-
-        &:hover:not(:disabled) {
-          background-color: #3367d6;
-        }
-      }
-
-      &.stop {
-        background-color: #ea4335;
-        color: white;
-
-        &:hover:not(:disabled) {
-          background-color: #d33426;
-        }
-      }
-
-      &:disabled {
-        background-color: #a0a0a0;
-        cursor: not-allowed;
-      }
-
-      .icon {
-        font-size: calc(var(--font-size-sm) * 1.2);
-      }
-    }
-
-    .wiper-control-message {
-      margin-top: var(--spacing-md);
-      padding: var(--spacing-xs) var(--spacing-sm);
-      border-radius: var(--border-radius-sm);
-      font-size: var(--font-size-sm);
-      display: flex;
-      align-items: center;
-      gap: var(--spacing-xs);
-
-      &.success {
-        background-color: rgba(52, 168, 83, 0.1);
-        color: #34a853;
-        border: 1px solid rgba(52, 168, 83, 0.3);
-      }
-
-      &.error {
-        background-color: rgba(234, 67, 53, 0.1);
-        color: #ea4335;
-        border: 1px solid rgba(234, 67, 53, 0.3);
-      }
-
-      .icon {
-        font-size: calc(var(--font-size-sm) * 1.2);
-      }
+    .icon {
+      font-size: calc(var(--font-size-sm) * 1.2);
     }
   }
 

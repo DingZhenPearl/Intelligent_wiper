@@ -10,7 +10,6 @@ const { terminateAllPythonProcesses } = require('./utils/processUtils');
 const { initializeDatabase } = require('./services/databaseService');
 const {
   cleanup,
-  startRainfallCollector,
   startOneNetSync
 } = require('./services/rainfallCollector');
 

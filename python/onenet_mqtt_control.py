@@ -40,7 +40,7 @@ MQTT_TOPIC_PROPERTY_POST_REPLY = f"$sys/{PRODUCT_ID}/{DEVICE_NAME}/thing/propert
 # 全局变量
 mqtt_client = None
 running = True
-wiper_status = "off"  # 雨刷状态：off, low, medium, high
+wiper_status = None  # 雨刷状态：off, interval, low, medium, high, smart
 
 def on_connect(client, userdata, flags, rc, *args):
     """MQTT连接回调函数"""
@@ -52,8 +52,7 @@ def on_connect(client, userdata, flags, rc, *args):
         log(f"已订阅主题: {MQTT_TOPIC_COMMAND}")
         log(f"已订阅主题: {MQTT_TOPIC_PROPERTY_POST_REPLY}")
 
-        # 连接成功后上报当前状态
-        report_wiper_status()
+        # 不再自动上报状态
     else:
         log(f"连接MQTT服务器失败，返回码: {rc}")
 
@@ -100,7 +99,6 @@ def handle_command(payload):
             # 验证命令值
             if wiper_command in ["off", "low", "medium", "high"]:
                 # 更新雨刷状态
-                old_status = wiper_status
                 wiper_status = wiper_command
 
                 # 执行雨刷控制操作
@@ -109,9 +107,24 @@ def handle_command(payload):
                 # 回复命令已执行
                 reply_success(command_id)
 
-                # 如果状态发生变化，上报新状态
-                if old_status != wiper_status:
-                    report_wiper_status()
+                # 上报新状态（无需比较，因为状态已经更新）
+                report_wiper_status()
+            # 处理所有状态
+            elif wiper_command in ["interval", "smart", "off", "low", "medium", "high"]:
+                # 直接使用前端状态
+                log(f"收到雨刷控制命令: {wiper_command}")
+
+                # 更新雨刷状态
+                wiper_status = wiper_command
+
+                # 执行雨刷控制操作
+                control_wiper(wiper_command)
+
+                # 回复命令已执行
+                reply_success(command_id)
+
+                # 上报新状态（无需比较，因为状态已经更新）
+                report_wiper_status()
             else:
                 log(f"无效的雨刷控制命令值: {wiper_command}")
                 reply_error(command_id, 400, f"无效的雨刷控制命令值: {wiper_command}")
@@ -181,6 +194,11 @@ def report_wiper_status():
     """上报雨刷当前状态"""
     global wiper_status
 
+    # 如果状态未设置，不上报
+    if wiper_status is None:
+        log("雨刷状态未设置，跳过状态上报")
+        return
+
     # 生成唯一ID
     report_id = str(int(time.time()))
 
@@ -196,6 +214,7 @@ def report_wiper_status():
 
     # 发布状态上报消息
     mqtt_client.publish(MQTT_TOPIC_PROPERTY_POST, json.dumps(report))
+
     log(f"已上报雨刷状态: {wiper_status}, 报告ID: {report_id}")
 
 def connect_mqtt():
@@ -282,7 +301,7 @@ def main():
     parser = argparse.ArgumentParser(description='OneNET MQTT雨刷控制工具')
     parser.add_argument('--action', choices=['start', 'stop', 'status', 'control'],
                         default='start', help='执行的操作')
-    parser.add_argument('--status', choices=['off', 'low', 'medium', 'high'],
+    parser.add_argument('--status', choices=['off', 'low', 'medium', 'high', 'interval', 'smart'],
                         help='设置雨刷状态（仅在action=control时有效）')
 
     args = parser.parse_args()
@@ -299,9 +318,13 @@ def main():
                 return
             time.sleep(1)  # 等待连接建立
 
-        # 上报当前状态
-        report_wiper_status()
-        print(json.dumps({"success": True, "status": wiper_status}, ensure_ascii=False))
+        # 上报当前状态（如果已设置）
+        if wiper_status is not None:
+            report_wiper_status()
+            print(json.dumps({"success": True, "status": wiper_status}, ensure_ascii=False))
+        else:
+            log("雨刷状态未设置")
+            print(json.dumps({"success": True, "status": "未设置"}, ensure_ascii=False))
 
         # 断开连接
         disconnect_mqtt()
@@ -310,6 +333,13 @@ def main():
             print(json.dumps({"success": False, "error": "控制操作需要指定--status参数"}, ensure_ascii=False))
             return
 
+        # 直接使用前端状态
+        status = args.status
+        log(f"使用状态: '{status}'")
+
+        # 先更新全局状态变量，这样连接时自动上报的就是新状态
+        wiper_status = status
+
         # 如果MQTT客户端未连接，先连接
         if not mqtt_client or not hasattr(mqtt_client, 'is_connected') or not mqtt_client.is_connected():
             if not connect_mqtt():
@@ -317,11 +347,10 @@ def main():
                 return
             time.sleep(1)  # 等待连接建立
 
-        # 更新状态并上报
-        wiper_status = args.status
-        control_wiper(args.status)
+        # 执行控制并上报
+        control_wiper(status)
         report_wiper_status()
-        print(json.dumps({"success": True, "status": wiper_status}, ensure_ascii=False))
+        print(json.dumps({"success": True, "status": status}, ensure_ascii=False))
 
         # 断开连接
         disconnect_mqtt()

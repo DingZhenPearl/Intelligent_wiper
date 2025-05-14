@@ -19,28 +19,35 @@ const TEST_SCRIPT = path.join(__dirname, '../python/test_mqtt_control.py');
 router.get('/status', async (req, res) => {
   try {
     console.log('获取雨刷状态');
-    
+
     // 调用Python脚本获取状态
     const python = spawn('python', [PYTHON_SCRIPT, '--action', 'status']);
-    
+
     let dataString = '';
     let errorString = '';
-    
+
     // 收集标准输出
     python.stdout.on('data', (data) => {
       dataString += data.toString();
     });
-    
+
     // 收集标准错误
     python.stderr.on('data', (data) => {
-      errorString += data.toString();
-      console.error(`Python错误: ${data}`);
+      const output = data.toString();
+      errorString += output;
+
+      // 区分日志和真正的错误
+      if (output.trim().startsWith('LOG:')) {
+        console.log(`Python日志: ${output.trim()}`);  // 作为普通日志输出
+      } else {
+        console.error(`Python错误: ${output}`);  // 真正的错误
+      }
     });
-    
+
     // 脚本执行完成
     python.on('close', (code) => {
       console.log(`Python脚本退出，状态码: ${code}`);
-      
+
       if (code !== 0) {
         return res.status(500).json({
           success: false,
@@ -48,7 +55,7 @@ router.get('/status', async (req, res) => {
           details: errorString
         });
       }
-      
+
       try {
         // 解析Python脚本的输出
         const result = JSON.parse(dataString);
@@ -81,9 +88,9 @@ router.get('/status', async (req, res) => {
 router.post('/control', async (req, res) => {
   try {
     const { status } = req.body;
-    
+
     // 验证状态值
-    const validStatuses = ['off', 'low', 'medium', 'high'];
+    const validStatuses = ['off', 'interval', 'low', 'medium', 'high', 'smart'];
     if (!status || !validStatuses.includes(status)) {
       return res.status(400).json({
         success: false,
@@ -91,30 +98,37 @@ router.post('/control', async (req, res) => {
         details: `状态必须是以下值之一: ${validStatuses.join(', ')}`
       });
     }
-    
+
     console.log(`控制雨刷: ${status}`);
-    
+
     // 调用Python脚本控制雨刷
     const python = spawn('python', [PYTHON_SCRIPT, '--action', 'control', '--status', status]);
-    
+
     let dataString = '';
     let errorString = '';
-    
+
     // 收集标准输出
     python.stdout.on('data', (data) => {
       dataString += data.toString();
     });
-    
+
     // 收集标准错误
     python.stderr.on('data', (data) => {
-      errorString += data.toString();
-      console.error(`Python错误: ${data}`);
+      const output = data.toString();
+      errorString += output;
+
+      // 区分日志和真正的错误
+      if (output.trim().startsWith('LOG:')) {
+        console.log(`Python日志: ${output.trim()}`);  // 作为普通日志输出
+      } else {
+        console.error(`Python错误: ${output}`);  // 真正的错误
+      }
     });
-    
+
     // 脚本执行完成
     python.on('close', (code) => {
       console.log(`Python脚本退出，状态码: ${code}`);
-      
+
       if (code !== 0) {
         return res.status(500).json({
           success: false,
@@ -122,7 +136,7 @@ router.post('/control', async (req, res) => {
           details: errorString
         });
       }
-      
+
       try {
         // 解析Python脚本的输出
         const result = JSON.parse(dataString);
@@ -155,9 +169,9 @@ router.post('/control', async (req, res) => {
 router.post('/api-control', async (req, res) => {
   try {
     const { command } = req.body;
-    
+
     // 验证命令值
-    const validCommands = ['off', 'low', 'medium', 'high'];
+    const validCommands = ['off', 'interval', 'low', 'medium', 'high', 'smart'];
     if (!command || !validCommands.includes(command)) {
       return res.status(400).json({
         success: false,
@@ -165,30 +179,37 @@ router.post('/api-control', async (req, res) => {
         details: `命令必须是以下值之一: ${validCommands.join(', ')}`
       });
     }
-    
+
     console.log(`通过API控制雨刷: ${command}`);
-    
+
     // 调用Python测试脚本通过API控制雨刷
     const python = spawn('python', [TEST_SCRIPT, '--action', 'control', '--command', command]);
-    
+
     let dataString = '';
     let errorString = '';
-    
+
     // 收集标准输出
     python.stdout.on('data', (data) => {
       dataString += data.toString();
     });
-    
+
     // 收集标准错误
     python.stderr.on('data', (data) => {
-      errorString += data.toString();
-      console.error(`Python错误: ${data}`);
+      const output = data.toString();
+      errorString += output;
+
+      // 区分日志和真正的错误
+      if (output.trim().startsWith('LOG:')) {
+        console.log(`Python日志: ${output.trim()}`);  // 作为普通日志输出
+      } else {
+        console.error(`Python错误: ${output}`);  // 真正的错误
+      }
     });
-    
+
     // 脚本执行完成
     python.on('close', (code) => {
       console.log(`Python脚本退出，状态码: ${code}`);
-      
+
       if (code !== 0) {
         return res.status(500).json({
           success: false,
@@ -196,7 +217,7 @@ router.post('/api-control', async (req, res) => {
           details: errorString
         });
       }
-      
+
       try {
         // 解析Python脚本的输出
         const result = JSON.parse(dataString);
@@ -228,16 +249,16 @@ router.post('/api-control', async (req, res) => {
 router.post('/start-service', async (req, res) => {
   try {
     console.log('启动MQTT控制服务');
-    
+
     // 调用Python脚本启动MQTT服务
     const python = spawn('python', [PYTHON_SCRIPT, '--action', 'start'], {
       detached: true, // 使进程在后台运行
       stdio: ['ignore', 'ignore', 'ignore'] // 忽略标准输入输出
     });
-    
+
     // 分离子进程，使其在后台运行
     python.unref();
-    
+
     return res.json({
       success: true,
       message: 'MQTT控制服务已在后台启动'
@@ -259,28 +280,35 @@ router.post('/start-service', async (req, res) => {
 router.post('/stop-service', async (req, res) => {
   try {
     console.log('停止MQTT控制服务');
-    
+
     // 调用Python脚本停止MQTT服务
     const python = spawn('python', [PYTHON_SCRIPT, '--action', 'stop']);
-    
+
     let dataString = '';
     let errorString = '';
-    
+
     // 收集标准输出
     python.stdout.on('data', (data) => {
       dataString += data.toString();
     });
-    
+
     // 收集标准错误
     python.stderr.on('data', (data) => {
-      errorString += data.toString();
-      console.error(`Python错误: ${data}`);
+      const output = data.toString();
+      errorString += output;
+
+      // 区分日志和真正的错误
+      if (output.trim().startsWith('LOG:')) {
+        console.log(`Python日志: ${output.trim()}`);  // 作为普通日志输出
+      } else {
+        console.error(`Python错误: ${output}`);  // 真正的错误
+      }
     });
-    
+
     // 脚本执行完成
     python.on('close', (code) => {
       console.log(`Python脚本退出，状态码: ${code}`);
-      
+
       if (code !== 0) {
         return res.status(500).json({
           success: false,
@@ -288,7 +316,7 @@ router.post('/stop-service', async (req, res) => {
           details: errorString
         });
       }
-      
+
       return res.json({
         success: true,
         message: 'MQTT控制服务已停止'
