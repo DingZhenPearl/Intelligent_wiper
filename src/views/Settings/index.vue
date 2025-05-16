@@ -54,6 +54,22 @@
       </select>
     </div>
 
+    <!-- 服务器地址设置 (仅在安卓环境中显示) -->
+    <div class="section" v-if="isAndroid">
+      <h3>服务器地址设置</h3>
+      <div class="server-address">
+        <input
+          type="text"
+          v-model="serverAddress"
+          placeholder="请输入服务器地址 (例如: http://192.168.1.100:3000)"
+          class="server-input"
+        />
+        <div class="server-hint">
+          请输入完整的服务器地址，包括协议(http://)和端口号
+        </div>
+      </div>
+    </div>
+
     <!-- 底部按钮 -->
     <div class="button-group">
       <button class="btn-save" @click="saveSettings">保存设置</button>
@@ -67,6 +83,7 @@ import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { post } from '@/services/api'  // 导入API服务
 import authService from '@/services/authService'  // 导入认证服务
+import { isAndroid as checkIsAndroid } from '@/utils/platform'  // 导入平台检测工具，重命名避免冲突
 
 export default {
   name: 'SettingsPage',
@@ -75,17 +92,48 @@ export default {
     const uploadFrequency = ref('1')
     const userAvatar = ref('/src/assets/images/default-avatar.png')
     const username = ref('未登录')
+    const serverAddress = ref('')
+    const isAndroid = ref(false)
 
-    // 在组件挂载时获取用户信息
-    onMounted(() => {
+    // 在组件挂载时获取用户信息和检测平台
+    onMounted(async () => {
+      // 获取用户信息
       const currentUser = authService.getCurrentUser()
       if (currentUser && currentUser.username) {
         username.value = currentUser.username
       }
+
+      // 检测是否为安卓平台
+      isAndroid.value = checkIsAndroid()
+      console.log(`[设置] 当前平台是否为安卓: ${isAndroid.value}`)
+
+      // 如果是安卓平台，获取保存的服务器地址
+      if (isAndroid.value) {
+        const savedServerUrl = localStorage.getItem('serverUrl')
+        if (savedServerUrl) {
+          serverAddress.value = savedServerUrl
+          console.log(`[设置] 已加载保存的服务器地址: ${serverAddress.value}`)
+        }
+      }
     })
 
     const saveSettings = () => {
-      // TODO: 实现保存设置的逻辑
+      // 保存上传频率设置
+      localStorage.setItem('uploadFrequency', uploadFrequency.value)
+
+      // 如果是安卓平台，保存服务器地址
+      if (isAndroid.value && serverAddress.value) {
+        // 验证服务器地址格式
+        if (!serverAddress.value.startsWith('http://') && !serverAddress.value.startsWith('https://')) {
+          alert('服务器地址必须以http://或https://开头')
+          return
+        }
+
+        // 保存服务器地址
+        localStorage.setItem('serverUrl', serverAddress.value)
+        console.log(`[设置] 已保存服务器地址: ${serverAddress.value}`)
+      }
+
       alert('设置已保存')
     }
 
@@ -114,6 +162,8 @@ export default {
       uploadFrequency,
       userAvatar,
       username,
+      serverAddress,
+      isAndroid,
       saveSettings,
       logout
     }
@@ -206,6 +256,24 @@ export default {
     color: #333;
   }
 
+  .server-address {
+    .server-input {
+      width: 100%;
+      padding: var(--spacing-md);
+      border: 1px solid #ddd;
+      border-radius: var(--border-radius-md);
+      font-size: var(--font-size-lg);
+      color: #333;
+      margin-bottom: var(--spacing-sm);
+    }
+
+    .server-hint {
+      font-size: var(--font-size-sm);
+      color: #666;
+      font-style: italic;
+    }
+  }
+
   .button-group {
     margin-top: var(--spacing-xl);
     display: flex;
@@ -227,6 +295,15 @@ export default {
 
         &:hover {
           background: #1565C0;
+        }
+      }
+
+      &.btn-logout {
+        background: #f44336;
+        color: white;
+
+        &:hover {
+          background: #d32f2f;
         }
       }
     }

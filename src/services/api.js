@@ -5,9 +5,15 @@ import { CapacitorHttp } from '@capacitor/core';
 const getBaseUrl = () => {
   if (isNative()) {
     // 原生应用中使用固定地址
-    // 注意：在生产环境中，这应该是您的实际服务器地址
-    const nativeBaseUrl = 'http://10.29.101.231:3000';
-    console.log(`[API] 原生环境使用固定服务器地址: ${nativeBaseUrl}`);
+    // 从localStorage中获取服务器地址，如果没有则使用默认地址
+    const savedServerUrl = localStorage.getItem('serverUrl');
+
+    // 默认服务器地址 - 可以根据实际情况修改
+    // 注意：在实际部署时，这应该是您的服务器公网地址
+    const defaultServerUrl = 'http://10.29.101.231:3000';
+
+    const nativeBaseUrl = savedServerUrl || defaultServerUrl;
+    console.log(`[API] 原生环境使用服务器地址: ${nativeBaseUrl}`);
     return nativeBaseUrl;
   } else {
     // Web环境中，使用当前页面的协议和主机
