@@ -12,31 +12,12 @@
         </div>
         <div class="label">实时雨量</div>
         <div class="data-status" v-if="!mockDataMessage && !isMockDataLoading">
-          {{ backendMessage || '点击下方按钮开始收集数据' }}
+          {{ backendMessage || 'OneNET数据同步服务状态' }}
         </div>
 
         <!-- 使用OneNET平台作为数据源 -->
 
-        <!-- 数据收集控制按钮 -->
-        <div class="data-control-buttons">
-          <button
-            v-if="!isDataPollingActive"
-            class="mock-data-btn start"
-            @click="startOneNetSync"
-            :disabled="isMockDataLoading"
-          >
-            <span class="icon material-icons">play_arrow</span>
-            {{ isMockDataLoading ? '正在初始化...' : '开始OneNET同步' }}
-          </button>
-          <button
-            v-else
-            class="mock-data-btn stop"
-            @click="stopOneNetSync"
-          >
-            <span class="icon material-icons">stop</span>
-            停止OneNET同步
-          </button>
-        </div>
+        <!-- 数据同步消息显示 -->
         <div v-if="mockDataMessage" class="mock-data-message" :class="{ success: mockDataSuccess, error: !mockDataSuccess }">
           {{ mockDataMessage }}
         </div>
@@ -717,9 +698,34 @@ export default {
             console.log('[Home] 数据采集器已在运行，启动前端数据轮询');
             startServiceDataCheck();
           } else {
-            // 数据采集器未在运行，显示启动提示
-            console.log('[Home] 数据采集器未在运行，显示启动提示');
-            backendMessage.value = 'OneNET同步未运行，点击按钮开始同步';
+            // 数据采集器未在运行，自动启动OneNET同步
+            console.log('[Home] 数据采集器未在运行，自动启动OneNET同步');
+            backendMessage.value = '正在启动OneNET同步...';
+
+            // 自动启动OneNET同步
+            try {
+              const result = await rainfallDataService.startOneNetSync();
+              if (result.success) {
+                console.log('[Home] 自动启动OneNET同步成功');
+                mockDataSuccess.value = true;
+                mockDataMessage.value = `OneNET同步服务已自动启动`;
+
+                // 立即获取最新数据并启动数据轮询
+                fetchRainfallFromBackend();
+                startServiceDataCheck();
+
+                // 5秒后清除消息
+                setTimeout(() => {
+                  mockDataMessage.value = '';
+                }, 5000);
+              } else {
+                console.error('[Home] 自动启动OneNET同步失败:', result.error);
+                backendMessage.value = `OneNET同步启动失败: ${result.error || '未知错误'}`;
+              }
+            } catch (error) {
+              console.error('[Home] 自动启动OneNET同步错误:', error);
+              backendMessage.value = `OneNET同步启动错误: ${error.message || '未知错误'}`;
+            }
           }
         } else {
           // 检查状态出错，显示错误信息
