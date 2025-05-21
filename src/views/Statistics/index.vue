@@ -150,6 +150,14 @@ export default {
       if (activePeriod.value === 3 && chartData.value.length > 0) {
         console.log('全部视图第一个数据点:', chartData.value[0]);
         console.log('全部视图第一个数据点的value:', chartData.value[0].value);
+
+        // 检查数据格式，确保可以正确显示
+        const firstPoint = chartData.value[0];
+        if (firstPoint && firstPoint.value && firstPoint.value.length === 2) {
+          console.log('全部视图数据格式正确，包含日期和值');
+        } else {
+          console.warn('全部视图数据格式可能不正确:', firstPoint);
+        }
       }
 
       // 获取当前时间范围
@@ -171,6 +179,7 @@ export default {
         startTime.setDate(startTime.getDate() - 30);
         startTime.setHours(0, 0, 0, 0);
         endTime.setHours(23, 59, 59, 999);
+        console.log(`总数据视图: 使用30天时间范围 ${startTime.toLocaleString()} - ${endTime.toLocaleString()}`);
       }
 
       console.log(`当前视图时间范围: ${startTime.toLocaleString()} - ${endTime.toLocaleString()}`);
@@ -194,29 +203,45 @@ export default {
           }
           // 如果是字符串，尝试解析为日期
           else if (typeof dateStr === 'string') {
-            // 尝试使用标准日期解析
-            date = new Date(dateStr);
-
-            // 如果解析失败，尝试特殊格式
-            if (isNaN(date.getTime())) {
-              if (dateStr.includes('/')) {
-                // 格式: "月/日"
-                const parts = dateStr.split('/');
-                if (parts.length === 2) {
-                  const month = parseInt(parts[0]) - 1; // 月份从0开始
-                  const day = parseInt(parts[1]);
-                  date = new Date();
-                  date.setMonth(month);
-                  date.setDate(day);
-                  date.setHours(0, 0, 0, 0);
-                }
-              } else if (dateStr.includes(':')) {
-                // 格式: "HH:MM:SS" 或 "HH:MM"
-                const parts = dateStr.split(':');
+            // 总数据视图特殊处理
+            if (activePeriod.value === 3 && dateStr.includes('/')) {
+              // 格式: "月/日"
+              const parts = dateStr.split('/');
+              if (parts.length === 2) {
+                const month = parseInt(parts[0]) - 1; // 月份从0开始
+                const day = parseInt(parts[1]);
                 date = new Date();
-                date.setHours(parseInt(parts[0]));
-                date.setMinutes(parts.length > 1 ? parseInt(parts[1]) : 0);
-                date.setSeconds(parts.length > 2 ? parseInt(parts[2]) : 0);
+                date.setMonth(month);
+                date.setDate(day);
+                date.setHours(0, 0, 0, 0);
+
+                console.log(`总数据视图: 解析日期 ${dateStr} -> ${date.toISOString()}`);
+              }
+            } else {
+              // 尝试使用标准日期解析
+              date = new Date(dateStr);
+
+              // 如果解析失败，尝试特殊格式
+              if (isNaN(date.getTime())) {
+                if (dateStr.includes('/')) {
+                  // 格式: "月/日"
+                  const parts = dateStr.split('/');
+                  if (parts.length === 2) {
+                    const month = parseInt(parts[0]) - 1; // 月份从0开始
+                    const day = parseInt(parts[1]);
+                    date = new Date();
+                    date.setMonth(month);
+                    date.setDate(day);
+                    date.setHours(0, 0, 0, 0);
+                  }
+                } else if (dateStr.includes(':')) {
+                  // 格式: "HH:MM:SS" 或 "HH:MM"
+                  const parts = dateStr.split(':');
+                  date = new Date();
+                  date.setHours(parseInt(parts[0]));
+                  date.setMinutes(parts.length > 1 ? parseInt(parts[1]) : 0);
+                  date.setSeconds(parts.length > 2 ? parseInt(parts[2]) : 0);
+                }
               }
             }
           }
@@ -874,7 +899,21 @@ export default {
         {
           name: '雨量数据',
           type: 'line',
-          showSymbol: false,
+          showSymbol: true,
+          symbol: 'circle',
+          symbolSize: 8,
+          itemStyle: {
+            color: '#3498db'
+          },
+          emphasis: {
+            itemStyle: {
+              color: '#2980b9',
+              borderColor: '#fff',
+              borderWidth: 2,
+              shadowBlur: 10,
+              shadowColor: 'rgba(0, 0, 0, 0.3)'
+            }
+          },
           areaStyle: {
             opacity: 0.3
           },
@@ -898,47 +937,18 @@ export default {
         left: 'center'
       },
       tooltip: {
-        trigger: 'item',  // 改为item触发，更适合散点图
+        trigger: 'item',  // 使用item触发，适合散点图
         formatter: function (params) {
-          // 获取雨量值
-          var rainfallValue = params.value && params.value.length > 1 ? params.value[1] : 0;
+          // 获取雨量值 - 现在直接使用value
+          var rainfallValue = params.value !== undefined ? params.value : 0;
 
-          // 尝试获取有效的日期对象
-          var dateStr = '';
-          var date;
+          // 获取原始时间字符串
+          var timeStr = params.data && params.data.originalTime ? params.data.originalTime : '时间未知';
 
-          // 首先尝试从params.value[0]获取日期
-          if (params.value && params.value.length > 0) {
-            if (params.value[0] instanceof Date) {
-              date = params.value[0];
-            } else if (typeof params.value[0] === 'string') {
-              try {
-                date = new Date(params.value[0]);
-              } catch (e) {
-                date = null;
-              }
-            }
-          }
+          // 获取序号信息
+          const name = params.data && params.data.name ? params.data.name : `数据点 #${params.dataIndex + 1}`;
 
-          // 如果有有效的日期对象，格式化它
-          if (date && !isNaN(date.getTime())) {
-            const year = date.getFullYear();
-            const month = date.getMonth() + 1;
-            const day = date.getDate();
-            const hours = date.getHours();
-            const minutes = date.getMinutes();
-            const seconds = date.getSeconds();
-
-            // 格式化为 YYYY-MM-DD HH:MM:SS
-            dateStr = `${year}-${month < 10 ? '0' + month : month}-${day < 10 ? '0' + day : day} ${hours < 10 ? '0' + hours : hours}:${minutes < 10 ? '0' + minutes : minutes}:${seconds < 10 ? '0' + seconds : seconds}`;
-          } else {
-            dateStr = params.value[0] || '时间未知';
-          }
-
-          // 添加序号信息
-          const index = params.dataIndex + 1;
-
-          return `数据点 #${index}<br/>时间: ${dateStr}<br/>雨量: ${rainfallValue} mm`;
+          return `${name}<br/>时间: ${timeStr}<br/>雨量: ${rainfallValue} mm`;
         },
         backgroundColor: 'rgba(50, 50, 50, 0.9)',
         borderColor: '#e74c3c',
@@ -948,18 +958,24 @@ export default {
         extraCssText: 'box-shadow: 0 0 8px rgba(0, 0, 0, 0.3);'
       },
       xAxis: {
-        type: 'time',  // 改为时间轴，更准确地表示时间数据
+        type: 'category',  // 使用类别轴，使点之间间隔固定
         splitLine: {
           show: false
         },
         axisLabel: {
-          formatter: function(value) {
-            const date = new Date(value);
-            return `${date.getHours()}:${date.getMinutes() < 10 ? '0' + date.getMinutes() : date.getMinutes()}`;
+          formatter: function(_, index) {
+            // 只显示序号，不显示时间
+            return `#${index + 1}`;
           },
-          interval: 'auto',  // 自动计算显示间隔，避免标签重叠
-          rotate: 30,        // 旋转标签，避免重叠
-          hideOverlap: true  // 隐藏重叠的标签
+          interval: function(index) {
+            // 控制标签显示间隔，每5个点显示一个标签
+            return index % 5 === 0;
+          },
+          rotate: 0,
+          hideOverlap: true
+        },
+        axisTick: {
+          alignWithLabel: true
         },
         // 启用缩放功能
         scale: true
@@ -997,10 +1013,28 @@ export default {
       series: [
         {
           name: '原始雨量数据',
-          type: 'scatter',  // 使用散点图显示原始数据
-          symbolSize: 8,    // 点的大小
+          type: 'bar',      // 使用柱状图显示原始数据
+          showBackground: true,
+          backgroundStyle: {
+            color: 'rgba(180, 180, 180, 0.2)'
+          },
           itemStyle: {
-            color: '#e74c3c'  // 红色点
+            color: '#e74c3c',  // 红色柱子
+            borderRadius: [4, 4, 0, 0]  // 圆角柱子
+          },
+          emphasis: {
+            itemStyle: {
+              color: '#c0392b',
+              shadowBlur: 10,
+              shadowColor: 'rgba(0, 0, 0, 0.3)'
+            }
+          },
+          label: {
+            show: true,
+            position: 'top',
+            formatter: '{c} mm',
+            fontSize: 12,
+            color: '#333'
           },
           data: []
         }
@@ -1021,8 +1055,13 @@ export default {
           // 更新图表数据
           rawChartData.value = result.data || [];
 
+          // 检查原始数据格式
+          if (rawChartData.value.length > 0) {
+            console.log('原始数据第一个点:', rawChartData.value[0]);
+          }
+
           // 简化的数据处理逻辑
-          const processedData = rawChartData.value.map(point => {
+          const processedData = rawChartData.value.map((point, index) => {
             try {
               // 确保point.value是数组且有两个元素
               if (!Array.isArray(point.value) || point.value.length !== 2) {
@@ -1033,7 +1072,7 @@ export default {
               let timestamp = point.value[0];
               const value = point.value[1];
 
-              // 尝试将时间戳转换为日期对象
+              // 尝试将时间戳转换为日期对象，用于tooltip显示
               let date;
               if (timestamp instanceof Date) {
                 date = timestamp;
@@ -1048,11 +1087,14 @@ export default {
                 return null;
               }
 
-              // 格式化时间戳为可读字符串
-              const formattedTimestamp = date.toISOString();
+              // 格式化时间戳为可读字符串，用于tooltip显示
+              const formattedTime = date.toLocaleString();
 
               return {
-                value: [formattedTimestamp, value]
+                name: `数据点 #${index + 1}`,
+                value: value,  // 直接使用雨量值
+                originalTime: formattedTime,  // 保存原始时间用于tooltip显示
+                timestamp: date  // 保存日期对象用于排序
               };
             } catch (e) {
               console.error('处理原始数据点出错:', e, point);
@@ -1062,7 +1104,7 @@ export default {
 
           // 按时间排序
           processedData.sort((a, b) => {
-            return new Date(a.value[0]) - new Date(b.value[0]);
+            return a.timestamp - b.timestamp;
           });
 
           // 更新图表
