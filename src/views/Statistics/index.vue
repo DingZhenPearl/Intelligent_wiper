@@ -152,21 +152,6 @@ export default {
         console.log('全部视图第一个数据点的value:', chartData.value[0].value);
       }
 
-      // 如果是10分钟视图，使用调整后的时间戳
-      if (activePeriod.value === 0 && chartData.value.length > 0) {
-        console.log('使用调整后的时间戳显示10分钟视图数据');
-
-        // 检查数据中是否有adjustedDate字段
-        const hasAdjustedDate = Object.prototype.hasOwnProperty.call(chartData.value[0], 'adjustedDate');
-        if (hasAdjustedDate) {
-          console.log('检测到adjustedDate字段，使用调整后的时间戳');
-        }
-      }
-
-      // 处理数据并更新图表
-      // 打印原始数据，用于调试
-      console.log(`处理前的${activePeriod.value}视图数据:`, chartData.value);
-
       // 获取当前时间范围
       const now = new Date();
       let startTime = new Date(now);
@@ -181,7 +166,7 @@ export default {
         // 设置为当天的0点到23:59:59
         startTime.setHours(0, 0, 0, 0);
         endTime.setHours(23, 59, 59, 999);
-        console.log(`一天内视图: 严格使用当天时间范围 ${startTime.toLocaleString()} - ${endTime.toLocaleString()}`);
+        console.log(`一天内视图: 使用当天时间范围 ${startTime.toLocaleString()} - ${endTime.toLocaleString()}`);
       } else if (activePeriod.value === 3) { // 总数据
         startTime.setDate(startTime.getDate() - 30);
         startTime.setHours(0, 0, 0, 0);
@@ -190,205 +175,117 @@ export default {
 
       console.log(`当前视图时间范围: ${startTime.toLocaleString()} - ${endTime.toLocaleString()}`);
 
-      // 确保所有数据点都有正确的格式，并过滤掉不在时间范围内的点
+      // 简化的数据处理逻辑
       const processedData = chartData.value.map(item => {
-        // 尝试将日期字符串转换为日期对象
         try {
           // 确保item.value是数组且有两个元素
-          if (Array.isArray(item.value) && item.value.length === 2) {
-            const dateStr = item.value[0];
-            const value = item.value[1];
-            let date;
+          if (!Array.isArray(item.value) || item.value.length !== 2) {
+            console.warn('数据点格式不正确:', item);
+            return null;
+          }
 
-            // 如果第一个元素已经是日期对象，直接使用
-            if (dateStr instanceof Date && !isNaN(dateStr.getTime())) {
-              date = dateStr;
-            }
-            // 如果是字符串，尝试解析为日期
-            else if (typeof dateStr === 'string') {
-              // 尝试不同的日期格式
+          const dateStr = item.value[0];
+          const value = item.value[1];
+          let date;
+
+          // 如果第一个元素已经是日期对象，直接使用
+          if (dateStr instanceof Date && !isNaN(dateStr.getTime())) {
+            date = dateStr;
+          }
+          // 如果是字符串，尝试解析为日期
+          else if (typeof dateStr === 'string') {
+            // 尝试使用标准日期解析
+            date = new Date(dateStr);
+
+            // 如果解析失败，尝试特殊格式
+            if (isNaN(date.getTime())) {
               if (dateStr.includes('/')) {
                 // 格式: "月/日"
                 const parts = dateStr.split('/');
                 if (parts.length === 2) {
-                  const month = parseInt(parts[0]);
+                  const month = parseInt(parts[0]) - 1; // 月份从0开始
                   const day = parseInt(parts[1]);
                   date = new Date();
-                  date.setMonth(month - 1);
+                  date.setMonth(month);
                   date.setDate(day);
                   date.setHours(0, 0, 0, 0);
                 }
-              } else if (dateStr.includes('-') && dateStr.includes(':')) {
-                // 格式: "YYYY-MM-DD HH:MM:SS"
-                date = new Date(dateStr);
               } else if (dateStr.includes(':')) {
                 // 格式: "HH:MM:SS" 或 "HH:MM"
                 const parts = dateStr.split(':');
                 date = new Date();
-
-                // 如果是一天内视图，确保日期是当天
-                if (activePeriod.value === 2) {
-                  // 设置为当天的日期
-                  date.setHours(0, 0, 0, 0);
-                  // 然后设置小时和分钟
-                  date.setHours(parseInt(parts[0]));
-                  date.setMinutes(parts.length > 1 ? parseInt(parts[1]) : 0);
-                  date.setSeconds(parts.length > 2 ? parseInt(parts[2]) : 0);
-
-                  // 确保日期在今天的范围内
-                  const today = new Date();
-                  today.setHours(0, 0, 0, 0);
-                  if (date.getDate() !== today.getDate() ||
-                      date.getMonth() !== today.getMonth() ||
-                      date.getFullYear() !== today.getFullYear()) {
-                    // 如果不是今天，强制设置为今天
-                    date.setFullYear(today.getFullYear(), today.getMonth(), today.getDate());
-                  }
-                } else {
-                  // 其他视图正常处理
-                  date.setHours(parseInt(parts[0]));
-                  date.setMinutes(parts.length > 1 ? parseInt(parts[1]) : 0);
-                  date.setSeconds(parts.length > 2 ? parseInt(parts[2]) : 0);
-                }
+                date.setHours(parseInt(parts[0]));
+                date.setMinutes(parts.length > 1 ? parseInt(parts[1]) : 0);
+                date.setSeconds(parts.length > 2 ? parseInt(parts[2]) : 0);
               }
             }
+          }
 
-            // 如果成功解析日期
-            if (date && !isNaN(date.getTime())) {
-              console.log(`成功解析日期: ${dateStr} -> ${date.toISOString()}`);
-              return {
-                ...item,
-                value: [date, value]
-              };
+          // 如果日期解析失败，尝试使用originalDate
+          if (!date || isNaN(date.getTime())) {
+            if (item.originalDate) {
+              date = new Date(item.originalDate);
+              if (isNaN(date.getTime())) {
+                console.warn(`无法解析日期: ${item.originalDate}`);
+                return null;
+              }
             } else {
-              console.warn(`无法解析日期: ${dateStr}，尝试使用originalDate`);
+              console.warn(`无法解析日期: ${dateStr}`);
+              return null;
             }
           }
 
-          // 如果有originalDate字段，尝试使用它创建日期对象
-          if (item.originalDate) {
-            try {
-              const date = new Date(item.originalDate);
-              if (!isNaN(date.getTime())) {
-                console.log(`使用originalDate创建日期: ${item.originalDate} -> ${date.toISOString()}`);
-
-                // 如果是一天内视图，确保日期是当天
-                if (activePeriod.value === 2) {
-                  // 获取今天的日期
-                  const today = new Date();
-                  today.setHours(0, 0, 0, 0);
-
-                  // 如果日期不是今天，但时间是有效的，则使用今天的日期和原始的时间
-                  if (date.getDate() !== today.getDate() ||
-                      date.getMonth() !== today.getMonth() ||
-                      date.getFullYear() !== today.getFullYear()) {
-
-                    // 创建新的日期对象，使用今天的日期和原始的时间
-                    const adjustedDate = new Date(today);
-                    adjustedDate.setHours(date.getHours(), date.getMinutes(), date.getSeconds(), date.getMilliseconds());
-
-                    console.log(`调整日期到今天: ${date.toISOString()} -> ${adjustedDate.toISOString()}`);
-
-                    return {
-                      ...item,
-                      value: [adjustedDate, item.value[1]]
-                    };
-                  }
-                }
-
-                return {
-                  ...item,
-                  value: [date, item.value[1]]
-                };
-              }
-            } catch (e) {
-              console.warn(`无法从originalDate创建日期: ${item.originalDate}`, e);
-            }
-          }
-
-          return item;
-        } catch (e) {
-          console.error('处理日期出错:', e, item);
-          return item;
-        }
-      });
-
-      // 过滤不在时间范围内的数据点 - 使用更严格的过滤逻辑
-      const filteredData = processedData.filter(item => {
-        // 确保item.value[0]是日期对象
-        if (item.value && item.value[0] instanceof Date) {
-          const pointDate = item.value[0];
-
-          // 对于一天内视图，使用更严格的日期检查
+          // 对于一天内视图，确保日期是当天
           if (activePeriod.value === 2) {
-            // 获取今天的日期（年月日）
             const today = new Date();
             today.setHours(0, 0, 0, 0);
 
-            // 获取数据点的日期（年月日）
+            // 创建新的日期对象，使用今天的日期和原始的时间
+            const adjustedDate = new Date(today);
+            adjustedDate.setHours(date.getHours(), date.getMinutes(), date.getSeconds(), 0);
+
+            return {
+              ...item,
+              value: [adjustedDate, value]
+            };
+          }
+
+          return {
+            ...item,
+            value: [date, value]
+          };
+        } catch (e) {
+          console.error('处理日期出错:', e, item);
+          return null;
+        }
+      }).filter(item => item !== null); // 过滤掉处理失败的项
+
+      // 过滤不在时间范围内的数据点
+      const filteredData = processedData.filter(item => {
+        if (item.value && item.value[0] instanceof Date) {
+          const pointDate = item.value[0];
+
+          // 对于一天内视图，只检查是否是当天
+          if (activePeriod.value === 2) {
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
             const pointDay = new Date(pointDate);
             pointDay.setHours(0, 0, 0, 0);
-
-            // 严格检查：日期必须是今天
-            const isSameDay = pointDay.getTime() === today.getTime();
-
-            if (!isSameDay) {
-              console.log(`过滤掉非当天数据点: ${pointDate.toISOString()}`);
-            }
-
-            return isSameDay;
+            return pointDay.getTime() === today.getTime();
           } else {
-            // 其他视图使用正常的时间范围检查
+            // 其他视图使用时间范围检查
             return pointDate >= startTime && pointDate <= endTime;
           }
         }
-        return false; // 如果无法确定日期，不保留该点
+        return false;
       });
 
-      console.log(`处理后的${activePeriod.value}视图数据:`, processedData);
       console.log(`过滤后的${activePeriod.value}视图数据:`, filteredData);
 
-      // 对于一天内视图，添加额外的日志和检查
-      if (activePeriod.value === 2) {
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
+      // 更新图表数据
+      chartOption.value.series[0].data = filteredData;
 
-        // 检查是否所有数据点都是当天的
-        const nonTodayPoints = filteredData.filter(item => {
-          if (item.value && item.value[0] instanceof Date) {
-            const pointDay = new Date(item.value[0]);
-            pointDay.setHours(0, 0, 0, 0);
-            return pointDay.getTime() !== today.getTime();
-          }
-          return false;
-        });
-
-        if (nonTodayPoints.length > 0) {
-          console.error(`警告: 一天内视图仍有${nonTodayPoints.length}个非当天数据点!`);
-          console.error('非当天数据点:', nonTodayPoints);
-
-          // 再次过滤，确保只有当天的数据点
-          const strictlyFilteredData = filteredData.filter(item => {
-            if (item.value && item.value[0] instanceof Date) {
-              const pointDay = new Date(item.value[0]);
-              pointDay.setHours(0, 0, 0, 0);
-              return pointDay.getTime() === today.getTime();
-            }
-            return false;
-          });
-
-          console.log(`严格过滤后的数据点数量: ${strictlyFilteredData.length}`);
-          chartOption.value.series[0].data = strictlyFilteredData;
-        } else {
-          console.log(`一天内视图数据检查通过: 所有${filteredData.length}个数据点都是当天的`);
-          chartOption.value.series[0].data = filteredData;
-        }
-      } else {
-        // 其他视图正常处理
-        chartOption.value.series[0].data = filteredData;
-      }
-
-      // 更新图表标题，根据当前视图
+      // 更新图表标题
       const periodLabels = {
         0: '10分钟内',
         1: '一小时内',
@@ -811,64 +708,7 @@ export default {
         if (result.success) {
           console.log(`成功获取${periodType}数据:`, result.data ? result.data.length : 0, '个数据点');
 
-          // 对于一天内视图，确保只使用当天的数据点
-          if (periodType === 'daily') {
-            const today = new Date();
-            today.setHours(0, 0, 0, 0);
-
-            // 过滤数据，只保留当天的数据点
-            if (result.data && result.data.length > 0) {
-              const originalLength = result.data.length;
-
-              // 过滤数据
-              result.data = result.data.filter(item => {
-                // 尝试从originalDate获取日期
-                if (item.originalDate) {
-                  try {
-                    const date = new Date(item.originalDate);
-                    if (!isNaN(date.getTime())) {
-                      // 检查是否是当天
-                      const itemDay = new Date(date);
-                      itemDay.setHours(0, 0, 0, 0);
-                      return itemDay.getTime() === today.getTime();
-                    }
-                  } catch (e) {
-                    console.warn(`无法解析日期: ${item.originalDate}`, e);
-                  }
-                }
-
-                // 如果没有originalDate或解析失败，尝试从value[0]获取日期
-                if (item.value && item.value[0]) {
-                  try {
-                    // 如果是字符串，尝试解析
-                    if (typeof item.value[0] === 'string') {
-                      // 如果是时间格式（如"12:00"），假设是当天
-                      if (item.value[0].includes(':') && !item.value[0].includes('-')) {
-                        return true;
-                      }
-
-                      // 尝试解析完整日期
-                      const date = new Date(item.value[0]);
-                      if (!isNaN(date.getTime())) {
-                        const itemDay = new Date(date);
-                        itemDay.setHours(0, 0, 0, 0);
-                        return itemDay.getTime() === today.getTime();
-                      }
-                    }
-                  } catch (e) {
-                    console.warn(`无法解析日期: ${item.value[0]}`, e);
-                  }
-                }
-
-                // 默认保留数据点
-                return true;
-              });
-
-              console.log(`一天内视图: 过滤前 ${originalLength} 个数据点，过滤后 ${result.data.length} 个数据点`);
-            }
-          }
-
-          // 更新图表数据
+          // 直接使用后端返回的数据，不进行额外过滤
           chartData.value = result.data || [];
 
           // 更新当前小时数据（如果有）
@@ -1108,23 +948,14 @@ export default {
         extraCssText: 'box-shadow: 0 0 8px rgba(0, 0, 0, 0.3);'
       },
       xAxis: {
-        type: 'category',  // 改为类别轴，使点均匀分布
+        type: 'time',  // 改为时间轴，更准确地表示时间数据
         splitLine: {
           show: false
         },
         axisLabel: {
           formatter: function(value) {
-            // 尝试将值解析为日期
-            try {
-              const date = new Date(value);
-              if (!isNaN(date.getTime())) {
-                return `${date.getHours()}:${date.getMinutes() < 10 ? '0' + date.getMinutes() : date.getMinutes()}`;
-              }
-            } catch (e) {
-              console.log('日期解析错误:', e);
-            }
-            // 如果解析失败，返回原始值
-            return value;
+            const date = new Date(value);
+            return `${date.getHours()}:${date.getMinutes() < 10 ? '0' + date.getMinutes() : date.getMinutes()}`;
           },
           interval: 'auto',  // 自动计算显示间隔，避免标签重叠
           rotate: 30,        // 旋转标签，避免重叠
@@ -1190,32 +1021,44 @@ export default {
           // 更新图表数据
           rawChartData.value = result.data || [];
 
-          // 处理数据以适应category类型的x轴
-          // 对于category类型，我们需要提供[类别, 值]格式的数据
+          // 简化的数据处理逻辑
           const processedData = rawChartData.value.map(point => {
-            // 确保时间戳格式化为可读的字符串
-            let timestamp = point.value[0];
-            if (timestamp instanceof Date) {
-              timestamp = timestamp.toISOString();
-            } else if (typeof timestamp === 'string') {
-              // 尝试解析为日期并格式化
-              try {
-                const date = new Date(timestamp);
-                if (!isNaN(date.getTime())) {
-                  timestamp = date.toISOString();
-                }
-              } catch (e) {
-                // 如果解析失败，保持原样
+            try {
+              // 确保point.value是数组且有两个元素
+              if (!Array.isArray(point.value) || point.value.length !== 2) {
+                console.warn('原始数据点格式不正确:', point);
+                return null;
               }
-            }
 
-            return {
-              value: [
-                timestamp,  // 时间戳作为类别
-                point.value[1]  // 雨量值
-              ]
-            };
-          });
+              let timestamp = point.value[0];
+              const value = point.value[1];
+
+              // 尝试将时间戳转换为日期对象
+              let date;
+              if (timestamp instanceof Date) {
+                date = timestamp;
+              } else if (typeof timestamp === 'string') {
+                date = new Date(timestamp);
+                if (isNaN(date.getTime())) {
+                  console.warn(`无法解析原始数据时间戳: ${timestamp}`);
+                  return null;
+                }
+              } else {
+                console.warn(`不支持的时间戳类型: ${typeof timestamp}`);
+                return null;
+              }
+
+              // 格式化时间戳为可读字符串
+              const formattedTimestamp = date.toISOString();
+
+              return {
+                value: [formattedTimestamp, value]
+              };
+            } catch (e) {
+              console.error('处理原始数据点出错:', e, point);
+              return null;
+            }
+          }).filter(item => item !== null); // 过滤掉处理失败的项
 
           // 按时间排序
           processedData.sort((a, b) => {
@@ -1232,17 +1075,14 @@ export default {
             rawChartOption.value.title.subtext = '';
           }
 
-          // 始终显示全部范围，不自动缩放
-          if (processedData.length > 0) {
-            // 始终设置为显示全部范围
-            rawChartOption.value.dataZoom[0].start = 0;
-            rawChartOption.value.dataZoom[0].end = 100;
-            rawChartOption.value.dataZoom[1].start = 0;
-            rawChartOption.value.dataZoom[1].end = 100;
+          // 更新图表标题，显示数据点数量
+          rawChartOption.value.title.text = `OneNET原始数据 - ${processedData.length}个数据点`;
 
-            // 更新图表标题，显示数据点数量
-            rawChartOption.value.title.text = `OneNET原始数据 - ${processedData.length}个数据点`;
-          }
+          // 重置缩放
+          rawChartOption.value.dataZoom[0].start = 0;
+          rawChartOption.value.dataZoom[0].end = 100;
+          rawChartOption.value.dataZoom[1].start = 0;
+          rawChartOption.value.dataZoom[1].end = 100;
         } else {
           console.error(`获取OneNET原始数据失败:`, result.error);
 
