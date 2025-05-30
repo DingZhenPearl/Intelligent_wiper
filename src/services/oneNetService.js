@@ -1,6 +1,6 @@
 // src/services/oneNetService.js
 import { ref } from 'vue';
-import { get } from './api';
+import { get, post } from './api';
 
 // OneNET服务
 const oneNetService = {
@@ -242,6 +242,30 @@ const oneNetService = {
       return { success: false, error: error.message };
     } finally {
       this.rawDataLoading.value = false;
+    }
+  },
+
+  // 为用户创建OneNET数据流
+  async createDatastreamForUser(username) {
+    try {
+      console.log(`[OneNET服务] 为用户 ${username} 创建OneNET数据流`);
+
+      const response = await post('/api/rainfall/onenet/datastream/create', {
+        username: username
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        console.log('[OneNET服务] 创建OneNET数据流成功:', data);
+        return data;
+      } else {
+        const errorData = await response.json();
+        console.error('[OneNET服务] 创建OneNET数据流失败:', errorData);
+        return { success: false, error: errorData.error };
+      }
+    } catch (error) {
+      console.error('[OneNET服务] 创建OneNET数据流错误:', error);
+      return { success: false, error: error.message };
     }
   }
 };

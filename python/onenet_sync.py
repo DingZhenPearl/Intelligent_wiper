@@ -19,9 +19,11 @@ from onenet_api import (
     ONENET_API_BASE,
     PRODUCT_ID,
     DEVICE_NAME,
-    DATASTREAM_ID,
     ACCESS_KEY,
-    generate_token
+    generate_token,
+    get_user_device_config,
+    create_datastream_for_user,
+    find_user_device
 )
 
 # 导入数据聚合函数
@@ -31,17 +33,43 @@ from rainfall_db import aggregate_data
 running = True
 last_sync_time = datetime.now()
 
-def fetch_latest_onenet_data(last_timestamp=None):
+def fetch_latest_onenet_data(username='admin', last_timestamp=None):
     """从OneNET平台获取最新的原始数据
 
     参数:
+        username: 用户名，用于确定数据流
         last_timestamp: 上次同步的最后时间戳，用于只获取新数据
 
     返回:
         dict: 包含原始数据点的字典
     """
     try:
-        log("从OneNET平台获取最新原始数据")
+        log(f"从OneNET平台获取最新原始数据，用户: {username}")
+
+        # 获取用户设备配置
+        device_config = get_user_device_config(username)
+        device_name = device_config['device_name']
+        device_id = device_config.get('device_id')
+        datastream_id = device_config['datastream_id']
+
+        log(f"使用设备: {device_name}, 设备ID: {device_id}, 数据流: {datastream_id}")
+
+        # 如果是新用户但没有设备ID，尝试查找已创建的设备
+        if device_id is None and username not in ["admin", "default", "legacy", "original"]:
+            log(f"用户 {username} 没有设备ID，尝试查找已创建的设备")
+            device_search_result = find_user_device(username)
+            if device_search_result.get("success"):
+                device_id = device_search_result.get("device_id")
+                device_name = device_search_result.get("device_name")
+                log(f"找到用户 {username} 的设备: {device_name} (ID: {device_id})")
+            else:
+                log(f"未找到用户 {username} 的设备")
+                return {
+                    "success": False,
+                    "error": f"用户 {username} 的设备尚未创建，请先调用设备创建API",
+                    "suggestion": f"请先运行: python onenet_api.py --action create_device --username {username}",
+                    "search_error": device_search_result.get("error")
+                }
 
         # 生成token
         token = generate_token()
@@ -70,8 +98,8 @@ def fetch_latest_onenet_data(last_timestamp=None):
         # 设置请求参数
         params = {
             "product_id": PRODUCT_ID,
-            "device_name": DEVICE_NAME,
-            "identifier": DATASTREAM_ID,  # 数据流ID
+            "device_name": device_name,
+            "identifier": datastream_id,  # 用户特定的数据流ID
             "start_time": start_time.strftime("%Y-%m-%dT%H:%M:%SZ"),
             "end_time": now.strftime("%Y-%m-%dT%H:%M:%SZ"),
             "limit": 100  # 最多获取100个数据点
@@ -108,9 +136,9 @@ def fetch_latest_onenet_data(last_timestamp=None):
 
                 # 方式3: 在datastreams结构中查找
                 elif "datastreams" in data and isinstance(data["datastreams"], list):
-                    # 查找rain_info数据流
+                    # 查找用户特定的数据流
                     for stream in data["datastreams"]:
-                        if stream.get("id") == DATASTREAM_ID and "datapoints" in stream:
+                        if stream.get("id") == datastream_id and "datapoints" in stream:
                             datapoints = stream["datapoints"]
                             log(f"使用方式3解析数据点，找到 {len(datapoints)} 个数据点")
                             break
@@ -221,7 +249,7 @@ def sync_onenet_data(username='admin'):
         log(f"上次同步时间戳: {last_timestamp}")
 
         # 获取最新数据
-        result = fetch_latest_onenet_data(last_timestamp)
+        result = fetch_latest_onenet_data(username, last_timestamp)
 
         if not result['success']:
             return result
@@ -403,6 +431,31 @@ def get_raw_data(username='admin', time_range='1h'):
     try:
         log(f"直接从OneNET平台获取原始数据，用户名: {username}，时间范围: {time_range}")
 
+        # 获取用户设备配置
+        device_config = get_user_device_config(username)
+        device_name = device_config['device_name']
+        device_id = device_config.get('device_id')
+        datastream_id = device_config['datastream_id']
+
+        log(f"使用设备: {device_name}, 设备ID: {device_id}, 数据流: {datastream_id}")
+
+        # 如果是新用户但没有设备ID，尝试查找已创建的设备
+        if device_id is None and username not in ["admin", "default", "legacy", "original"]:
+            log(f"用户 {username} 没有设备ID，尝试查找已创建的设备")
+            device_search_result = find_user_device(username)
+            if device_search_result.get("success"):
+                device_id = device_search_result.get("device_id")
+                device_name = device_search_result.get("device_name")
+                log(f"找到用户 {username} 的设备: {device_name} (ID: {device_id})")
+            else:
+                log(f"未找到用户 {username} 的设备")
+                return {
+                    "success": False,
+                    "error": f"用户 {username} 的设备尚未创建，请先调用设备创建API",
+                    "suggestion": f"请先运行: python onenet_api.py --action create_device --username {username}",
+                    "search_error": device_search_result.get("error")
+                }
+
         # 生成token
         token = generate_token()
         if not token:
@@ -446,8 +499,8 @@ def get_raw_data(username='admin', time_range='1h'):
         # 设置请求参数
         params = {
             "product_id": PRODUCT_ID,
-            "device_name": DEVICE_NAME,
-            "identifier": DATASTREAM_ID,  # 数据流ID
+            "device_name": device_name,
+            "identifier": datastream_id,  # 用户特定的数据流ID
             "start_time": start_time.strftime("%Y-%m-%dT%H:%M:%SZ"),
             "end_time": now.strftime("%Y-%m-%dT%H:%M:%SZ"),
             "limit": 1000  # 最多获取1000个数据点
@@ -484,9 +537,9 @@ def get_raw_data(username='admin', time_range='1h'):
 
                 # 方式3: 在datastreams结构中查找
                 elif "datastreams" in data and isinstance(data["datastreams"], list):
-                    # 查找rain_info数据流
+                    # 查找用户特定的数据流
                     for stream in data["datastreams"]:
-                        if stream.get("id") == DATASTREAM_ID and "datapoints" in stream:
+                        if stream.get("id") == datastream_id and "datapoints" in stream:
                             datapoints = stream["datapoints"]
                             log(f"使用方式3解析数据点，找到 {len(datapoints)} 个数据点")
                             break

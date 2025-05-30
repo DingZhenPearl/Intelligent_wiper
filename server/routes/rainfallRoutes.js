@@ -645,4 +645,53 @@ router.get('/onenet/sync/status', async (_, res) => {
   }
 });
 
+// 为用户创建OneNET数据流
+router.post('/onenet/datastream/create', async (req, res) => {
+  try {
+    // 使用前端传递的用户名，而不是从 session 中获取
+    let username = req.body.username || req.query.username || (req.session.user ? req.session.user.username : 'admin');
+
+    // 详细输出用户信息
+    console.log(`为用户创建OneNET数据流，传入的用户名: ${username}`);
+    console.log(`创建数据流请求参数: ${JSON.stringify(req.body)}`);
+
+    // 确保用户名不为空
+    if (!username || username.trim() === '') {
+      username = 'admin';
+    } else {
+      username = username.trim();
+    }
+    console.log(`最终使用的用户名: '${username}'`);
+
+    // 调用OneNET API脚本创建数据流
+    const oneNetApiScriptPath = path.join(__dirname, '..', '..', 'python', 'onenet_api.py');
+    console.log(`OneNET API脚本路径: ${oneNetApiScriptPath}`);
+
+    // 检查脚本文件是否存在
+    if (!fs.existsSync(oneNetApiScriptPath)) {
+      console.error(`OneNET API脚本不存在: ${oneNetApiScriptPath}`);
+      return res.status(500).json({ error: 'OneNET API脚本不存在' });
+    }
+
+    const result = await executePythonScript(oneNetApiScriptPath, 'create_datastream', { username });
+
+    if (result.success) {
+      res.json({
+        success: true,
+        message: `成功为用户 ${username} 创建OneNET数据流: ${result.datastream_id}`,
+        device_name: result.device_name,
+        datastream_id: result.datastream_id
+      });
+    } else {
+      res.status(500).json({
+        success: false,
+        error: result.error || '创建OneNET数据流失败'
+      });
+    }
+  } catch (error) {
+    console.error('创建OneNET数据流错误:', error);
+    res.status(500).json({ error: '服务器内部错误' });
+  }
+});
+
 module.exports = router;

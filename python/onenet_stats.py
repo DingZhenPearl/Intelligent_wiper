@@ -15,69 +15,37 @@ from urllib.parse import quote
 
 from rainfall_db import log, get_rainfall_level
 
-# OneNET平台API配置 - 新版API基地址
-ONENET_API_BASE = "https://iot-api.heclouds.com"
-
-# TODO: 【必填】替换为实际的产品ID，在OneNET平台的产品详情页获取
-PRODUCT_ID = "66eIb47012"
-# TODO: 【必填】替换为实际的设备名称，在OneNET平台的设备列表或设备详情页获取
-DEVICE_NAME = "test"
-# TODO: 【必填】替换为实际的数据流ID，根据您在OneNET平台上定义的数据流名称
-DATASTREAM_ID = "rain_info"            # 雨量数据流ID
-# TODO: 【必填】替换为实际的访问密钥(Access Key)，在OneNET平台的产品详情页获取
-ACCESS_KEY = "Rk9mVGdrQWE5dzJqWU12bzFsSFFpZWtRZDVWdTFZZlU="
+# 导入OneNET API配置
+from onenet_api import (
+    ONENET_API_BASE,
+    PRODUCT_ID,
+    DEVICE_NAME,
+    ACCESS_KEY,
+    generate_token,
+    get_user_device_config
+)
 
 
 
-def generate_token():
-    """生成OneNET平台的JWT token
-
-    返回:
-        str: JWT token字符串
-    """
-    try:
-        # 设置token参数
-        version = '2018-10-31'
-        res = f"products/{PRODUCT_ID}/devices/{DEVICE_NAME}"
-        # 设置token过期时间，这里设置为10小时后过期
-        et = str(int(time.time()) + 36000)
-        # 签名方法，支持md5、sha1、sha256
-        method = 'sha1'
-
-        # 对access_key进行decode
-        key = base64.b64decode(ACCESS_KEY)
-
-        # 计算sign
-        org = et + '\n' + method + '\n' + res + '\n' + version
-        sign_b = hmac.new(key=key, msg=org.encode(), digestmod=method)
-        sign = base64.b64encode(sign_b.digest()).decode()
-
-        # value部分进行url编码
-        sign = quote(sign, safe='')
-        res = quote(res, safe='')
-
-        # token参数拼接
-        token = f'version={version}&res={res}&et={et}&method={method}&sign={sign}'
-
-        log(f"生成的OneNET token: {token[:30]}...")
-        return token
-    except Exception as e:
-        error_msg = f"生成OneNET token失败: {str(e)}"
-        log(error_msg)
-        log(traceback.format_exc())
-        return None
-
-def get_onenet_stats(period='10min'):
+def get_onenet_stats(username='admin', period='10min'):
     """从OneNET平台获取雨量统计数据
 
     参数:
+        username: 用户名，用于确定数据流
         period: 时间粒度，可选值：10min, hourly, daily, all
 
     返回:
         dict: 包含统计数据的字典
     """
     try:
-        log(f"从OneNET平台获取{period}雨量统计数据")
+        log(f"从OneNET平台获取{period}雨量统计数据，用户: {username}")
+
+        # 获取用户设备配置
+        device_config = get_user_device_config(username)
+        device_name = device_config['device_name']
+        datastream_id = device_config['datastream_id']
+
+        log(f"使用设备: {device_name}, 数据流: {datastream_id}")
 
         # 生成token
         token = generate_token()
@@ -116,8 +84,8 @@ def get_onenet_stats(period='10min'):
         # 设置请求参数
         params = {
             "product_id": PRODUCT_ID,
-            "device_name": DEVICE_NAME,
-            "identifier": DATASTREAM_ID,  # 数据流ID
+            "device_name": device_name,
+            "identifier": datastream_id,  # 用户特定的数据流ID
             "start_time": start_time.strftime("%Y-%m-%dT%H:%M:%SZ"),
             "end_time": now.strftime("%Y-%m-%dT%H:%M:%SZ")
         }
@@ -168,9 +136,9 @@ def get_onenet_stats(period='10min'):
 
                     # 检查是否有数据流
                     if "datastreams" in device and len(device["datastreams"]) > 0:
-                        # 查找rain_info数据流
+                        # 查找用户特定的数据流
                         for stream in device["datastreams"]:
-                            if stream.get("id") == DATASTREAM_ID and "datapoints" in stream:
+                            if stream.get("id") == datastream_id and "datapoints" in stream:
                                 datapoints = stream["datapoints"]
                                 log(f"使用方式3解析数据点，找到 {len(datapoints)} 个数据点")
                                 break
@@ -284,6 +252,7 @@ def main():
     parser.add_argument('--action', dest='action', choices=['stats'], help='要执行的操作')
     # 为了兼容旧的位置参数格式，也添加一个位置参数
     parser.add_argument('action_pos', nargs='?', choices=['stats'], help='要执行的操作（位置参数）')
+    parser.add_argument('--username', default='admin', help='用户名')
     parser.add_argument('--period', default='10min', choices=['10min', 'hourly', 'daily', 'all'], help='时间粒度')
 
     args = parser.parse_args()
@@ -292,7 +261,7 @@ def main():
     action = args.action_pos if args.action_pos else args.action
 
     if action == 'stats':
-        result = get_onenet_stats(args.period)
+        result = get_onenet_stats(args.username, args.period)
         print(json.dumps(result, ensure_ascii=False))
     else:
         print(json.dumps({"success": False, "error": "不支持的操作"}, ensure_ascii=False))

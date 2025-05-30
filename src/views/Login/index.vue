@@ -117,6 +117,7 @@ import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { post } from '@/services/api'  // 导入API服务
 import { isNative } from '@/utils/platform'  // 导入平台检测工具
+import oneNetService from '@/services/oneNetService'  // 导入OneNet服务
 
 export default {
   name: 'LoginPage',
@@ -265,12 +266,25 @@ export default {
         const data = await response.json()
 
         if (response.ok) {
-          // 注册成功，切换到登录模式
+          // 注册成功，为用户创建OneNet数据流
+          console.log(`为新用户 ${username.value} 创建OneNet数据流`)
+          try {
+            const datastreamResult = await oneNetService.createDatastreamForUser(username.value)
+            if (datastreamResult.success) {
+              console.log('OneNet数据流创建成功:', datastreamResult)
+            } else {
+              console.warn('OneNet数据流创建失败，但不影响注册:', datastreamResult.error)
+            }
+          } catch (error) {
+            console.warn('创建OneNet数据流时出错，但不影响注册:', error)
+          }
+
+          // 切换到登录模式
           mode.value = 'login'
           username.value = ''
           password.value = ''
           confirmPassword.value = ''
-          alert('注册成功，请登录')
+          alert('注册成功，已为您创建专属数据流，请登录')
         } else {
           errorMessage.value = data.error || '注册失败，用户名可能已被占用'
         }
