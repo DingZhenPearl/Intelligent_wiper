@@ -10,7 +10,8 @@ const { terminateAllPythonProcesses } = require('./utils/processUtils');
 const { initializeDatabase } = require('./services/databaseService');
 const {
   cleanup,
-  startOneNetSync
+  startOneNetSync,
+  startOneNetSyncForAllUsers
 } = require('./services/rainfallCollector');
 
 // 启动前先清除可能存在的遗留数据采集器进程
@@ -88,9 +89,9 @@ async function initializeApp() {
     });
     console.log(`请确保您的防火墙已经开放了${httpPort}和${httpsPort}端口!`);
 
-    // 启动OneNET同步服务
+    // 启动OneNET同步服务 - 为所有用户启动
     console.log('启动OneNET同步服务');
-    startOneNetSync('admin').catch(error => {
+    startOneNetSyncForAllUsers().catch(error => {
       console.error('启动OneNET同步服务失败:', error);
     });
   } catch (error) {

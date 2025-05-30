@@ -7,7 +7,7 @@ const { terminateAllPythonProcesses } = require('../utils/processUtils');
 
 // 全局变量
 let collectorProcess = null;
-let oneNetSyncProcess = null; // OneNET同步进程
+let oneNetSyncProcesses = new Map(); // OneNET同步进程映射 (username -> process)
 let shouldRestartCollector = true; // 控制是否应该重启采集器
 let shouldRestartOneNetSync = true; // 控制是否应该重启OneNET同步服务
 
@@ -80,12 +80,15 @@ async function startOneNetSync(username = 'admin') {
     console.log(`使用用户名: ${username}`);
   }
 
-  // 确保同步服务变量被重置
-  oneNetSyncProcess = null;
-
   // 确保用户名参数正确
   let finalUsername = username ? username.trim() : 'admin';
   console.log(`强制使用当前用户名: '${finalUsername}'`);
+
+  // 检查该用户是否已经有同步进程在运行
+  if (oneNetSyncProcesses.has(finalUsername)) {
+    console.log(`用户 ${finalUsername} 的OneNET同步服务已在运行，跳过启动`);
+    return;
+  }
 
   const usernameParam = `--username=${finalUsername}`;
   console.log(`最终用户名参数: ${usernameParam}`);
@@ -94,43 +97,46 @@ async function startOneNetSync(username = 'admin') {
   const scriptPath = path.join(__dirname, '..', '..', 'python', 'onenet_sync.py');
   console.log(`OneNET同步脚本路径: ${scriptPath}`);
 
-  oneNetSyncProcess = spawn('python', [
+  const syncProcess = spawn('python', [
     scriptPath,
     '--action=start',
     usernameParam,
     '--interval=5'
   ]);
 
-  oneNetSyncProcess.stdout.on('data', (data) => {
-    console.log(`OneNET同步服务输出: ${data}`);
+  // 将进程存储到映射中
+  oneNetSyncProcesses.set(finalUsername, syncProcess);
+
+  syncProcess.stdout.on('data', (data) => {
+    console.log(`OneNET同步服务输出 (${finalUsername}): ${data}`);
   });
 
   // 处理stderr输出
-  oneNetSyncProcess.stderr.on('data', (data) => {
+  syncProcess.stderr.on('data', (data) => {
     const dataStr = data.toString();
     // 如果是LOG开头，则视为日志
     if (dataStr.includes('LOG:')) {
-      console.log(`OneNET同步服务日志: ${dataStr.trim()}`);
+      console.log(`OneNET同步服务日志 (${finalUsername}): ${dataStr.trim()}`);
     } else {
-      console.error(`OneNET同步服务错误: ${dataStr.trim()}`);
+      console.error(`OneNET同步服务错误 (${finalUsername}): ${dataStr.trim()}`);
     }
   });
 
-  oneNetSyncProcess.on('close', (code) => {
-    console.log(`OneNET同步服务已终止，退出码: ${code}`);
+  syncProcess.on('close', (code) => {
+    console.log(`OneNET同步服务已终止 (${finalUsername})，退出码: ${code}`);
 
-    // 清除引用
-    oneNetSyncProcess = null;
+    // 从映射中移除进程
+    oneNetSyncProcesses.delete(finalUsername);
 
     // 如果意外终止且应该重启，则尝试重启
     if (code !== 0 && shouldRestartOneNetSync) {
-      console.log('尝试重启OneNET同步服务...');
+      console.log(`尝试重启OneNET同步服务 (${finalUsername})...`);
       setTimeout(() => {
         // 再次检查是否应该重启
         if (shouldRestartOneNetSync) {
-          startOneNetSync(username);
+          startOneNetSync(finalUsername);
         } else {
-          console.log('重启标志已关闭，不再重启OneNET同步服务');
+          console.log(`重启标志已关闭，不再重启OneNET同步服务 (${finalUsername})`);
         }
       }, 5000);
     }
@@ -145,45 +151,45 @@ async function startOneNetSync(username = 'admin') {
 async function stopOneNetSync(username = 'admin') {
   console.log(`开始停止OneNET数据同步服务，用户名: ${username}`);
 
-  // 设置不重启标志
-  shouldRestartOneNetSync = false;
-  console.log('设置不重启标志，确保OneNET同步服务不会自动重启');
+  // 确保用户名参数正确
+  let finalUsername = username ? username.trim() : 'admin';
 
   // 如果有正在运行的同步服务，强制停止
-  if (oneNetSyncProcess) {
-    console.log(`强制停止OneNET同步服务进程`);
+  if (oneNetSyncProcesses.has(finalUsername)) {
+    const syncProcess = oneNetSyncProcesses.get(finalUsername);
+    console.log(`强制停止OneNET同步服务进程 (${finalUsername})`);
 
     try {
       // 先尝试使用标准的kill方法
-      oneNetSyncProcess.kill();
-      console.log('已发送终止信号给OneNET同步服务进程');
+      syncProcess.kill();
+      console.log(`已发送终止信号给OneNET同步服务进程 (${finalUsername})`);
 
       // 等待一小段时间
       await new Promise(resolve => setTimeout(resolve, 500));
 
       // 如果进程还在运行，尝试使用SIGKILL
-      if (oneNetSyncProcess) {
+      if (oneNetSyncProcesses.has(finalUsername)) {
         try {
-          oneNetSyncProcess.kill('SIGKILL');
-          console.log('已发送SIGKILL信号终止OneNET同步服务');
+          syncProcess.kill('SIGKILL');
+          console.log(`已发送SIGKILL信号终止OneNET同步服务 (${finalUsername})`);
         } catch (killError) {
-          console.error('使用SIGKILL终止OneNET同步服务时出错:', killError);
+          console.error(`使用SIGKILL终止OneNET同步服务时出错 (${finalUsername}):`, killError);
         }
       }
     } catch (killError) {
-      console.error('终止OneNET同步服务时出错:', killError);
+      console.error(`终止OneNET同步服务时出错 (${finalUsername}):`, killError);
     }
 
     // 等待进程终止
     await new Promise(resolve => setTimeout(resolve, 1000));
 
     // 确保进程引用被清除
-    oneNetSyncProcess = null;
+    oneNetSyncProcesses.delete(finalUsername);
   } else {
-    console.log('没有找到正在运行的OneNET同步服务进程');
+    console.log(`没有找到正在运行的OneNET同步服务进程 (${finalUsername})`);
   }
 
-  console.log(`OneNET同步服务已强制停止，用户 ${username} 的数据库中的数据保持不变`);
+  console.log(`OneNET同步服务已强制停止，用户 ${finalUsername} 的数据库中的数据保持不变`);
 
   return { success: true, message: 'OneNET同步服务已停止' };
 }
@@ -198,6 +204,50 @@ function setShouldRestartOneNetSync(value) {
 }
 
 /**
+ * 为所有用户启动OneNET同步服务
+ * @returns {Promise<void>}
+ */
+async function startOneNetSyncForAllUsers() {
+  console.log('开始为所有用户启动OneNET同步服务...');
+
+  try {
+    // 获取所有用户列表
+    const { executePythonScript } = require('../utils/pythonRunner');
+    const dbScriptPath = path.join(__dirname, '..', config.paths.DB_SERVICE_SCRIPT);
+    const result = await executePythonScript(dbScriptPath, 'get_all_users');
+
+    if (result.success && result.users && result.users.length > 0) {
+      console.log(`找到 ${result.users.length} 个用户，开始启动同步服务`);
+
+      // 为每个用户启动同步服务
+      for (const user of result.users) {
+        const username = user.username;
+        console.log(`为用户 ${username} 启动OneNET同步服务`);
+
+        try {
+          await startOneNetSync(username);
+          console.log(`用户 ${username} 的OneNET同步服务启动成功`);
+        } catch (error) {
+          console.error(`为用户 ${username} 启动OneNET同步服务失败:`, error);
+        }
+
+        // 在启动下一个用户的服务前稍等一下，避免同时启动太多进程
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
+
+      console.log(`所有用户的OneNET同步服务启动完成，共启动 ${oneNetSyncProcesses.size} 个同步进程`);
+    } else {
+      console.log('没有找到用户或获取用户列表失败，只为默认用户admin启动同步服务');
+      await startOneNetSync('admin');
+    }
+  } catch (error) {
+    console.error('为所有用户启动OneNET同步服务时出错:', error);
+    console.log('回退到只为默认用户admin启动同步服务');
+    await startOneNetSync('admin');
+  }
+}
+
+/**
  * 获取采集器和同步服务状态
  * @returns {Object} - 采集器和同步服务状态
  */
@@ -205,7 +255,8 @@ function getCollectorStatus() {
   return {
     isRunning: collectorProcess !== null,
     shouldRestart: shouldRestartCollector,
-    isOneNetSyncRunning: oneNetSyncProcess !== null,
+    isOneNetSyncRunning: oneNetSyncProcesses.size > 0,
+    oneNetSyncUsers: Array.from(oneNetSyncProcesses.keys()),
     shouldRestartOneNetSync: shouldRestartOneNetSync
   };
 }
@@ -219,10 +270,16 @@ function cleanup() {
     collectorProcess = null;
   }
 
-  if (oneNetSyncProcess) {
-    oneNetSyncProcess.kill();
-    oneNetSyncProcess = null;
+  // 清理所有OneNET同步进程
+  for (const [username, process] of oneNetSyncProcesses) {
+    console.log(`清理OneNET同步进程: ${username}`);
+    try {
+      process.kill();
+    } catch (error) {
+      console.error(`清理OneNET同步进程失败 (${username}):`, error);
+    }
   }
+  oneNetSyncProcesses.clear();
 }
 
 // 在服务器关闭时清理资源
@@ -233,6 +290,7 @@ module.exports = {
   stopRainfallCollector,
   startOneNetSync,
   stopOneNetSync,
+  startOneNetSyncForAllUsers,
   setShouldRestartCollector,
   setShouldRestartOneNetSync,
   getCollectorStatus,

@@ -5,7 +5,7 @@ const path = require('path');
 const config = require('../config');
 const { executePythonScript } = require('../utils/pythonRunner');
 const { maskSensitiveInfo } = require('../utils/securityUtils');
-const { stopRainfallCollector, setShouldRestartCollector } = require('../services/rainfallCollector');
+const { stopRainfallCollector, setShouldRestartCollector, startOneNetSync } = require('../services/rainfallCollector');
 
 // 用户注册
 router.post('/register', async (req, res) => {
@@ -18,6 +18,16 @@ router.post('/register', async (req, res) => {
     console.log('注册结果:', maskSensitiveInfo(result));
 
     if (result.success) {
+      // 注册成功后，为新用户启动OneNET同步服务
+      console.log(`用户 ${username} 注册成功，启动OneNET同步服务`);
+      try {
+        await startOneNetSync(username);
+        console.log(`用户 ${username} 的OneNET同步服务启动成功`);
+      } catch (error) {
+        console.error(`为用户 ${username} 启动OneNET同步服务失败:`, error);
+        // 不影响注册成功的响应
+      }
+
       res.status(201).json({ message: result.message });
     } else {
       res.status(400).json({ error: result.error });

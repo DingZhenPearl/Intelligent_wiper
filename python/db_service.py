@@ -218,10 +218,48 @@ def get_user_by_id(user_id):
     finally:
         conn.close()
 
+def get_all_users():
+    """获取所有用户列表"""
+    conn = get_db_connection()
+    try:
+        with conn.cursor() as cursor:
+            cursor.execute('SELECT id, username, created_at FROM users ORDER BY created_at ASC')
+            users_raw = cursor.fetchall()
+
+            # 转换为字典列表，处理datetime对象
+            users = []
+            for user in users_raw:
+                # 由于使用了 DictCursor，user 已经是字典格式
+                created_at = user['created_at']
+                if created_at and hasattr(created_at, 'isoformat'):
+                    created_at_str = created_at.isoformat()
+                elif created_at:
+                    created_at_str = str(created_at)
+                else:
+                    created_at_str = None
+
+                user_dict = {
+                    'id': user['id'],
+                    'username': user['username'],
+                    'created_at': created_at_str
+                }
+                users.append(user_dict)
+
+            return {
+                "success": True,
+                "users": users,
+                "count": len(users)
+            }
+    except Exception as e:
+        log(f"获取所有用户失败: {str(e)}")
+        return {"success": False, "error": str(e)}
+    finally:
+        conn.close()
+
 if __name__ == '__main__':
     try:
         parser = argparse.ArgumentParser(description='数据库服务')
-        parser.add_argument('--action', choices=['init', 'register', 'login', 'get_user'],
+        parser.add_argument('--action', choices=['init', 'register', 'login', 'get_user', 'get_all_users'],
                             required=True, help='执行的操作')
         parser.add_argument('--username', help='用户名')
         parser.add_argument('--password', help='密码')
@@ -249,6 +287,8 @@ if __name__ == '__main__':
                 result = {"success": False, "error": "需要提供用户ID"}
             else:
                 result = get_user_by_id(args.user_id)
+        elif args.action == 'get_all_users':
+            result = get_all_users()
         else:
             result = {"success": False, "error": "未知操作"}
 

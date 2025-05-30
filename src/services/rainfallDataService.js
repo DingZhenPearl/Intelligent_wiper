@@ -129,10 +129,25 @@ const rainfallDataService = {
   // 从OneNET获取统计数据
   async fetchOneNetStatisticsData(period = '10min') {
     try {
-      console.log(`[雨量数据服务] 从OneNET获取${period}统计数据`);
+      // 从 localStorage 中获取用户名
+      let username = 'admin'; // 默认用户名
+      const userDataStr = localStorage.getItem('user');
 
-      // 调用后端API获取OneNET统计数据
-      const response = await get(`/api/rainfall/onenet/stats?period=${period}`);
+      if (userDataStr) {
+        try {
+          const userData = JSON.parse(userDataStr);
+          if (userData && userData.username) {
+            username = userData.username;
+          }
+        } catch (e) {
+          console.error('[雨量数据服务] 解析用户信息出错:', e);
+        }
+      }
+
+      console.log(`[雨量数据服务] 从OneNET获取${period}统计数据，用户名: ${username}`);
+
+      // 调用后端API获取OneNET统计数据，传递用户名参数
+      const response = await get(`/api/rainfall/onenet/stats?period=${period}&username=${encodeURIComponent(username)}`);
 
       if (response.ok) {
         const data = await response.json();

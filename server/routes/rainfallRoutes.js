@@ -645,15 +645,16 @@ router.get('/onenet/sync/status', async (_, res) => {
   }
 });
 
-// 为用户创建OneNET数据流
-router.post('/onenet/datastream/create', async (req, res) => {
+// 为用户创建OneNET设备（新方案：每用户一设备）
+// 支持GET和POST请求
+router.get('/onenet/device/create', async (req, res) => {
   try {
     // 使用前端传递的用户名，而不是从 session 中获取
-    let username = req.body.username || req.query.username || (req.session.user ? req.session.user.username : 'admin');
+    let username = req.query.username || (req.session.user ? req.session.user.username : 'admin');
 
     // 详细输出用户信息
-    console.log(`为用户创建OneNET数据流，传入的用户名: ${username}`);
-    console.log(`创建数据流请求参数: ${JSON.stringify(req.body)}`);
+    console.log(`为用户创建OneNET设备（GET），传入的用户名: ${username}`);
+    console.log(`创建设备请求参数: ${JSON.stringify(req.query)}`);
 
     // 确保用户名不为空
     if (!username || username.trim() === '') {
@@ -663,11 +664,113 @@ router.post('/onenet/datastream/create', async (req, res) => {
     }
     console.log(`最终使用的用户名: '${username}'`);
 
-    // 调用OneNET API脚本创建数据流
+    // 调用OneNET API脚本创建设备
     const oneNetApiScriptPath = path.join(__dirname, '..', '..', 'python', 'onenet_api.py');
     console.log(`OneNET API脚本路径: ${oneNetApiScriptPath}`);
 
     // 检查脚本文件是否存在
+    if (!fs.existsSync(oneNetApiScriptPath)) {
+      console.error(`OneNET API脚本不存在: ${oneNetApiScriptPath}`);
+      return res.status(500).json({ error: 'OneNET API脚本不存在' });
+    }
+
+    const result = await executePythonScript(oneNetApiScriptPath, 'create_device', { username });
+
+    if (result.success) {
+      res.json({
+        success: true,
+        message: `成功为用户 ${username} 创建OneNET设备: ${result.device_name} (ID: ${result.device_id})`,
+        device_name: result.device_name,
+        device_id: result.device_id,
+        datastream_id: result.datastream_id || 'rain_info',
+        method: result.method,
+        note: "新方案：每个用户使用独立设备，数据完全隔离"
+      });
+    } else {
+      res.status(500).json({
+        success: false,
+        error: result.error || '创建OneNET设备失败',
+        suggestion: result.suggestion,
+        manual_steps: result.manual_steps
+      });
+    }
+  } catch (error) {
+    console.error('创建OneNET设备错误:', error);
+    res.status(500).json({ error: '服务器内部错误' });
+  }
+});
+
+router.post('/onenet/device/create', async (req, res) => {
+  try {
+    // 使用前端传递的用户名，而不是从 session 中获取
+    let username = req.body.username || req.query.username || (req.session.user ? req.session.user.username : 'admin');
+
+    // 详细输出用户信息
+    console.log(`为用户创建OneNET设备，传入的用户名: ${username}`);
+    console.log(`创建设备请求参数: ${JSON.stringify(req.body)}`);
+
+    // 确保用户名不为空
+    if (!username || username.trim() === '') {
+      username = 'admin';
+    } else {
+      username = username.trim();
+    }
+    console.log(`最终使用的用户名: '${username}'`);
+
+    // 调用OneNET API脚本创建设备
+    const oneNetApiScriptPath = path.join(__dirname, '..', '..', 'python', 'onenet_api.py');
+    console.log(`OneNET API脚本路径: ${oneNetApiScriptPath}`);
+
+    // 检查脚本文件是否存在
+    if (!fs.existsSync(oneNetApiScriptPath)) {
+      console.error(`OneNET API脚本不存在: ${oneNetApiScriptPath}`);
+      return res.status(500).json({ error: 'OneNET API脚本不存在' });
+    }
+
+    const result = await executePythonScript(oneNetApiScriptPath, 'create_device', { username });
+
+    if (result.success) {
+      res.json({
+        success: true,
+        message: `成功为用户 ${username} 创建OneNET设备: ${result.device_name} (ID: ${result.device_id})`,
+        device_name: result.device_name,
+        device_id: result.device_id,
+        datastream_id: result.datastream_id || 'rain_info',
+        method: result.method,
+        note: "新方案：每个用户使用独立设备，数据完全隔离"
+      });
+    } else {
+      res.status(500).json({
+        success: false,
+        error: result.error || '创建OneNET设备失败',
+        suggestion: result.suggestion,
+        manual_steps: result.manual_steps
+      });
+    }
+  } catch (error) {
+    console.error('创建OneNET设备错误:', error);
+    res.status(500).json({ error: '服务器内部错误' });
+  }
+});
+
+// 保留旧的数据流创建路由以便兼容（重定向到设备创建）
+router.post('/onenet/datastream/create', async (req, res) => {
+  try {
+    console.log('兼容模式：数据流创建请求重定向到设备创建');
+
+    // 使用前端传递的用户名，而不是从 session 中获取
+    let username = req.body.username || req.query.username || (req.session.user ? req.session.user.username : 'admin');
+
+    // 确保用户名不为空
+    if (!username || username.trim() === '') {
+      username = 'admin';
+    } else {
+      username = username.trim();
+    }
+
+    // 调用OneNET API脚本创建设备（兼容模式）
+    const oneNetApiScriptPath = path.join(__dirname, '..', '..', 'python', 'onenet_api.py');
+
     if (!fs.existsSync(oneNetApiScriptPath)) {
       console.error(`OneNET API脚本不存在: ${oneNetApiScriptPath}`);
       return res.status(500).json({ error: 'OneNET API脚本不存在' });
@@ -678,18 +781,20 @@ router.post('/onenet/datastream/create', async (req, res) => {
     if (result.success) {
       res.json({
         success: true,
-        message: `成功为用户 ${username} 创建OneNET数据流: ${result.datastream_id}`,
+        message: `兼容模式：成功为用户 ${username} 创建设备`,
         device_name: result.device_name,
-        datastream_id: result.datastream_id
+        device_id: result.device_id,
+        datastream_id: result.datastream_id,
+        note: result.note || "兼容模式：实际创建的是设备而不是数据流"
       });
     } else {
       res.status(500).json({
         success: false,
-        error: result.error || '创建OneNET数据流失败'
+        error: result.error || '创建OneNET设备失败（兼容模式）'
       });
     }
   } catch (error) {
-    console.error('创建OneNET数据流错误:', error);
+    console.error('创建OneNET设备错误（兼容模式）:', error);
     res.status(500).json({ error: '服务器内部错误' });
   }
 });

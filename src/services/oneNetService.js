@@ -62,8 +62,25 @@ const oneNetService = {
 
       console.log('[OneNET服务] 开始从OneNET平台获取雨量数据');
 
-      // 调用后端API获取OneNET数据
-      const response = await get('/api/rainfall/onenet');
+      // 从 localStorage 中获取用户名
+      let username = 'admin'; // 默认用户名
+      const userDataStr = localStorage.getItem('user');
+
+      if (userDataStr) {
+        try {
+          const userData = JSON.parse(userDataStr);
+          if (userData && userData.username) {
+            username = userData.username;
+          }
+        } catch (e) {
+          console.error('[OneNET服务] 解析用户信息出错:', e);
+        }
+      }
+
+      console.log(`[OneNET服务] 获取OneNET雨量数据，用户名: ${username}`);
+
+      // 调用后端API获取OneNET数据，传递用户名参数
+      const response = await get(`/api/rainfall/onenet?username=${encodeURIComponent(username)}`);
 
       if (response.ok) {
         const data = await response.json();
@@ -115,8 +132,25 @@ const oneNetService = {
 
       console.log(`[OneNET服务] 开始从OneNET平台获取${period}统计数据`);
 
-      // 调用后端API获取OneNET统计数据
-      const response = await get(`/api/rainfall/onenet/stats?period=${period}`);
+      // 从 localStorage 中获取用户名
+      let username = 'admin'; // 默认用户名
+      const userDataStr = localStorage.getItem('user');
+
+      if (userDataStr) {
+        try {
+          const userData = JSON.parse(userDataStr);
+          if (userData && userData.username) {
+            username = userData.username;
+          }
+        } catch (e) {
+          console.error('[OneNET服务] 解析用户信息出错:', e);
+        }
+      }
+
+      console.log(`[OneNET服务] 获取OneNET ${period}统计数据，用户名: ${username}`);
+
+      // 调用后端API获取OneNET统计数据，传递用户名参数
+      const response = await get(`/api/rainfall/onenet/stats?period=${period}&username=${encodeURIComponent(username)}`);
 
       if (response.ok) {
         const data = await response.json();
