@@ -1,0 +1,360 @@
+{
+  "activations": {
+    "admin": {
+      "deviceId": "device_admin_1748694956696",
+      "activationCode": "TEST-1234-ABCD-5678",
+      "serialNumber": "IWC-2024-001",
+      "deviceModel": "智能雨刷控制器 Pro",
+      "firmwareVersion": "v1.2.0",
+      "activatedAt": "2025-05-31T12:35:56.696Z"
+    },
+    "user5": {
+      "deviceId": "device_user5_1748695527509",
+      "activationCode": "DEMO-5678-EFGH-9012",
+      "serialNumber": "IWC-2024-002",
+      "deviceModel": "智能雨刷控制器 Standard",
+      "firmwareVersion": "v1.1.0",
+      "activatedAt": "2025-05-31T12:45:27.509Z"
+    },
+    "testuser": {
+      "deviceId": "device_testuser_1748695589269",
+      "activationCode": "PROD-9012-IJKL-3456",
+      "serialNumber": "IWC-2024-003",
+      "deviceModel": "智能雨刷控制器 Pro Max",
+      "firmwareVersion": "v1.3.0",
+      "activatedAt": "2025-05-31T12:46:29.269Z"
+    },
+    "newuser": {
+      "deviceId": "2446043345",
+      "deviceName": "intelligent_wiper_newuser",
+      "activationCode": "NEW1-2024-ABCD-1001",
+      "serialNumber": "IWC-2024-004",
+      "deviceModel": "智能雨刷控制器 Pro",
+      "firmwareVersion": "v1.2.1",
+      "activatedAt": "2025-05-31T13:02:35.450Z",
+      "oneNetResponse": {
+        "success": true,
+        "method": "new_api",
+        "device_name": "intelligent_wiper_newuser",
+        "device_id": "2446043345",
+        "device_info": {
+          "did": 2446043345,
+          "pid": "66eIb47012",
+          "access_pt": 2,
+          "auth_info": "intelligent_wiper_newuser",
+          "data_pt": 4,
+          "name": "intelligent_wiper_newuser",
+          "desc": "智能雨刷设备 - 用户newuser",
+          "status": 2,
+          "create_time": "2025-05-31T21:02:36.0759513+08:00",
+          "activate_time": "0001-01-01T00:00:00Z",
+          "last_time": "0001-01-01T00:00:00Z",
+          "imsi": "",
+          "imei": "",
+          "psk": "",
+          "group_id": "",
+          "enable_status": true,
+          "tags": [
+            "user_newuser",
+            "intelligent_wiper",
+            "rainfall"
+          ],
+          "lat": "",
+          "lon": "",
+          "auth_code": "",
+          "sec_key": "WndNRU9Uc3hYcExhRWMyR0doQmVRcmlOUE1hQ0lSRWE=",
+          "chip": 0,
+          "obsv": false,
+          "obsv_st": false,
+          "private": false,
+          "imsi_old": [
+            ""
+          ],
+          "imsi_mt": "0001-01-01T00:00:00Z",
+          "intelligent_way": 1
+        },
+        "api_endpoint": "https://iot-api.heclouds.com/device/create",
+        "message": "通过新版API成功创建设备 intelligent_wiper_newuser (ID: 2446043345)",
+        "response_data": {
+          "code": 0,
+          "data": {
+            "did": 2446043345,
+            "pid": "66eIb47012",
+            "access_pt": 2,
+            "auth_info": "intelligent_wiper_newuser",
+            "data_pt": 4,
+            "name": "intelligent_wiper_newuser",
+            "desc": "智能雨刷设备 - 用户newuser",
+            "status": 2,
+            "create_time": "2025-05-31T21:02:36.0759513+08:00",
+            "activate_time": "0001-01-01T00:00:00Z",
+            "last_time": "0001-01-01T00:00:00Z",
+            "imsi": "",
+            "imei": "",
+            "psk": "",
+            "group_id": "",
+            "enable_status": true,
+            "tags": [
+              "user_newuser",
+              "intelligent_wiper",
+              "rainfall"
+            ],
+            "lat": "",
+            "lon": "",
+            "auth_code": "",
+            "sec_key": "WndNRU9Uc3hYcExhRWMyR0doQmVRcmlOUE1hQ0lSRWE=",
+            "chip": 0,
+            "obsv": false,
+            "obsv_st": false,
+            "private": false,
+            "imsi_old": [
+              ""
+            ],
+            "imsi_mt": "0001-01-01T00:00:00Z",
+            "intelligent_way": 1
+          },
+          "msg": "succ",
+          "request_id": "3428d722f2af4b76b165ed9b90f00643"
+        }
+      }
+    },
+    "testuser2": {
+      "deviceId": "2446043353",
+      "deviceName": "intelligent_wiper_testuser2",
+      "activationCode": "NEW2-2024-EFGH-1002",
+      "serialNumber": "IWC-2024-005",
+      "deviceModel": "智能雨刷控制器 Standard",
+      "firmwareVersion": "v1.1.1",
+      "activatedAt": "2025-05-31T13:02:43.283Z",
+      "oneNetResponse": {
+        "success": true,
+        "method": "new_api",
+        "device_name": "intelligent_wiper_testuser2",
+        "device_id": "2446043353",
+        "device_info": {
+          "did": 2446043353,
+          "pid": "66eIb47012",
+          "access_pt": 2,
+          "auth_info": "intelligent_wiper_testuser2",
+          "data_pt": 4,
+          "name": "intelligent_wiper_testuser2",
+          "desc": "智能雨刷设备 - 用户testuser2",
+          "status": 2,
+          "create_time": "2025-05-31T21:02:43.913480166+08:00",
+          "activate_time": "0001-01-01T00:00:00Z",
+          "last_time": "0001-01-01T00:00:00Z",
+          "imsi": "",
+          "imei": "",
+          "psk": "",
+          "group_id": "",
+          "enable_status": true,
+          "tags": [
+            "user_testuser2",
+            "intelligent_wiper",
+            "rainfall"
+          ],
+          "lat": "",
+          "lon": "",
+          "auth_code": "",
+          "sec_key": "OU9CQk10bUtuckxCRHlGbWszYjk1MlBXUnhwYUhrQnI=",
+          "chip": 0,
+          "obsv": false,
+          "obsv_st": false,
+          "private": false,
+          "imsi_old": [
+            ""
+          ],
+          "imsi_mt": "0001-01-01T00:00:00Z",
+          "intelligent_way": 1
+        },
+        "api_endpoint": "https://iot-api.heclouds.com/device/create",
+        "message": "通过新版API成功创建设备 intelligent_wiper_testuser2 (ID: 2446043353)",
+        "response_data": {
+          "code": 0,
+          "data": {
+            "did": 2446043353,
+            "pid": "66eIb47012",
+            "access_pt": 2,
+            "auth_info": "intelligent_wiper_testuser2",
+            "data_pt": 4,
+            "name": "intelligent_wiper_testuser2",
+            "desc": "智能雨刷设备 - 用户testuser2",
+            "status": 2,
+            "create_time": "2025-05-31T21:02:43.913480166+08:00",
+            "activate_time": "0001-01-01T00:00:00Z",
+            "last_time": "0001-01-01T00:00:00Z",
+            "imsi": "",
+            "imei": "",
+            "psk": "",
+            "group_id": "",
+            "enable_status": true,
+            "tags": [
+              "user_testuser2",
+              "intelligent_wiper",
+              "rainfall"
+            ],
+            "lat": "",
+            "lon": "",
+            "auth_code": "",
+            "sec_key": "OU9CQk10bUtuckxCRHlGbWszYjk1MlBXUnhwYUhrQnI=",
+            "chip": 0,
+            "obsv": false,
+            "obsv_st": false,
+            "private": false,
+            "imsi_old": [
+              ""
+            ],
+            "imsi_mt": "0001-01-01T00:00:00Z",
+            "intelligent_way": 1
+          },
+          "msg": "succ",
+          "request_id": "faa33f7598fb423eb4cd0b9c9214f904"
+        }
+      }
+    },
+    "testuser3": {
+      "deviceId": "2446044085",
+      "deviceName": "intelligent_wiper_testuser3",
+      "activationCode": "NEW3-2024-IJKL-1003",
+      "serialNumber": "IWC-2024-006",
+      "deviceModel": "智能雨刷控制器 Pro Max",
+      "firmwareVersion": "v1.3.1",
+      "activatedAt": "2025-05-31T13:14:47.423Z",
+      "oneNetResponse": {
+        "success": true,
+        "method": "new_api",
+        "device_name": "intelligent_wiper_testuser3",
+        "device_id": "2446044085",
+        "device_info": {
+          "did": 2446044085,
+          "pid": "66eIb47012",
+          "access_pt": 2,
+          "auth_info": "intelligent_wiper_testuser3",
+          "data_pt": 4,
+          "name": "intelligent_wiper_testuser3",
+          "desc": "智能雨刷设备 - 用户testuser3",
+          "status": 2,
+          "create_time": "2025-05-31T21:14:48.016050569+08:00",
+          "activate_time": "0001-01-01T00:00:00Z",
+          "last_time": "0001-01-01T00:00:00Z",
+          "imsi": "",
+          "imei": "",
+          "psk": "",
+          "group_id": "",
+          "enable_status": true,
+          "tags": [
+            "user_testuser3",
+            "intelligent_wiper",
+            "rainfall"
+          ],
+          "lat": "",
+          "lon": "",
+          "auth_code": "",
+          "sec_key": "WDRmVUFSeU13bjN2OFVGWFJyeU1QUkdTTndWMWVteHQ=",
+          "chip": 0,
+          "obsv": false,
+          "obsv_st": false,
+          "private": false,
+          "imsi_old": [
+            ""
+          ],
+          "imsi_mt": "0001-01-01T00:00:00Z",
+          "intelligent_way": 1
+        },
+        "api_endpoint": "https://iot-api.heclouds.com/device/create",
+        "message": "通过新版API成功创建设备 intelligent_wiper_testuser3 (ID: 2446044085)",
+        "response_data": {
+          "code": 0,
+          "data": {
+            "did": 2446044085,
+            "pid": "66eIb47012",
+            "access_pt": 2,
+            "auth_info": "intelligent_wiper_testuser3",
+            "data_pt": 4,
+            "name": "intelligent_wiper_testuser3",
+            "desc": "智能雨刷设备 - 用户testuser3",
+            "status": 2,
+            "create_time": "2025-05-31T21:14:48.016050569+08:00",
+            "activate_time": "0001-01-01T00:00:00Z",
+            "last_time": "0001-01-01T00:00:00Z",
+            "imsi": "",
+            "imei": "",
+            "psk": "",
+            "group_id": "",
+            "enable_status": true,
+            "tags": [
+              "user_testuser3",
+              "intelligent_wiper",
+              "rainfall"
+            ],
+            "lat": "",
+            "lon": "",
+            "auth_code": "",
+            "sec_key": "WDRmVUFSeU13bjN2OFVGWFJyeU1QUkdTTndWMWVteHQ=",
+            "chip": 0,
+            "obsv": false,
+            "obsv_st": false,
+            "private": false,
+            "imsi_old": [
+              ""
+            ],
+            "imsi_mt": "0001-01-01T00:00:00Z",
+            "intelligent_way": 1
+          },
+          "msg": "succ",
+          "request_id": "66d10c2026fe42b68f53001784066ab4"
+        }
+      }
+    }
+  },
+  "activationCodes": {
+    "TEST-1234-ABCD-5678": {
+      "isUsed": true,
+      "deviceModel": "智能雨刷控制器 Pro",
+      "serialNumber": "IWC-2024-001",
+      "firmwareVersion": "v1.2.0",
+      "usedBy": "admin",
+      "usedAt": "2025-05-31T12:35:56.696Z"
+    },
+    "DEMO-5678-EFGH-9012": {
+      "isUsed": true,
+      "deviceModel": "智能雨刷控制器 Standard",
+      "serialNumber": "IWC-2024-002",
+      "firmwareVersion": "v1.1.0",
+      "usedBy": "user5",
+      "usedAt": "2025-05-31T12:45:27.509Z"
+    },
+    "PROD-9012-IJKL-3456": {
+      "isUsed": true,
+      "deviceModel": "智能雨刷控制器 Pro Max",
+      "serialNumber": "IWC-2024-003",
+      "firmwareVersion": "v1.3.0",
+      "usedBy": "testuser",
+      "usedAt": "2025-05-31T12:46:29.269Z"
+    },
+    "NEW1-2024-ABCD-1001": {
+      "isUsed": true,
+      "deviceModel": "智能雨刷控制器 Pro",
+      "serialNumber": "IWC-2024-004",
+      "firmwareVersion": "v1.2.1",
+      "usedBy": "newuser",
+      "usedAt": "2025-05-31T13:02:35.450Z"
+    },
+    "NEW2-2024-EFGH-1002": {
+      "isUsed": true,
+      "deviceModel": "智能雨刷控制器 Standard",
+      "serialNumber": "IWC-2024-005",
+      "firmwareVersion": "v1.1.1",
+      "usedBy": "testuser2",
+      "usedAt": "2025-05-31T13:02:43.283Z"
+    },
+    "NEW3-2024-IJKL-1003": {
+      "isUsed": true,
+      "deviceModel": "智能雨刷控制器 Pro Max",
+      "serialNumber": "IWC-2024-006",
+      "firmwareVersion": "v1.3.1",
+      "usedBy": "testuser3",
+      "usedAt": "2025-05-31T13:14:47.423Z"
+    }
+  }
+}

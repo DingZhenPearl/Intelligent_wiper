@@ -1347,12 +1347,1498 @@ def get_onenet_data(username='admin'):
         log(traceback.format_exc())
         return {"success": False, "error": error_msg}
 
+def activate_device_for_user(username):
+    """激活用户的设备 - 通过OneNET新版API HTTP属性上报激活设备"""
+    try:
+        log(f"开始激活用户 {username} 的设备")
+
+        # 获取用户设备配置
+        device_config = get_user_device_config(username)
+        device_name = device_config['device_name']
+        device_id = device_config.get('device_id')
+        datastream_id = device_config['datastream_id']
+
+        log(f"激活设备: {device_name}, 设备ID: {device_id}, 数据流ID: {datastream_id}")
+
+        # 如果是新用户但没有设备ID，尝试查找已创建的设备
+        if device_id is None and username not in ["admin", "default", "legacy", "original"]:
+            log(f"用户 {username} 没有设备ID，尝试查找已创建的设备")
+            device_search_result = find_user_device(username)
+            if device_search_result.get("success"):
+                device_id = device_search_result.get("device_id")
+                device_name = device_search_result.get("device_name")
+                log(f"找到用户 {username} 的设备: {device_name} (ID: {device_id})")
+            else:
+                log(f"未找到用户 {username} 的设备，需要先创建设备")
+                return {
+                    "success": False,
+                    "error": f"用户 {username} 的设备尚未创建，请先调用设备创建API",
+                    "suggestion": f"请先运行: python onenet_api.py --action create_device --username {username}",
+                    "search_error": device_search_result.get("error")
+                }
+
+        # 获取设备密钥
+        device_key = get_device_key(device_name)
+        if not device_key:
+            return {"success": False, "error": "获取设备密钥失败"}
+
+        # 生成设备级token
+        device_token = generate_device_token(device_name, device_key)
+        if not device_token:
+            return {"success": False, "error": "生成设备token失败"}
+
+        # 通过多种方式尝试激活设备
+        log(f"开始激活设备 {device_name}")
+
+        # 策略1: 尝试MQTT连接激活（真正的激活方式）
+        activation_result = mqtt_connection_activation(device_name, device_token)
+
+        if not activation_result.get("success"):
+            # 策略2: 尝试简单的设备上线激活
+            log("MQTT连接激活失败，尝试简单激活")
+            activation_result = simple_device_activation(device_name, device_token)
+
+            if not activation_result.get("success"):
+                # 策略3: 尝试HTTP属性上报激活
+                log("简单激活失败，尝试HTTP属性上报激活")
+                device_model_info = query_device_thing_model(device_name, device_token)
+                activation_result = http_property_post_activation(device_name, device_token, datastream_id, device_model_info)
+
+        if activation_result.get("success"):
+            return {
+                "success": True,
+                "device_name": device_name,
+                "device_id": device_id,
+                "message": f"设备 {device_name} 激活成功",
+                "activation_method": "HTTP属性上报",
+                "activation_details": activation_result
+            }
+        else:
+            return {
+                "success": False,
+                "error": f"设备 {device_name} 激活失败",
+                "activation_details": activation_result
+            }
+
+    except Exception as e:
+        error_msg = f"激活设备时出错: {str(e)}"
+        log(error_msg)
+        log(traceback.format_exc())
+        return {"success": False, "error": error_msg}
+
+def get_device_key(device_name):
+    """获取设备密钥"""
+    try:
+        log(f"获取设备 {device_name} 的密钥")
+
+        # 生成平台级token
+        token = generate_token()
+        if not token:
+            log("生成平台token失败")
+            return None
+
+        # 使用设备列表API查询设备信息
+        url = f"{ONENET_API_BASE}/device/list"
+
+        headers = {
+            "authorization": token,
+            "Content-Type": "application/json"
+        }
+
+        params = {
+            "product_id": PRODUCT_ID,
+            "limit": 100
+        }
+
+        response = requests.get(url, params=params, headers=headers)
+
+        if response.status_code == 200:
+            try:
+                response_data = response.json()
+                if response_data.get("code") == 0:
+                    devices = response_data.get("data", {}).get("list", [])
+
+                    # 查找目标设备
+                    for device in devices:
+                        if device.get("name") == device_name:
+                            sec_key = device.get("sec_key")
+                            if sec_key:
+                                log(f"找到设备密钥: {sec_key[:20]}...")
+                                return sec_key
+                            else:
+                                log(f"设备 {device_name} 没有密钥")
+                                return None
+
+                    log(f"未找到设备 {device_name}")
+                    return None
+                else:
+                    log(f"查询设备信息失败: {response_data.get('msg', '未知错误')}")
+                    return None
+            except:
+                log(f"解析设备信息响应失败")
+                return None
+        else:
+            log(f"查询设备信息API失败，状态码: {response.status_code}")
+            return None
+
+    except Exception as e:
+        log(f"获取设备密钥出错: {str(e)}")
+        return None
+
+def generate_device_token(device_name, device_key):
+    """生成设备级token"""
+    try:
+        import hmac
+        import hashlib
+        import base64
+        import urllib.parse
+        import time
+
+        log(f"生成设备 {device_name} 的token")
+
+        # OneNET新版API设备级token参数
+        version = "2018-10-31"
+        resource_name = f"products/{PRODUCT_ID}/devices/{device_name}"
+        expiration_time = str(int(time.time()) + 100 * 24 * 60 * 60)  # 100天后过期
+        signature_method = "sha1"
+
+        # 构建签名字符串
+        string_to_sign = f"{expiration_time}\n{signature_method}\n{resource_name}\n{version}"
+
+        # 使用设备密钥进行HMAC-SHA1签名
+        key_bytes = base64.b64decode(device_key)
+        signature = hmac.new(key_bytes, string_to_sign.encode('utf-8'), hashlib.sha1).digest()
+        signature_b64 = base64.b64encode(signature).decode('utf-8')
+
+        # 构建token
+        token_parts = [
+            f"version={version}",
+            f"res={urllib.parse.quote(resource_name, safe='')}",
+            f"et={expiration_time}",
+            f"method={signature_method}",
+            f"sign={urllib.parse.quote(signature_b64, safe='')}"
+        ]
+
+        token = "&".join(token_parts)
+        log(f"设备token生成成功: {token[:50]}...")
+        return token
+
+    except Exception as e:
+        log(f"生成设备token出错: {str(e)}")
+        return None
+
+def mqtt_connection_activation(device_name, device_token):
+    """通过MQTT连接激活设备 - 真正的激活方式"""
+    try:
+        log(f"尝试通过MQTT连接激活设备 {device_name}")
+
+        # 检查是否安装了paho-mqtt
+        try:
+            import paho.mqtt.client as mqtt
+        except ImportError:
+            log("未安装paho-mqtt库，尝试安装...")
+            try:
+                import subprocess
+                subprocess.check_call([sys.executable, "-m", "pip", "install", "paho-mqtt"])
+                import paho.mqtt.client as mqtt
+                log("paho-mqtt库安装成功")
+            except Exception as e:
+                log(f"无法安装paho-mqtt库: {e}")
+                return {
+                    "success": False,
+                    "error": "无法安装paho-mqtt库，请手动安装: pip install paho-mqtt"
+                }
+
+        # OneNET MQTT连接参数
+        mqtt_host = "183.230.40.96"  # OneNET MQTT服务器
+        mqtt_port = 1883
+        client_id = device_name
+        username = PRODUCT_ID
+        password = device_token
+
+        # 创建MQTT客户端
+        client = mqtt.Client(client_id=client_id)
+        client.username_pw_set(username, password)
+
+        # 连接状态标志
+        connection_result = {"connected": False, "error": None}
+
+        def on_connect(client, userdata, flags, rc):
+            if rc == 0:
+                log(f"MQTT连接成功，设备 {device_name} 已激活")
+                connection_result["connected"] = True
+
+                # 发布多条消息来确保设备激活
+                messages = [
+                    {
+                        "topic": f"$sys/{PRODUCT_ID}/{device_name}/thing/property/post",
+                        "payload": {
+                            "id": "123",
+                            "version": "1.0",
+                            "params": {
+                                "status": {
+                                    "value": "online",
+                                    "time": int(time.time() * 1000)
+                                }
+                            }
+                        }
+                    },
+                    {
+                        "topic": f"$sys/{PRODUCT_ID}/{device_name}/thing/property/post",
+                        "payload": {
+                            "id": "124",
+                            "version": "1.0",
+                            "params": {
+                                "temperature": {
+                                    "value": 25.0,
+                                    "time": int(time.time() * 1000)
+                                }
+                            }
+                        }
+                    },
+                    {
+                        "topic": f"$sys/{PRODUCT_ID}/{device_name}/thing/property/post",
+                        "payload": {
+                            "id": "125",
+                            "version": "1.0",
+                            "params": {
+                                "humidity": {
+                                    "value": 60.0,
+                                    "time": int(time.time() * 1000)
+                                }
+                            }
+                        }
+                    }
+                ]
+
+                try:
+                    for i, msg in enumerate(messages):
+                        client.publish(msg["topic"], json.dumps(msg["payload"]))
+                        log(f"发布激活消息 {i+1}/{len(messages)} 到主题: {msg['topic']}")
+                        time.sleep(1)  # 每条消息间隔1秒
+                except Exception as e:
+                    log(f"发布消息失败: {e}")
+
+                # 保持连接5秒钟，然后断开
+                log("保持MQTT连接5秒钟以确保激活...")
+                time.sleep(5)
+                client.disconnect()
+            else:
+                error_msg = f"MQTT连接失败，返回码: {rc}"
+                log(error_msg)
+                connection_result["error"] = error_msg
+
+        def on_disconnect(client, userdata, rc):
+            log(f"MQTT连接已断开，返回码: {rc}")
+
+        def on_publish(client, userdata, mid):
+            log(f"消息发布成功，消息ID: {mid}")
+
+        # 设置回调函数
+        client.on_connect = on_connect
+        client.on_disconnect = on_disconnect
+        client.on_publish = on_publish
+
+        # 尝试连接
+        log(f"连接到MQTT服务器: {mqtt_host}:{mqtt_port}")
+        log(f"客户端ID: {client_id}")
+        log(f"用户名: {username}")
+        log(f"密码: {password[:50]}...")
+
+        try:
+            client.connect(mqtt_host, mqtt_port, 60)
+
+            # 等待连接结果
+            start_time = time.time()
+            timeout = 20  # 20秒超时，给足够时间处理消息
+
+            while time.time() - start_time < timeout:
+                client.loop(timeout=1)
+                if connection_result["connected"] or connection_result["error"]:
+                    break
+                time.sleep(0.1)
+
+            if connection_result["connected"]:
+                return {
+                    "success": True,
+                    "message": f"设备 {device_name} 通过MQTT连接激活成功",
+                    "activation_method": "MQTT连接",
+                    "mqtt_host": mqtt_host,
+                    "mqtt_port": mqtt_port
+                }
+            else:
+                error = connection_result["error"] or "连接超时"
+                return {
+                    "success": False,
+                    "error": f"MQTT连接激活失败: {error}",
+                    "mqtt_host": mqtt_host,
+                    "mqtt_port": mqtt_port
+                }
+
+        except Exception as e:
+            error_msg = f"MQTT连接异常: {str(e)}"
+            log(error_msg)
+            return {
+                "success": False,
+                "error": error_msg
+            }
+
+    except Exception as e:
+        error_msg = f"MQTT连接激活出错: {str(e)}"
+        log(error_msg)
+        return {"success": False, "error": error_msg}
+
+def simple_device_activation(device_name, device_token):
+    """简单的设备激活方式 - 通过设备上线来激活"""
+    try:
+        log(f"尝试简单激活设备 {device_name}")
+
+        # 尝试多种简单的激活方式
+        activation_methods = [
+            # 方法1: 设备上线通知
+            {
+                "url": "https://open.iot.10086.cn/fuse/http/device/thing/event/post",
+                "params": {
+                    "topic": f"$sys/{PRODUCT_ID}/{device_name}/thing/event/post",
+                    "protocol": "mqtt"
+                },
+                "body": {
+                    "id": "123",
+                    "version": "1.0",
+                    "params": {
+                        "online": {
+                            "value": {
+                                "status": "online",
+                                "timestamp": int(time.time() * 1000)
+                            },
+                            "time": int(time.time() * 1000)
+                        }
+                    }
+                }
+            },
+            # 方法2: 设备状态上报
+            {
+                "url": "https://open.iot.10086.cn/fuse/http/device/thing/property/post",
+                "params": {
+                    "topic": f"$sys/{PRODUCT_ID}/{device_name}/thing/property/post",
+                    "protocol": "mqtt"
+                },
+                "body": {
+                    "id": "123",
+                    "version": "1.0",
+                    "params": {}  # 空参数，只是为了触发设备上线
+                }
+            },
+            # 方法3: 设备心跳
+            {
+                "url": "https://open.iot.10086.cn/fuse/http/device/thing/event/post",
+                "params": {
+                    "topic": f"$sys/{PRODUCT_ID}/{device_name}/thing/event/heartbeat",
+                    "protocol": "mqtt"
+                },
+                "body": {
+                    "id": "123",
+                    "version": "1.0",
+                    "params": {
+                        "heartbeat": {
+                            "value": {
+                                "timestamp": int(time.time() * 1000)
+                            },
+                            "time": int(time.time() * 1000)
+                        }
+                    }
+                }
+            }
+        ]
+
+        headers = {
+            "Content-Type": "application/json",
+            "token": device_token
+        }
+
+        for i, method in enumerate(activation_methods, 1):
+            log(f"尝试简单激活方法 {i}/{len(activation_methods)}")
+            log(f"URL: {method['url']}")
+            log(f"参数: {method['params']}")
+
+            try:
+                response = requests.post(
+                    method["url"],
+                    params=method["params"],
+                    headers=headers,
+                    json=method["body"],
+                    timeout=30
+                )
+
+                log(f"简单激活方法 {i} 响应状态码: {response.status_code}")
+                log(f"简单激活方法 {i} 响应内容: {response.text}")
+
+                if response.status_code == 200:
+                    try:
+                        response_data = response.json()
+                        if response_data.get("errno") == 0:
+                            log(f"设备 {device_name} 简单激活成功（方法 {i}）")
+                            return {
+                                "success": True,
+                                "message": f"设备 {device_name} 简单激活成功（方法 {i}）",
+                                "response_data": response_data,
+                                "activation_method": f"简单激活方法{i}"
+                            }
+                    except:
+                        pass
+
+            except Exception as e:
+                log(f"简单激活方法 {i} 失败: {e}")
+                continue
+
+        return {
+            "success": False,
+            "error": "所有简单激活方法都失败了",
+            "attempted_methods": len(activation_methods)
+        }
+
+    except Exception as e:
+        error_msg = f"简单激活出错: {str(e)}"
+        log(error_msg)
+        return {"success": False, "error": error_msg}
+
+def query_device_thing_model(device_name, device_token):
+    """查询设备的物模型信息"""
+    try:
+        log(f"查询设备 {device_name} 的物模型信息")
+
+        # 尝试查询设备的物模型
+        url = f"https://open.iot.10086.cn/fuse/http/device/thing/model/get"
+
+        params = {
+            "topic": f"$sys/{PRODUCT_ID}/{device_name}/thing/model/get",
+            "protocol": "mqtt"
+        }
+
+        headers = {
+            "Content-Type": "application/json",
+            "token": device_token
+        }
+
+        body = {
+            "id": "123",
+            "version": "1.0",
+            "params": {}
+        }
+
+        response = requests.post(url, params=params, headers=headers, json=body, timeout=30)
+
+        log(f"物模型查询响应状态码: {response.status_code}")
+        log(f"物模型查询响应内容: {response.text}")
+
+        if response.status_code == 200:
+            try:
+                response_data = response.json()
+                if response_data.get("errno") == 0:
+                    return response_data.get("data", {})
+            except:
+                pass
+
+        # 如果查询失败，返回默认的物模型信息
+        log("物模型查询失败，使用默认配置")
+        return {
+            "properties": [
+                {"identifier": "temperature", "name": "温度"},
+                {"identifier": "humidity", "name": "湿度"},
+                {"identifier": "rainfall", "name": "雨量"},
+                {"identifier": "rain", "name": "降雨"},
+                {"identifier": "temp", "name": "温度"},
+                {"identifier": "hum", "name": "湿度"}
+            ]
+        }
+
+    except Exception as e:
+        log(f"查询物模型出错: {str(e)}")
+        return {
+            "properties": [
+                {"identifier": "temperature", "name": "温度"},
+                {"identifier": "humidity", "name": "湿度"}
+            ]
+        }
+
+def http_property_post_activation(device_name, device_token, datastream_id, device_model_info=None):
+    """通过HTTP属性上报激活设备"""
+    try:
+        log(f"开始通过HTTP属性上报激活设备 {device_name}")
+
+        # OneNET新版API HTTP属性上报端点
+        topic = f"$sys/{PRODUCT_ID}/{device_name}/thing/property/post"
+
+        url = f"https://open.iot.10086.cn/fuse/http/device/thing/property/post"
+
+        # 请求参数 - 根据官方文档，protocol应该是http
+        params = {
+            "topic": topic,
+            "protocol": "http"
+        }
+
+        # 请求头
+        headers = {
+            "Content-Type": "application/json",
+            "token": device_token
+        }
+
+        # 请求体 - OneJSON格式，根据物模型信息构建
+        params_dict = {}
+
+        if device_model_info and "properties" in device_model_info:
+            # 使用物模型中的属性
+            properties = device_model_info["properties"]
+            log(f"使用物模型属性: {[p.get('identifier') for p in properties]}")
+
+            for prop in properties[:2]:  # 只使用前两个属性
+                identifier = prop.get("identifier")
+                if identifier:
+                    if "temp" in identifier.lower():
+                        params_dict[identifier] = {"value": 25.0}
+                    elif "hum" in identifier.lower():
+                        params_dict[identifier] = {"value": 60.0}
+                    elif "rain" in identifier.lower():
+                        params_dict[identifier] = {"value": 0.0}
+                    else:
+                        params_dict[identifier] = {"value": 1.0}
+
+        # 如果没有物模型信息或没有属性，使用默认值
+        if not params_dict:
+            log("使用默认属性参数")
+            params_dict = {
+                "temperature": {"value": 25.0},
+                "humidity": {"value": 60.0}
+            }
+
+        body = {
+            "id": "123",
+            "version": "1.0",
+            "params": params_dict
+        }
+
+        log(f"HTTP属性上报URL: {url}")
+        log(f"请求参数: {params}")
+        log(f"请求体: {body}")
+
+        # 发送POST请求
+        response = requests.post(url, params=params, headers=headers, json=body, timeout=30)
+
+        log(f"HTTP属性上报响应状态码: {response.status_code}")
+        log(f"HTTP属性上报响应内容: {response.text}")
+
+        if response.status_code == 200:
+            try:
+                response_data = response.json()
+                if response_data.get("errno") == 0:
+                    log(f"设备 {device_name} HTTP属性上报成功，设备已激活")
+                    return {
+                        "success": True,
+                        "message": f"设备 {device_name} 通过HTTP属性上报激活成功",
+                        "response_data": response_data
+                    }
+                else:
+                    error_msg = response_data.get("error", "未知错误")
+                    log(f"HTTP属性上报失败: {error_msg}")
+
+                    # 如果是协议不匹配错误，尝试其他方法
+                    if "protocol not match" in error_msg.lower():
+                        log("协议不匹配，尝试使用MQTT协议格式")
+                        return try_mqtt_style_activation(device_name, device_token, datastream_id, device_model_info)
+
+                    return {
+                        "success": False,
+                        "error": f"HTTP属性上报失败: {error_msg}",
+                        "response_data": response_data
+                    }
+            except:
+                log(f"解析HTTP属性上报响应失败")
+                return {
+                    "success": False,
+                    "error": "解析HTTP属性上报响应失败",
+                    "response_text": response.text
+                }
+        else:
+            return {
+                "success": False,
+                "error": f"HTTP属性上报请求失败，状态码: {response.status_code}",
+                "response_text": response.text
+            }
+
+    except Exception as e:
+        error_msg = f"HTTP属性上报激活出错: {str(e)}"
+        log(error_msg)
+        return {"success": False, "error": error_msg}
+
+def try_mqtt_style_activation(device_name, device_token, datastream_id, device_model_info=None):
+    """尝试使用MQTT风格的激活方式"""
+    try:
+        log(f"尝试使用MQTT风格激活设备 {device_name}")
+
+        # 尝试不同的URL和参数组合
+        activation_attempts = [
+            {
+                "url": "https://open.iot.10086.cn/fuse/http/device/thing/property/post",
+                "params": {
+                    "topic": f"$sys/{PRODUCT_ID}/{device_name}/thing/property/post",
+                    "protocol": "mqtt"
+                }
+            },
+            {
+                "url": "https://open.iot.10086.cn/fuse/http/device/thing/property/post",
+                "params": {
+                    "topic": f"$sys/{PRODUCT_ID}/{device_name}/thing/property/post"
+                    # 不包含protocol参数
+                }
+            },
+            {
+                "url": "https://open.iot.10086.cn/fuse/http/device/thing/property/post",
+                "params": {
+                    "topic": f"{PRODUCT_ID}/{device_name}/thing/property/post",
+                    "protocol": "http"
+                }
+            }
+        ]
+
+        headers = {
+            "Content-Type": "application/json",
+            "token": device_token
+        }
+
+        # 构建请求体，使用物模型信息
+        params_dict = {}
+
+        if device_model_info and "properties" in device_model_info:
+            # 使用物模型中的属性
+            properties = device_model_info["properties"]
+            log(f"MQTT风格激活使用物模型属性: {[p.get('identifier') for p in properties]}")
+
+            for prop in properties[:2]:  # 只使用前两个属性
+                identifier = prop.get("identifier")
+                if identifier:
+                    if "temp" in identifier.lower():
+                        params_dict[identifier] = {"value": 25.0}
+                    elif "hum" in identifier.lower():
+                        params_dict[identifier] = {"value": 60.0}
+                    elif "rain" in identifier.lower():
+                        params_dict[identifier] = {"value": 0.0}
+                    else:
+                        params_dict[identifier] = {"value": 1.0}
+
+        # 如果没有物模型信息，尝试多种常见的标识符组合
+        if not params_dict:
+            log("MQTT风格激活使用默认属性参数")
+            # 尝试多种可能的标识符组合
+            identifier_combinations = [
+                {"temp": {"value": 25.0}, "hum": {"value": 60.0}},
+                {"temperature": {"value": 25.0}, "humidity": {"value": 60.0}},
+                {"rainfall": {"value": 0.0}, "status": {"value": "online"}},
+                {"rain": {"value": 0.0}, "temp": {"value": 25.0}},
+                {"data": {"value": 1.0}, "state": {"value": "active"}}
+            ]
+            params_dict = identifier_combinations[0]  # 先使用第一个组合
+
+        body = {
+            "id": "123",
+            "version": "1.0",
+            "params": params_dict
+        }
+
+        for i, attempt in enumerate(activation_attempts, 1):
+            log(f"尝试激活方式 {i}/{len(activation_attempts)}")
+            log(f"URL: {attempt['url']}")
+            log(f"参数: {attempt['params']}")
+
+            try:
+                response = requests.post(
+                    attempt["url"],
+                    params=attempt["params"],
+                    headers=headers,
+                    json=body,
+                    timeout=30
+                )
+
+                log(f"响应状态码: {response.status_code}")
+                log(f"响应内容: {response.text}")
+
+                if response.status_code == 200:
+                    try:
+                        response_data = response.json()
+                        if response_data.get("errno") == 0:
+                            log(f"设备 {device_name} 激活成功（方式 {i}）")
+                            return {
+                                "success": True,
+                                "message": f"设备 {device_name} 激活成功（使用方式 {i}）",
+                                "response_data": response_data,
+                                "activation_method": f"方式{i}"
+                            }
+                    except:
+                        pass
+
+            except Exception as e:
+                log(f"激活方式 {i} 失败: {e}")
+                continue
+
+        return {
+            "success": False,
+            "error": "所有激活方式都失败了",
+            "attempted_methods": len(activation_attempts)
+        }
+
+    except Exception as e:
+        error_msg = f"MQTT风格激活出错: {str(e)}"
+        log(error_msg)
+        return {"success": False, "error": error_msg}
+
+def get_device_sec_key(device_name, token):
+    """获取设备的安全密钥"""
+    try:
+        log(f"获取设备 {device_name} 的安全密钥")
+
+        # 使用设备列表API查询设备信息
+        url = f"{ONENET_API_BASE}/device/list"
+
+        headers = {
+            "authorization": token,
+            "Content-Type": "application/json"
+        }
+
+        params = {
+            "product_id": PRODUCT_ID,
+            "limit": 100
+        }
+
+        response = requests.get(url, params=params, headers=headers)
+
+        if response.status_code == 200:
+            try:
+                response_data = response.json()
+                if response_data.get("code") == 0:
+                    devices = response_data.get("data", {}).get("list", [])
+
+                    # 查找目标设备
+                    for device in devices:
+                        if device.get("name") == device_name:
+                            sec_key = device.get("sec_key")
+                            if sec_key:
+                                log(f"找到设备安全密钥: {sec_key[:20]}...")
+                                return sec_key
+                            else:
+                                log(f"设备 {device_name} 没有安全密钥")
+                                return None
+
+                    log(f"未找到设备 {device_name}")
+                    return None
+                else:
+                    log(f"查询设备信息失败: {response_data.get('msg', '未知错误')}")
+                    return None
+            except:
+                log(f"解析设备信息响应失败")
+                return None
+        else:
+            log(f"查询设备信息API失败，状态码: {response.status_code}")
+            return None
+
+    except Exception as e:
+        log(f"获取设备安全密钥出错: {str(e)}")
+        return None
+
+def http_activate_device(device_name, device_id, token):
+    """通过HTTP数据上传激活设备"""
+    try:
+        log(f"尝试通过HTTP数据上传激活设备 {device_name}")
+
+        # 使用新版OneNET物模型API端点
+        api_endpoints = [
+            f"{ONENET_API_BASE}/thingmodel/set-device-property",
+            f"{ONENET_API_BASE}/thingmodel/query-device-property",
+            f"{ONENET_API_BASE}/thingmodel/property-post",
+            f"{ONENET_API_BASE}/thingmodel/device-property-post"
+        ]
+
+        headers = {
+            "authorization": token,
+            "Content-Type": "application/json"
+        }
+
+        # 构建激活数据
+        current_time = datetime.now().strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
+
+        # 尝试常见的物模型属性标识符
+        common_identifiers = [
+            # 常见的雨量传感器标识符
+            ["rainfall", "status"],
+            ["rain", "online"],
+            ["precipitation", "device_state"],
+            ["water_level", "connection_status"],
+            ["humidity", "power_status"],
+            # 通用属性标识符
+            ["temperature", "humidity"],
+            ["temp", "hum"],
+            ["value", "state"],
+            ["data", "status"]
+        ]
+
+        activation_data_variants = []
+
+        # 为每组标识符生成数据格式
+        for identifiers in common_identifiers:
+            rain_id, status_id = identifiers
+
+            # 变体1: 设备属性设置格式（用于set-device-property）- 正确的Params格式
+            activation_data_variants.append({
+                "product_id": PRODUCT_ID,
+                "device_name": device_name,
+                "params": {
+                    rain_id: 0.0,
+                    status_id: "online"
+                }
+            })
+
+            # 变体2: 物模型属性上报格式（用于property-post）
+            activation_data_variants.append({
+                "product_id": PRODUCT_ID,
+                "device_name": device_name,
+                "properties": {
+                    rain_id: {
+                        "value": 0.0,
+                        "time": int(datetime.now().timestamp() * 1000)
+                    },
+                    status_id: {
+                        "value": "online",
+                        "time": int(datetime.now().timestamp() * 1000)
+                    }
+                }
+            })
+
+        # 尝试每个API端点和数据格式组合
+        for i, url in enumerate(api_endpoints, 1):
+            log(f"尝试HTTP激活API端点 {i}/{len(api_endpoints)}: {url}")
+
+            for j, data in enumerate(activation_data_variants, 1):
+                log(f"  尝试数据格式 {j}/{len(activation_data_variants)}")
+
+                try:
+                    response = requests.post(url, json=data, headers=headers, timeout=30)
+                    log(f"  HTTP激活响应状态码: {response.status_code}")
+                    log(f"  HTTP激活响应内容: {response.text}")
+
+                    if response.status_code in [200, 201, 204]:
+                        try:
+                            response_data = response.json()
+                            if response_data.get("code") == 0 or response_data.get("errno") == 0:
+                                log(f"HTTP激活成功: {response_data}")
+                                return {
+                                    "success": True,
+                                    "message": f"设备 {device_name} HTTP激活成功",
+                                    "api_endpoint": url,
+                                    "data_format": j,
+                                    "response_data": response_data
+                                }
+                        except:
+                            # 如果没有JSON响应，但状态码成功，也认为成功
+                            log(f"HTTP激活成功（无JSON响应）")
+                            return {
+                                "success": True,
+                                "message": f"设备 {device_name} HTTP激活成功",
+                                "api_endpoint": url,
+                                "data_format": j,
+                                "response_text": response.text
+                            }
+
+                except requests.exceptions.RequestException as e:
+                    log(f"  HTTP激活请求失败: {e}")
+                    continue
+
+        # 所有尝试都失败
+        return {
+            "success": False,
+            "error": f"所有HTTP激活尝试都失败，设备 {device_name} HTTP激活失败",
+            "attempted_endpoints": api_endpoints
+        }
+
+    except Exception as e:
+        error_msg = f"HTTP激活出错: {str(e)}"
+        log(error_msg)
+        return {"success": False, "error": error_msg}
+
+def mqtt_activate_device(device_name, device_id, sec_key=None):
+    """通过MQTT连接激活设备"""
+    try:
+        log(f"尝试通过MQTT连接激活设备 {device_name}")
+
+        # 调用MQTT设备激活器
+        import subprocess
+        import os
+
+        # 获取当前脚本目录
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        mqtt_script = os.path.join(current_dir, "mqtt_device_activator.py")
+
+        # 检查MQTT激活器脚本是否存在
+        if not os.path.exists(mqtt_script):
+            log(f"MQTT激活器脚本不存在: {mqtt_script}")
+            return {
+                "success": False,
+                "error": "MQTT激活器脚本不存在"
+            }
+
+        # 调用MQTT激活器
+        cmd = [
+            sys.executable,  # 使用当前Python解释器
+            mqtt_script,
+            "activate",
+            "--device_name", device_name,
+            "--device_id", str(device_id)
+        ]
+
+        # 如果有sec_key，添加到命令中
+        if sec_key:
+            cmd.extend(["--sec_key", sec_key])
+            log(f"使用设备sec_key: {sec_key[:20]}...")
+
+        log(f"执行MQTT激活命令: {' '.join(cmd)}")
+
+        # 执行命令
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            encoding='utf-8',
+            errors='ignore',
+            timeout=60  # 60秒超时
+        )
+
+        log(f"MQTT激活命令退出码: {result.returncode}")
+        log(f"MQTT激活标准输出: {result.stdout}")
+
+        if result.stderr:
+            log(f"MQTT激活标准错误: {result.stderr}")
+
+        if result.returncode == 0:
+            try:
+                # 解析JSON输出
+                if result.stdout and result.stdout.strip():
+                    # 查找JSON输出（可能在多行输出中）
+                    lines = result.stdout.strip().split('\n')
+                    json_line = None
+                    for line in lines:
+                        line = line.strip()
+                        if line.startswith('{') and line.endswith('}'):
+                            json_line = line
+                            break
+
+                    if json_line:
+                        mqtt_result = json.loads(json_line)
+                        log(f"MQTT激活结果: {mqtt_result}")
+                        return mqtt_result
+                    else:
+                        log(f"未找到JSON输出，原始输出: {result.stdout}")
+                        return {
+                            "success": False,
+                            "error": "未找到有效的JSON输出",
+                            "raw_output": result.stdout
+                        }
+                else:
+                    log("MQTT激活器没有输出")
+                    return {
+                        "success": False,
+                        "error": "MQTT激活器没有输出",
+                        "raw_output": result.stdout
+                    }
+            except json.JSONDecodeError as e:
+                log(f"解析MQTT激活结果失败: {e}")
+                return {
+                    "success": False,
+                    "error": f"解析MQTT激活结果失败: {e}",
+                    "raw_output": result.stdout
+                }
+        else:
+            return {
+                "success": False,
+                "error": f"MQTT激活命令执行失败，退出码: {result.returncode}",
+                "stderr": result.stderr,
+                "stdout": result.stdout
+            }
+
+    except subprocess.TimeoutExpired:
+        log("MQTT激活超时")
+        return {
+            "success": False,
+            "error": "MQTT激活超时"
+        }
+    except Exception as e:
+        error_msg = f"MQTT激活出错: {str(e)}"
+        log(error_msg)
+        return {"success": False, "error": error_msg}
+
+def update_device_activation_status(device_name, token):
+    """通过OneNET API更新设备激活状态"""
+    try:
+        log(f"尝试通过API更新设备 {device_name} 的激活状态")
+
+        # 首先获取设备ID
+        device_id = None
+        device_search_result = find_user_device(device_name.replace("intelligent_wiper_", ""))
+        if device_search_result.get("success"):
+            device_id = device_search_result.get("device_id")
+            log(f"获取到设备ID: {device_id}")
+
+        # 尝试多个可能的设备激活API端点
+        api_endpoints = [
+            f"{ONENET_API_BASE}/device/update",
+            f"{ONENET_API_BASE}/device/activate",
+            f"{ONENET_API_BASE}/device/online",
+            f"{ONENET_API_BASE}/device/{device_name}/activate",
+            f"{ONENET_API_BASE}/device/{device_name}/online",
+            f"{ONENET_API_BASE}/device/{device_name}/status",
+        ]
+
+        # 如果有设备ID，添加基于ID的端点
+        if device_id:
+            api_endpoints.extend([
+                f"{ONENET_API_BASE}/device/{device_id}/activate",
+                f"{ONENET_API_BASE}/device/{device_id}/online",
+                f"{ONENET_API_BASE}/device/{device_id}/status",
+                f"{ONENET_API_BASE}/device/{device_id}/update",
+                f"{ONENET_API_BASE}/devices/{device_id}/activate",
+                f"{ONENET_API_BASE}/devices/{device_id}/online",
+                f"{ONENET_API_BASE}/devices/{device_id}/status"
+            ])
+
+        headers = {
+            "authorization": token,
+            "Content-Type": "application/json"
+        }
+
+        # 设备激活数据 - 尝试不同的参数格式
+        current_time = datetime.now().strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
+
+        activation_data_variants = [
+            # 变体1: 完整激活参数 - 设置为已激活状态
+            {
+                "product_id": PRODUCT_ID,
+                "device_name": device_name,
+                "status": 0,  # 0表示已激活/在线
+                "activate_time": current_time,
+                "last_time": current_time,
+                "enable_status": True,
+                "online": True
+            },
+            # 变体2: 使用不同的时间格式
+            {
+                "product_id": PRODUCT_ID,
+                "device_name": device_name,
+                "status": 0,
+                "activate_time": datetime.now().strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "+08:00",
+                "last_time": datetime.now().strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "+08:00"
+            },
+            # 变体3: 使用Unix时间戳
+            {
+                "product_id": PRODUCT_ID,
+                "device_name": device_name,
+                "status": 0,
+                "activate_time": int(datetime.now().timestamp()),
+                "last_time": int(datetime.now().timestamp())
+            },
+            # 变体4: 只设置状态为0
+            {
+                "product_id": PRODUCT_ID,
+                "device_name": device_name,
+                "status": 0
+            },
+            # 变体5: 使用act_time和last_login字段（从API响应中看到的字段）
+            {
+                "product_id": PRODUCT_ID,
+                "device_name": device_name,
+                "status": 0,
+                "act_time": current_time,
+                "last_login": current_time
+            },
+            # 变体6: 尝试online字段
+            {
+                "product_id": PRODUCT_ID,
+                "device_name": device_name,
+                "online": True,
+                "status": 0
+            }
+        ]
+
+        # 如果有设备ID，添加基于设备ID的激活数据
+        if device_id:
+            activation_data_variants.extend([
+                # 使用设备ID的激活数据
+                {
+                    "product_id": PRODUCT_ID,
+                    "device_id": device_id,
+                    "status": 0,
+                    "activate_time": current_time,
+                    "last_time": current_time,
+                    "online": True
+                },
+                {
+                    "product_id": PRODUCT_ID,
+                    "did": device_id,
+                    "status": 0,
+                    "activate_time": current_time,
+                    "last_time": current_time
+                },
+                # 只使用设备ID
+                {
+                    "device_id": device_id,
+                    "status": 0,
+                    "activate_time": current_time,
+                    "last_time": current_time
+                },
+                {
+                    "did": device_id,
+                    "status": 0,
+                    "online": True
+                }
+            ])
+
+        # 尝试每个API端点和数据格式组合
+        for i, url in enumerate(api_endpoints, 1):
+            log(f"尝试设备激活API端点 {i}/{len(api_endpoints)}: {url}")
+
+            # 对每个端点尝试不同的数据格式
+            for j, activation_data in enumerate(activation_data_variants, 1):
+                log(f"  尝试数据格式 {j}/{len(activation_data_variants)}: {activation_data}")
+
+                try:
+                    # 尝试PUT方法
+                    response = requests.put(url, json=activation_data, headers=headers, timeout=30)
+                    log(f"  PUT请求响应状态码: {response.status_code}")
+                    log(f"  PUT请求响应内容: {response.text}")
+
+                    if response.status_code in [200, 201, 204]:
+                        try:
+                            response_data = response.json()
+                            if response_data.get("code") == 0:
+                                log(f"设备激活API调用成功: {response_data}")
+                                return {
+                                    "success": True,
+                                    "message": f"设备 {device_name} 激活状态更新成功",
+                                    "api_endpoint": url,
+                                    "data_format": j,
+                                    "response_data": response_data
+                                }
+                        except:
+                            # 如果没有JSON响应，但状态码成功，也认为成功
+                            log(f"设备激活API调用成功（无JSON响应）")
+                            return {
+                                "success": True,
+                                "message": f"设备 {device_name} 激活状态更新成功",
+                                "api_endpoint": url,
+                                "data_format": j,
+                                "response_text": response.text
+                            }
+
+                    # 如果PUT失败，尝试POST方法
+                    response = requests.post(url, json=activation_data, headers=headers, timeout=30)
+                    log(f"  POST请求响应状态码: {response.status_code}")
+                    log(f"  POST请求响应内容: {response.text}")
+
+                    if response.status_code in [200, 201, 204]:
+                        try:
+                            response_data = response.json()
+                            if response_data.get("code") == 0:
+                                log(f"设备激活API调用成功: {response_data}")
+                                return {
+                                    "success": True,
+                                    "message": f"设备 {device_name} 激活状态更新成功",
+                                    "api_endpoint": url,
+                                    "data_format": j,
+                                    "response_data": response_data
+                                }
+                        except:
+                            # 如果没有JSON响应，但状态码成功，也认为成功
+                            log(f"设备激活API调用成功（无JSON响应）")
+                            return {
+                                "success": True,
+                                "message": f"设备 {device_name} 激活状态更新成功",
+                                "api_endpoint": url,
+                                "data_format": j,
+                                "response_text": response.text
+                            }
+
+                except requests.exceptions.RequestException as e:
+                    log(f"  API端点 {url} 数据格式 {j} 请求失败: {e}")
+                    continue
+
+        # 所有API端点都失败
+        return {
+            "success": False,
+            "error": f"所有设备激活API端点都失败，设备 {device_name} 激活状态更新失败",
+            "attempted_endpoints": api_endpoints
+        }
+
+    except Exception as e:
+        error_msg = f"更新设备激活状态出错: {str(e)}"
+        log(error_msg)
+        return {"success": False, "error": error_msg}
+
+def send_device_status_data(device_name, token):
+    """发送设备状态数据，模拟设备上线"""
+    try:
+        # 使用物模型属性上报API发送设备状态
+        url = f"{ONENET_API_BASE}/thingmodel/property-post"
+
+        headers = {
+            "authorization": token,
+            "Content-Type": "application/json"
+        }
+
+        # 构建设备状态数据（使用物模型格式）
+        status_data = {
+            "product_id": PRODUCT_ID,
+            "device_name": device_name,
+            "properties": {
+                "device_status": {
+                    "value": "online",
+                    "time": int(datetime.now().timestamp() * 1000)
+                }
+            }
+        }
+
+        log(f"发送设备状态数据: {url}")
+        log(f"状态数据: {status_data}")
+
+        response = requests.post(url, json=status_data, headers=headers)
+
+        log(f"设备状态上传响应状态码: {response.status_code}")
+        log(f"设备状态上传响应内容: {response.text}")
+
+        if response.status_code in [200, 201]:
+            try:
+                response_data = response.json()
+                if response_data.get("code") == 0:
+                    log(f"设备状态上传成功: {response_data}")
+                    return {
+                        "success": True,
+                        "message": "设备状态上传成功",
+                        "response_data": response_data
+                    }
+                else:
+                    return {
+                        "success": False,
+                        "error": f"设备状态上传失败: {response_data.get('msg', '未知错误')}"
+                    }
+            except:
+                return {
+                    "success": True,
+                    "message": "设备状态上传成功",
+                    "response_text": response.text
+                }
+        else:
+            return {
+                "success": False,
+                "error": f"设备状态上传失败，状态码: {response.status_code}, 响应: {response.text}"
+            }
+
+    except Exception as e:
+        error_msg = f"发送设备状态数据出错: {str(e)}"
+        log(error_msg)
+        return {"success": False, "error": error_msg}
+
+def send_initial_rainfall_data(device_name, datastream_id, token):
+    """发送初始雨量数据，模拟设备首次数据上传"""
+    try:
+        # 使用物模型属性上报API发送雨量数据
+        url = f"{ONENET_API_BASE}/thingmodel/property-post"
+
+        headers = {
+            "authorization": token,
+            "Content-Type": "application/json"
+        }
+
+        # 构建雨量数据（使用物模型格式）
+        rainfall_data = {
+            "product_id": PRODUCT_ID,
+            "device_name": device_name,
+            "properties": {
+                datastream_id: {
+                    "value": 0.0,  # 初始雨量值为0
+                    "time": int(datetime.now().timestamp() * 1000)
+                }
+            }
+        }
+
+        log(f"发送初始雨量数据: {url}")
+        log(f"雨量数据: {rainfall_data}")
+
+        response = requests.post(url, json=rainfall_data, headers=headers)
+
+        log(f"雨量数据上传响应状态码: {response.status_code}")
+        log(f"雨量数据上传响应内容: {response.text}")
+
+        if response.status_code in [200, 201]:
+            try:
+                response_data = response.json()
+                if response_data.get("code") == 0:
+                    log(f"雨量数据上传成功: {response_data}")
+                    return {
+                        "success": True,
+                        "message": "雨量数据上传成功",
+                        "response_data": response_data
+                    }
+                else:
+                    return {
+                        "success": False,
+                        "error": f"雨量数据上传失败: {response_data.get('msg', '未知错误')}"
+                    }
+            except:
+                return {
+                    "success": True,
+                    "message": "雨量数据上传成功",
+                    "response_text": response.text
+                }
+        else:
+            return {
+                "success": False,
+                "error": f"雨量数据上传失败，状态码: {response.status_code}, 响应: {response.text}"
+            }
+
+    except Exception as e:
+        error_msg = f"发送初始雨量数据出错: {str(e)}"
+        log(error_msg)
+        return {"success": False, "error": error_msg}
+
+def check_device_activation_status(device_name, token):
+    """检查设备激活状态"""
+    try:
+        # 使用设备列表API查询设备信息，检查activate_time是否已更新
+        url = f"{ONENET_API_BASE}/device/list"
+
+        headers = {
+            "authorization": token,
+            "Content-Type": "application/json"
+        }
+
+        params = {
+            "product_id": PRODUCT_ID,
+            "limit": 100
+        }
+
+        log(f"检查设备激活状态: {url}")
+        log(f"查询参数: {params}")
+
+        response = requests.get(url, params=params, headers=headers)
+
+        log(f"设备状态查询响应状态码: {response.status_code}")
+        log(f"设备状态查询响应内容: {response.text}")
+
+        if response.status_code == 200:
+            try:
+                response_data = response.json()
+                if response_data.get("code") == 0:
+                    devices = response_data.get("data", {}).get("list", [])
+
+                    # 查找目标设备
+                    target_device = None
+                    for device in devices:
+                        if device.get("name") == device_name:
+                            target_device = device
+                            break
+
+                    if target_device:
+                        activate_time = target_device.get("activate_time")
+                        last_time = target_device.get("last_time")
+
+                        # 检查是否已激活（activate_time不为默认值）
+                        is_activated = (
+                            activate_time and
+                            activate_time != "0001-01-01T08:05:43+08:05" and
+                            last_time and
+                            last_time != "0001-01-01T08:05:43+08:05"
+                        )
+
+                        log(f"设备激活状态检查结果: 已激活={is_activated}, activate_time={activate_time}, last_time={last_time}")
+
+                        return {
+                            "success": True,
+                            "is_activated": is_activated,
+                            "activate_time": activate_time,
+                            "last_time": last_time,
+                            "device_info": target_device,
+                            "message": f"设备激活状态: {'已激活' if is_activated else '未激活'}"
+                        }
+                    else:
+                        return {
+                            "success": False,
+                            "error": f"未找到设备 {device_name}"
+                        }
+                else:
+                    return {
+                        "success": False,
+                        "error": f"查询设备状态失败: {response_data.get('msg', '未知错误')}"
+                    }
+            except Exception as parse_error:
+                log(f"解析设备状态响应失败: {parse_error}")
+                return {
+                    "success": False,
+                    "error": f"解析设备状态响应失败: {parse_error}"
+                }
+        else:
+            return {
+                "success": False,
+                "error": f"查询设备状态失败，状态码: {response.status_code}, 响应: {response.text}"
+            }
+
+    except Exception as e:
+        error_msg = f"检查设备激活状态出错: {str(e)}"
+        log(error_msg)
+        return {"success": False, "error": error_msg}
+
+def check_device_status_for_user(username):
+    """检查用户设备的激活状态"""
+    try:
+        log(f"检查用户 {username} 的设备状态")
+
+        # 获取用户设备配置
+        device_config = get_user_device_config(username)
+        device_name = device_config['device_name']
+
+        log(f"检查设备状态: {device_name}")
+
+        # 生成平台级token
+        token = generate_token()
+        if not token:
+            return {"success": False, "error": "生成token失败"}
+
+        # 检查设备激活状态
+        status_result = check_device_activation_status(device_name, token)
+
+        if status_result.get("success"):
+            is_activated = status_result.get("is_activated", False)
+            return {
+                "success": True,
+                "device_name": device_name,
+                "is_activated": is_activated,
+                "activate_time": status_result.get("activate_time"),
+                "last_time": status_result.get("last_time"),
+                "message": f"设备 {device_name} 状态: {'已激活' if is_activated else '未激活'}",
+                "device_info": status_result.get("device_info")
+            }
+        else:
+            return {
+                "success": False,
+                "device_name": device_name,
+                "error": status_result.get("error", "检查设备状态失败")
+            }
+
+    except Exception as e:
+        error_msg = f"检查设备状态时出错: {str(e)}"
+        log(error_msg)
+        log(traceback.format_exc())
+        return {"success": False, "error": error_msg}
+
 def main():
     """主函数，处理命令行参数并执行相应操作"""
     parser = argparse.ArgumentParser(description='OneNET API工具')
-    parser.add_argument('--action', dest='action', choices=['get', 'create_device', 'create_datastream'], help='要执行的操作')
+    parser.add_argument('--action', dest='action', choices=['get', 'create_device', 'create_datastream', 'activate_device', 'check_device_status'], help='要执行的操作')
     # 为了兼容旧的位置参数格式，也添加一个位置参数
-    parser.add_argument('action_pos', nargs='?', choices=['get', 'create_device', 'create_datastream'], help='要执行的操作（位置参数）')
+    parser.add_argument('action_pos', nargs='?', choices=['get', 'create_device', 'create_datastream', 'activate_device', 'check_device_status'], help='要执行的操作（位置参数）')
     parser.add_argument('--username', default='admin', help='用户名')
 
     args = parser.parse_args()
@@ -1369,6 +2855,14 @@ def main():
     elif action == 'create_datastream':
         # 保留旧的数据流创建功能以便兼容
         result = create_datastream_for_user(args.username)
+        print(json.dumps(result, ensure_ascii=False))
+    elif action == 'activate_device':
+        # 新增：激活设备功能
+        result = activate_device_for_user(args.username)
+        print(json.dumps(result, ensure_ascii=False))
+    elif action == 'check_device_status':
+        # 新增：检查设备状态功能
+        result = check_device_status_for_user(args.username)
         print(json.dumps(result, ensure_ascii=False))
     else:
         # 默认操作：获取数据
