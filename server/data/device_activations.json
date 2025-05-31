@@ -305,6 +305,24 @@
           "request_id": "66d10c2026fe42b68f53001784066ab4"
         }
       }
+    },
+    "user1": {
+      "deviceId": 2445951703,
+      "deviceName": "intelligent_wiper_user1",
+      "activationCode": "WIPE-2025-MQTT-0005",
+      "serialNumber": "IWS-2025-005",
+      "deviceModel": "智能雨刷传感器 v2.0",
+      "firmwareVersion": "v2.0.1",
+      "activatedAt": "2025-05-31T14:45:37.957Z"
+    },
+    "user4": {
+      "deviceId": 2446036267,
+      "deviceName": "intelligent_wiper_user4",
+      "activationCode": "DEMO-2025-MQTT-0001",
+      "serialNumber": "IWS-DEMO-001",
+      "deviceModel": "智能雨刷传感器 v2.0 (演示版)",
+      "firmwareVersion": "v2.0.1-demo",
+      "activatedAt": "2025-05-31T14:46:53.793Z"
     }
   },
   "activationCodes": {
@@ -333,10 +351,12 @@
       "firmwareVersion": "v2.0.1"
     },
     "WIPE-2025-MQTT-0005": {
-      "isUsed": false,
+      "isUsed": true,
       "deviceModel": "智能雨刷传感器 v2.0",
       "serialNumber": "IWS-2025-005",
-      "firmwareVersion": "v2.0.1"
+      "firmwareVersion": "v2.0.1",
+      "usedBy": "user1",
+      "usedAt": "2025-05-31T14:45:37.957Z"
     },
     "TEST-2025-MQTT-0001": {
       "isUsed": false,
@@ -351,10 +371,12 @@
       "firmwareVersion": "v2.0.1-beta"
     },
     "DEMO-2025-MQTT-0001": {
-      "isUsed": false,
+      "isUsed": true,
       "deviceModel": "智能雨刷传感器 v2.0 (演示版)",
       "serialNumber": "IWS-DEMO-001",
-      "firmwareVersion": "v2.0.1-demo"
+      "firmwareVersion": "v2.0.1-demo",
+      "usedBy": "user4",
+      "usedAt": "2025-05-31T14:46:53.793Z"
     }
   }
 }
