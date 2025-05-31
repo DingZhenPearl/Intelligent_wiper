@@ -284,7 +284,7 @@ export default {
           username.value = ''
           password.value = ''
           confirmPassword.value = ''
-          alert('注册成功，已为您创建专属数据流，请登录')
+          alert('注册成功，已为您创建专属设备，请登录')
         } else {
           errorMessage.value = data.error || '注册失败，用户名可能已被占用'
         }
