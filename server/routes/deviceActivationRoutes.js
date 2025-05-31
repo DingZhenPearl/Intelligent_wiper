@@ -78,54 +78,83 @@ function saveDeviceActivationData(data) {
 // 初始化数据文件
 initDeviceActivationFile();
 
-// 获取用户设备激活状态
-router.get('/status', (req, res) => {
+// 获取用户设备激活状态（从OneNET平台获取真实数据）
+router.get('/status', async (req, res) => {
   try {
     const { username } = req.query;
-    
+
     if (!username) {
-      return res.status(400).json({ 
-        success: false, 
-        error: '缺少用户名参数' 
+      return res.status(400).json({
+        success: false,
+        error: '缺少用户名参数'
       });
     }
 
-    console.log(`[设备激活] 获取用户 ${username} 的设备激活状态`);
+    console.log(`[设备激活] 获取用户 ${username} 的设备激活状态（从OneNET平台）`);
 
-    const data = readDeviceActivationData();
-    const userActivation = data.activations[username];
+    // 首先从OneNET平台获取真实设备状态
+    const oneNetStatus = await oneNetActivationService.checkDeviceStatus(username);
 
-    if (userActivation) {
-      // 用户已激活设备
+    if (oneNetStatus.success && oneNetStatus.is_activated) {
+      // 从OneNET平台获取到真实设备信息
+      const deviceInfo = oneNetStatus.device_info;
+
+      // 从本地数据获取激活码和序列号等补充信息
+      const data = readDeviceActivationData();
+      const userActivation = data.activations[username];
+
       res.json({
         success: true,
         isActivated: true,
-        deviceId: userActivation.deviceId,
-        deviceName: userActivation.deviceName,
-        serialNumber: userActivation.serialNumber,
-        deviceModel: userActivation.deviceModel,
-        firmwareVersion: userActivation.firmwareVersion,
-        activatedAt: userActivation.activatedAt
+        deviceId: deviceInfo.did,  // 使用OneNET的真实设备ID
+        deviceName: deviceInfo.name,  // 使用OneNET的真实设备名称
+        serialNumber: userActivation?.serialNumber || `IW-${deviceInfo.did}`,  // 本地序列号或生成
+        deviceModel: userActivation?.deviceModel || "智能雨刷设备",  // 统一设备型号
+        firmwareVersion: userActivation?.firmwareVersion || "v2.0",  // 统一固件版本
+        activatedAt: deviceInfo.activate_time,  // 使用OneNET的真实激活时间
+        lastTime: deviceInfo.last_time,  // 添加最后活动时间
+        status: deviceInfo.status,  // 添加设备状态
+        createTime: deviceInfo.create_time  // 添加创建时间
       });
     } else {
-      // 用户未激活设备
-      res.json({
-        success: true,
-        isActivated: false,
-        deviceId: null,
-        deviceName: null,
-        serialNumber: null,
-        deviceModel: null,
-        firmwareVersion: null,
-        activatedAt: null
-      });
+      // OneNET平台上没有激活的设备，检查本地数据作为备用
+      const data = readDeviceActivationData();
+      const userActivation = data.activations[username];
+
+      if (userActivation) {
+        // 本地有激活记录但OneNET上未激活，可能是数据不同步
+        res.json({
+          success: true,
+          isActivated: false,  // 以OneNET平台状态为准
+          deviceId: userActivation.deviceId,
+          deviceName: userActivation.deviceName,
+          serialNumber: userActivation.serialNumber,
+          deviceModel: userActivation.deviceModel,
+          firmwareVersion: userActivation.firmwareVersion,
+          activatedAt: userActivation.activatedAt,
+          warning: "设备在OneNET平台上未激活，请重新激活"
+        });
+      } else {
+        // 用户未激活设备
+        res.json({
+          success: true,
+          isActivated: false,
+          deviceId: null,
+          deviceName: null,
+          serialNumber: null,
+          deviceModel: null,
+          firmwareVersion: null,
+          activatedAt: null
+        });
+      }
     }
 
   } catch (error) {
     console.error('[设备激活] 获取设备状态错误:', error);
-    res.status(500).json({ 
-      success: false, 
-      error: '服务器内部错误' 
+    res.status(500).json({
+      success: false,
+      error: '服务器内部错误',
+      details: error.message
     });
   }
 });

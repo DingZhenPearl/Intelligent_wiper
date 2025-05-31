@@ -50,11 +50,11 @@ def show_available_codes():
         print("6. 激活成功后，该激活码将不再可用")
         
         print("\n🎯 推荐测试激活码:")
-        test_codes = [code for code in available_codes.keys() if 'TEST' in code or 'DEMO' in code]
-        if test_codes:
-            for code in test_codes[:3]:  # 显示前3个测试激活码
+        wiper_codes = [code for code in available_codes.keys() if 'WIPER' in code]
+        if wiper_codes:
+            for code in wiper_codes[:3]:  # 显示前3个激活码
                 print(f"   • {code}")
-        
+
     except Exception as e:
         print(f"❌ 读取激活码文件失败: {e}")
 

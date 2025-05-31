@@ -2,35 +2,35 @@
   "activations": {
     "admin": {
       "deviceId": "device_admin_1748694956696",
-      "activationCode": "TEST-1234-ABCD-5678",
-      "serialNumber": "IWC-2024-001",
-      "deviceModel": "智能雨刷控制器 Pro",
-      "firmwareVersion": "v1.2.0",
+      "activationCode": "WIPER-2025-0001",
+      "serialNumber": "IW-2025-001",
+      "deviceModel": "智能雨刷设备",
+      "firmwareVersion": "v2.0",
       "activatedAt": "2025-05-31T12:35:56.696Z"
     },
     "user5": {
       "deviceId": "device_user5_1748695527509",
-      "activationCode": "DEMO-5678-EFGH-9012",
-      "serialNumber": "IWC-2024-002",
-      "deviceModel": "智能雨刷控制器 Standard",
-      "firmwareVersion": "v1.1.0",
+      "activationCode": "WIPER-2025-0002",
+      "serialNumber": "IW-2025-002",
+      "deviceModel": "智能雨刷设备",
+      "firmwareVersion": "v2.0",
       "activatedAt": "2025-05-31T12:45:27.509Z"
     },
     "testuser": {
       "deviceId": "device_testuser_1748695589269",
-      "activationCode": "PROD-9012-IJKL-3456",
-      "serialNumber": "IWC-2024-003",
-      "deviceModel": "智能雨刷控制器 Pro Max",
-      "firmwareVersion": "v1.3.0",
+      "activationCode": "WIPER-2025-0003",
+      "serialNumber": "IW-2025-003",
+      "deviceModel": "智能雨刷设备",
+      "firmwareVersion": "v2.0",
       "activatedAt": "2025-05-31T12:46:29.269Z"
     },
     "newuser": {
       "deviceId": "2446043345",
       "deviceName": "intelligent_wiper_newuser",
-      "activationCode": "NEW1-2024-ABCD-1001",
-      "serialNumber": "IWC-2024-004",
-      "deviceModel": "智能雨刷控制器 Pro",
-      "firmwareVersion": "v1.2.1",
+      "activationCode": "WIPER-2025-0004",
+      "serialNumber": "IW-2025-004",
+      "deviceModel": "智能雨刷设备",
+      "firmwareVersion": "v2.0",
       "activatedAt": "2025-05-31T13:02:35.450Z",
       "oneNetResponse": {
         "success": true,
@@ -121,10 +121,10 @@
     "testuser2": {
       "deviceId": "2446043353",
       "deviceName": "intelligent_wiper_testuser2",
-      "activationCode": "NEW2-2024-EFGH-1002",
-      "serialNumber": "IWC-2024-005",
-      "deviceModel": "智能雨刷控制器 Standard",
-      "firmwareVersion": "v1.1.1",
+      "activationCode": "WIPER-2025-0005",
+      "serialNumber": "IW-2025-005",
+      "deviceModel": "智能雨刷设备",
+      "firmwareVersion": "v2.0",
       "activatedAt": "2025-05-31T13:02:43.283Z",
       "oneNetResponse": {
         "success": true,
@@ -215,10 +215,10 @@
     "testuser3": {
       "deviceId": "2446044085",
       "deviceName": "intelligent_wiper_testuser3",
-      "activationCode": "NEW3-2024-IJKL-1003",
-      "serialNumber": "IWC-2024-006",
-      "deviceModel": "智能雨刷控制器 Pro Max",
-      "firmwareVersion": "v1.3.1",
+      "activationCode": "WIPER-2025-0006",
+      "serialNumber": "IW-2025-006",
+      "deviceModel": "智能雨刷设备",
+      "firmwareVersion": "v2.0",
       "activatedAt": "2025-05-31T13:14:47.423Z",
       "oneNetResponse": {
         "success": true,
@@ -309,74 +309,93 @@
     "user1": {
       "deviceId": 2445951703,
       "deviceName": "intelligent_wiper_user1",
-      "activationCode": "WIPE-2025-MQTT-0005",
-      "serialNumber": "IWS-2025-005",
-      "deviceModel": "智能雨刷传感器 v2.0",
-      "firmwareVersion": "v2.0.1",
+      "activationCode": "WIPER-2025-0007",
+      "serialNumber": "IW-2025-007",
+      "deviceModel": "智能雨刷设备",
+      "firmwareVersion": "v2.0",
       "activatedAt": "2025-05-31T14:45:37.957Z"
     },
     "user4": {
       "deviceId": 2446036267,
       "deviceName": "intelligent_wiper_user4",
-      "activationCode": "DEMO-2025-MQTT-0001",
-      "serialNumber": "IWS-DEMO-001",
-      "deviceModel": "智能雨刷传感器 v2.0 (演示版)",
-      "firmwareVersion": "v2.0.1-demo",
+      "activationCode": "WIPER-2025-0008",
+      "serialNumber": "IW-2025-008",
+      "deviceModel": "智能雨刷设备",
+      "firmwareVersion": "v2.0",
       "activatedAt": "2025-05-31T14:46:53.793Z"
+    },
+    "testuser5": {
+      "deviceId": 2446049603,
+      "deviceName": "intelligent_wiper_testuser5",
+      "activationCode": "WIPER-2025-0009",
+      "serialNumber": "IW-2025-009",
+      "deviceModel": "智能雨刷设备",
+      "firmwareVersion": "v2.0",
+      "activatedAt": "2025-05-31T15:05:01.478Z"
     }
   },
   "activationCodes": {
-    "WIPE-2025-MQTT-0001": {
-      "isUsed": false,
-      "deviceModel": "智能雨刷传感器 v2.0",
-      "serialNumber": "IWS-2025-001",
-      "firmwareVersion": "v2.0.1"
-    },
-    "WIPE-2025-MQTT-0002": {
-      "isUsed": false,
-      "deviceModel": "智能雨刷传感器 v2.0",
-      "serialNumber": "IWS-2025-002",
-      "firmwareVersion": "v2.0.1"
-    },
-    "WIPE-2025-MQTT-0003": {
-      "isUsed": false,
-      "deviceModel": "智能雨刷传感器 v2.0",
-      "serialNumber": "IWS-2025-003",
-      "firmwareVersion": "v2.0.1"
-    },
-    "WIPE-2025-MQTT-0004": {
-      "isUsed": false,
-      "deviceModel": "智能雨刷传感器 v2.0",
-      "serialNumber": "IWS-2025-004",
-      "firmwareVersion": "v2.0.1"
-    },
-    "WIPE-2025-MQTT-0005": {
+    "WIPER-2025-0001": {
       "isUsed": true,
-      "deviceModel": "智能雨刷传感器 v2.0",
-      "serialNumber": "IWS-2025-005",
-      "firmwareVersion": "v2.0.1",
-      "usedBy": "user1",
-      "usedAt": "2025-05-31T14:45:37.957Z"
+      "deviceModel": "智能雨刷设备",
+      "serialNumber": "IW-2025-001",
+      "firmwareVersion": "v2.0",
+      "usedBy": "testuser5",
+      "usedAt": "2025-05-31T15:05:01.478Z"
     },
-    "TEST-2025-MQTT-0001": {
+    "WIPER-2025-0002": {
       "isUsed": false,
-      "deviceModel": "智能雨刷传感器 v2.0 (测试版)",
-      "serialNumber": "IWS-TEST-001",
-      "firmwareVersion": "v2.0.1-beta"
+      "deviceModel": "智能雨刷设备",
+      "serialNumber": "IW-2025-002",
+      "firmwareVersion": "v2.0"
     },
-    "TEST-2025-MQTT-0002": {
+    "WIPER-2025-0003": {
       "isUsed": false,
-      "deviceModel": "智能雨刷传感器 v2.0 (测试版)",
-      "serialNumber": "IWS-TEST-002",
-      "firmwareVersion": "v2.0.1-beta"
+      "deviceModel": "智能雨刷设备",
+      "serialNumber": "IW-2025-003",
+      "firmwareVersion": "v2.0"
     },
-    "DEMO-2025-MQTT-0001": {
-      "isUsed": true,
-      "deviceModel": "智能雨刷传感器 v2.0 (演示版)",
-      "serialNumber": "IWS-DEMO-001",
-      "firmwareVersion": "v2.0.1-demo",
-      "usedBy": "user4",
-      "usedAt": "2025-05-31T14:46:53.793Z"
+    "WIPER-2025-0004": {
+      "isUsed": false,
+      "deviceModel": "智能雨刷设备",
+      "serialNumber": "IW-2025-004",
+      "firmwareVersion": "v2.0"
+    },
+    "WIPER-2025-0005": {
+      "isUsed": false,
+      "deviceModel": "智能雨刷设备",
+      "serialNumber": "IW-2025-005",
+      "firmwareVersion": "v2.0"
+    },
+    "WIPER-2025-0006": {
+      "isUsed": false,
+      "deviceModel": "智能雨刷设备",
+      "serialNumber": "IW-2025-006",
+      "firmwareVersion": "v2.0"
+    },
+    "WIPER-2025-0007": {
+      "isUsed": false,
+      "deviceModel": "智能雨刷设备",
+      "serialNumber": "IW-2025-007",
+      "firmwareVersion": "v2.0"
+    },
+    "WIPER-2025-0008": {
+      "isUsed": false,
+      "deviceModel": "智能雨刷设备",
+      "serialNumber": "IW-2025-008",
+      "firmwareVersion": "v2.0"
+    },
+    "WIPER-2025-0009": {
+      "isUsed": false,
+      "deviceModel": "智能雨刷设备",
+      "serialNumber": "IW-2025-009",
+      "firmwareVersion": "v2.0"
+    },
+    "WIPER-2025-0010": {
+      "isUsed": false,
+      "deviceModel": "智能雨刷设备",
+      "serialNumber": "IW-2025-010",
+      "firmwareVersion": "v2.0"
     }
   }
 }
