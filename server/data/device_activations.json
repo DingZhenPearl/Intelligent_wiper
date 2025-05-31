@@ -308,53 +308,53 @@
     }
   },
   "activationCodes": {
-    "TEST-1234-ABCD-5678": {
-      "isUsed": true,
-      "deviceModel": "智能雨刷控制器 Pro",
-      "serialNumber": "IWC-2024-001",
-      "firmwareVersion": "v1.2.0",
-      "usedBy": "admin",
-      "usedAt": "2025-05-31T12:35:56.696Z"
+    "WIPE-2025-MQTT-0001": {
+      "isUsed": false,
+      "deviceModel": "智能雨刷传感器 v2.0",
+      "serialNumber": "IWS-2025-001",
+      "firmwareVersion": "v2.0.1"
     },
-    "DEMO-5678-EFGH-9012": {
-      "isUsed": true,
-      "deviceModel": "智能雨刷控制器 Standard",
-      "serialNumber": "IWC-2024-002",
-      "firmwareVersion": "v1.1.0",
-      "usedBy": "user5",
-      "usedAt": "2025-05-31T12:45:27.509Z"
+    "WIPE-2025-MQTT-0002": {
+      "isUsed": false,
+      "deviceModel": "智能雨刷传感器 v2.0",
+      "serialNumber": "IWS-2025-002",
+      "firmwareVersion": "v2.0.1"
     },
-    "PROD-9012-IJKL-3456": {
-      "isUsed": true,
-      "deviceModel": "智能雨刷控制器 Pro Max",
-      "serialNumber": "IWC-2024-003",
-      "firmwareVersion": "v1.3.0",
-      "usedBy": "testuser",
-      "usedAt": "2025-05-31T12:46:29.269Z"
+    "WIPE-2025-MQTT-0003": {
+      "isUsed": false,
+      "deviceModel": "智能雨刷传感器 v2.0",
+      "serialNumber": "IWS-2025-003",
+      "firmwareVersion": "v2.0.1"
     },
-    "NEW1-2024-ABCD-1001": {
-      "isUsed": true,
-      "deviceModel": "智能雨刷控制器 Pro",
-      "serialNumber": "IWC-2024-004",
-      "firmwareVersion": "v1.2.1",
-      "usedBy": "newuser",
-      "usedAt": "2025-05-31T13:02:35.450Z"
+    "WIPE-2025-MQTT-0004": {
+      "isUsed": false,
+      "deviceModel": "智能雨刷传感器 v2.0",
+      "serialNumber": "IWS-2025-004",
+      "firmwareVersion": "v2.0.1"
     },
-    "NEW2-2024-EFGH-1002": {
-      "isUsed": true,
-      "deviceModel": "智能雨刷控制器 Standard",
-      "serialNumber": "IWC-2024-005",
-      "firmwareVersion": "v1.1.1",
-      "usedBy": "testuser2",
-      "usedAt": "2025-05-31T13:02:43.283Z"
+    "WIPE-2025-MQTT-0005": {
+      "isUsed": false,
+      "deviceModel": "智能雨刷传感器 v2.0",
+      "serialNumber": "IWS-2025-005",
+      "firmwareVersion": "v2.0.1"
     },
-    "NEW3-2024-IJKL-1003": {
-      "isUsed": true,
-      "deviceModel": "智能雨刷控制器 Pro Max",
-      "serialNumber": "IWC-2024-006",
-      "firmwareVersion": "v1.3.1",
-      "usedBy": "testuser3",
-      "usedAt": "2025-05-31T13:14:47.423Z"
+    "TEST-2025-MQTT-0001": {
+      "isUsed": false,
+      "deviceModel": "智能雨刷传感器 v2.0 (测试版)",
+      "serialNumber": "IWS-TEST-001",
+      "firmwareVersion": "v2.0.1-beta"
+    },
+    "TEST-2025-MQTT-0002": {
+      "isUsed": false,
+      "deviceModel": "智能雨刷传感器 v2.0 (测试版)",
+      "serialNumber": "IWS-TEST-002",
+      "firmwareVersion": "v2.0.1-beta"
+    },
+    "DEMO-2025-MQTT-0001": {
+      "isUsed": false,
+      "deviceModel": "智能雨刷传感器 v2.0 (演示版)",
+      "serialNumber": "IWS-DEMO-001",
+      "firmwareVersion": "v2.0.1-demo"
     }
   }
 }

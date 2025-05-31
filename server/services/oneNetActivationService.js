@@ -12,7 +12,7 @@ class OneNetActivationService {
   }
 
   /**
-   * 激活设备 - 在OneNET平台创建设备并激活
+   * 激活设备 - 激活已存在的OneNET设备（设备应该在注册时已创建）
    * @param {string} username - 用户名
    * @param {string} activationCode - 激活码
    * @param {object} codeInfo - 激活码信息
@@ -20,52 +20,69 @@ class OneNetActivationService {
    */
   async activateDevice(username, activationCode, codeInfo) {
     try {
-      console.log(`[OneNET激活服务] 开始为用户 ${username} 激活设备`);
+      console.log(`[OneNET激活服务] 开始为用户 ${username} 激活设备（设备应该在注册时已创建）`);
 
-      // 步骤1: 调用Python脚本创建OneNET设备
-      console.log(`[OneNET激活服务] 步骤1: 创建OneNET设备`);
-      const createResult = await this.createOneNetDevice(username);
+      // 步骤1: 检查设备是否存在
+      console.log(`[OneNET激活服务] 步骤1: 检查用户设备是否存在`);
+      const statusResult = await this.checkDeviceStatus(username);
 
-      if (!createResult.success) {
+      if (!statusResult.success) {
+        console.error(`[OneNET激活服务] 用户 ${username} 的设备不存在，需要先创建设备`);
         return {
           success: false,
-          error: createResult.error,
-          details: createResult
+          error: '设备不存在，请联系管理员',
+          details: statusResult,
+          suggestion: '设备应该在注册时自动创建，如果没有创建请联系技术支持'
         };
       }
 
-      console.log(`[OneNET激活服务] 设备创建成功:`, createResult);
+      const deviceName = statusResult.device_name;
+      const deviceId = statusResult.device_info?.did;
 
-      // 步骤2: 激活已创建的设备（使用真正的MQTT连接激活）
-      console.log(`[OneNET激活服务] 步骤2: 激活设备 ${createResult.device_name}（使用MQTT连接）`);
+      console.log(`[OneNET激活服务] 找到用户设备: ${deviceName} (ID: ${deviceId})`);
+
+      // 步骤2: 检查设备是否已经激活
+      if (statusResult.is_activated) {
+        console.log(`[OneNET激活服务] 设备已经激活，激活时间: ${statusResult.activate_time}`);
+        return {
+          success: true,
+          deviceId: deviceId,
+          deviceName: deviceName,
+          message: `设备 ${deviceName} 已经激活`,
+          activatedAt: statusResult.activate_time,
+          lastTime: statusResult.last_time,
+          alreadyActivated: true,
+          statusVerification: statusResult
+        };
+      }
+
+      // 步骤3: 激活设备（使用真正的MQTT连接激活）
+      console.log(`[OneNET激活服务] 步骤3: 激活设备 ${deviceName}（使用MQTT连接）`);
       const activationResult = await this.activateOneNetDevice(username);
 
       if (!activationResult.success) {
-        console.warn(`[OneNET激活服务] 设备激活失败，但设备已创建:`, activationResult.error);
-        // 即使激活失败，设备创建成功也算部分成功
+        console.error(`[OneNET激活服务] 设备激活失败:`, activationResult.error);
         return {
-          success: true,
-          deviceId: createResult.device_id,
-          deviceName: createResult.device_name,
-          oneNetResponse: createResult,
-          activationResult: activationResult,
-          message: `设备 ${createResult.device_name} 在OneNET平台创建成功，但激活失败: ${activationResult.error}`,
-          warning: '设备已创建但未完全激活，可能需要物理设备连接'
+          success: false,
+          error: `设备激活失败: ${activationResult.error}`,
+          details: activationResult,
+          deviceId: deviceId,
+          deviceName: deviceName
         };
       }
 
       console.log(`[OneNET激活服务] 设备激活成功:`, activationResult);
 
-      // 步骤3: 验证设备真实激活状态
-      console.log(`[OneNET激活服务] 步骤3: 验证设备真实激活状态`);
-      const statusResult = await this.checkDeviceStatus(username);
+      // 步骤4: 验证设备真实激活状态
+      console.log(`[OneNET激活服务] 步骤4: 验证设备真实激活状态`);
+      const verifyResult = await this.checkDeviceStatus(username);
 
       let verificationMessage = '';
       let isReallyActivated = false;
 
-      if (statusResult.success && statusResult.is_activated) {
+      if (verifyResult.success && verifyResult.is_activated) {
         isReallyActivated = true;
-        verificationMessage = `设备在OneNET平台真正激活成功，激活时间: ${statusResult.activate_time}`;
+        verificationMessage = `设备在OneNET平台真正激活成功，激活时间: ${verifyResult.activate_time}`;
         console.log(`[OneNET激活服务] ✅ 设备真实激活验证成功`);
       } else {
         verificationMessage = `设备激活API调用成功，但平台状态验证失败`;
@@ -74,15 +91,14 @@ class OneNetActivationService {
 
       return {
         success: true,
-        deviceId: createResult.device_id,
-        deviceName: createResult.device_name,
-        oneNetResponse: createResult,
+        deviceId: deviceId,
+        deviceName: deviceName,
         activationResult: activationResult,
-        statusVerification: statusResult,
+        statusVerification: verifyResult,
         isReallyActivated: isReallyActivated,
-        realActivateTime: statusResult.activate_time,
-        realLastTime: statusResult.last_time,
-        message: `设备 ${createResult.device_name} 在OneNET平台创建并激活成功`,
+        realActivateTime: verifyResult.activate_time,
+        realLastTime: verifyResult.last_time,
+        message: `设备 ${deviceName} 激活成功`,
         verificationMessage: verificationMessage
       };
 
