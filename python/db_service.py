@@ -256,10 +256,78 @@ def get_all_users():
     finally:
         conn.close()
 
+def delete_user_and_data(username):
+    """删除用户及其所有相关数据"""
+    if not username:
+        return {"success": False, "error": "用户名不能为空"}
+
+    log(f"开始删除用户 {username} 及其所有相关数据")
+
+    conn = get_db_connection()
+    try:
+        with conn.cursor() as cursor:
+            # 检查用户是否存在
+            cursor.execute('SELECT id FROM users WHERE username = %s', (username,))
+            user = cursor.fetchone()
+
+            if not user:
+                return {"success": False, "error": f"用户 {username} 不存在"}
+
+            user_id = user['id']
+            log(f"找到用户 {username} (ID: {user_id})")
+
+            # 删除雨量相关数据表中的数据
+            tables_to_clean = [
+                'rainfall_raw',      # 原始雨量数据
+                'rainfall_10min',    # 10分钟聚合数据
+                'rainfall_hourly',   # 小时聚合数据
+                'rainfall_daily',    # 日聚合数据
+                'rainfall_monthly'   # 月聚合数据
+            ]
+
+            deleted_counts = {}
+
+            for table in tables_to_clean:
+                try:
+                    # 先查询要删除的记录数
+                    cursor.execute(f'SELECT COUNT(*) as count FROM {table} WHERE username = %s', (username,))
+                    count_result = cursor.fetchone()
+                    count = count_result['count'] if count_result else 0
+
+                    # 删除数据
+                    cursor.execute(f'DELETE FROM {table} WHERE username = %s', (username,))
+                    deleted_counts[table] = count
+                    log(f"从表 {table} 删除了 {count} 条记录")
+                except Exception as table_error:
+                    log(f"删除表 {table} 中的数据时出错: {str(table_error)}")
+                    # 继续处理其他表
+
+            # 最后删除用户记录
+            cursor.execute('DELETE FROM users WHERE username = %s', (username,))
+            log(f"删除用户记录: {username}")
+
+        conn.commit()
+
+        log(f"成功删除用户 {username} 及其所有相关数据")
+        return {
+            "success": True,
+            "message": f"成功删除用户 {username} 及其所有相关数据",
+            "user_id": user_id,
+            "deleted_counts": deleted_counts
+        }
+
+    except Exception as e:
+        conn.rollback()
+        error_msg = f"删除用户 {username} 时出错: {str(e)}"
+        log(error_msg)
+        return {"success": False, "error": error_msg}
+    finally:
+        conn.close()
+
 if __name__ == '__main__':
     try:
         parser = argparse.ArgumentParser(description='数据库服务')
-        parser.add_argument('--action', choices=['init', 'register', 'login', 'get_user', 'get_all_users'],
+        parser.add_argument('--action', choices=['init', 'register', 'login', 'get_user', 'get_all_users', 'delete_user'],
                             required=True, help='执行的操作')
         parser.add_argument('--username', help='用户名')
         parser.add_argument('--password', help='密码')
@@ -289,6 +357,11 @@ if __name__ == '__main__':
                 result = get_user_by_id(args.user_id)
         elif args.action == 'get_all_users':
             result = get_all_users()
+        elif args.action == 'delete_user':
+            if not args.username:
+                result = {"success": False, "error": "删除用户需要提供用户名"}
+            else:
+                result = delete_user_and_data(args.username)
         else:
             result = {"success": False, "error": "未知操作"}
 
