@@ -108,6 +108,7 @@ router.get('/status', async (req, res) => {
         isActivated: true,
         deviceId: deviceInfo.did,  // 使用OneNET的真实设备ID
         deviceName: deviceInfo.name,  // 使用OneNET的真实设备名称
+        activationCode: userActivation?.activationCode,  // 添加激活码信息
         serialNumber: userActivation?.serialNumber || `IW-${deviceInfo.did}`,  // 本地序列号或生成
         deviceModel: userActivation?.deviceModel || "智能雨刷设备",  // 统一设备型号
         firmwareVersion: userActivation?.firmwareVersion || "v2.0",  // 统一固件版本
@@ -128,6 +129,7 @@ router.get('/status', async (req, res) => {
           isActivated: false,  // 以OneNET平台状态为准
           deviceId: userActivation.deviceId,
           deviceName: userActivation.deviceName,
+          activationCode: userActivation.activationCode,  // 添加激活码信息
           serialNumber: userActivation.serialNumber,
           deviceModel: userActivation.deviceModel,
           firmwareVersion: userActivation.firmwareVersion,

@@ -2,44 +2,38 @@
   "activations": {
     "admin": {
       "deviceId": "device_admin_1748694956696",
-      "activationCode": "WIPE-2555-C69B-C163",
+      "activationCode": "WIPE-25155-6B11-42CB",
       "serialNumber": "IW-2025-155",
       "deviceModel": "智能雨刷设备",
       "firmwareVersion": "v2.0",
       "activatedAt": "2025-05-31T12:35:56.696Z",
       "upgradedAt": "2025-06-01T01:10:45.182Z",
-      "upgradeNote": "已自动升级为16位激活码",
-      "fixedAt": "2025-06-01T01:14:54.732Z",
-      "fixNote": "已修复为正确的16位激活码格式"
+      "upgradeNote": "已自动升级为16位激活码"
     },
     "user5": {
       "deviceId": "device_user5_1748695527509",
-      "activationCode": "WIPE-2556-6D1D-23E6",
+      "activationCode": "WIPE-25156-C845-33D1",
       "serialNumber": "IW-2025-156",
       "deviceModel": "智能雨刷设备",
       "firmwareVersion": "v2.0",
       "activatedAt": "2025-05-31T12:45:27.509Z",
       "upgradedAt": "2025-06-01T01:10:45.182Z",
-      "upgradeNote": "已自动升级为16位激活码",
-      "fixedAt": "2025-06-01T01:14:54.733Z",
-      "fixNote": "已修复为正确的16位激活码格式"
+      "upgradeNote": "已自动升级为16位激活码"
     },
     "testuser": {
       "deviceId": "device_testuser_1748695589269",
-      "activationCode": "WIPE-2557-BCC9-12CA",
+      "activationCode": "WIPE-25157-0AFE-9D1B",
       "serialNumber": "IW-2025-157",
       "deviceModel": "智能雨刷设备",
       "firmwareVersion": "v2.0",
       "activatedAt": "2025-05-31T12:46:29.269Z",
       "upgradedAt": "2025-06-01T01:10:45.183Z",
-      "upgradeNote": "已自动升级为16位激活码",
-      "fixedAt": "2025-06-01T01:14:54.733Z",
-      "fixNote": "已修复为正确的16位激活码格式"
+      "upgradeNote": "已自动升级为16位激活码"
     },
     "newuser": {
       "deviceId": "2446043345",
       "deviceName": "intelligent_wiper_newuser",
-      "activationCode": "WIPE-2558-33B0-36EE",
+      "activationCode": "WIPE-25158-7CE4-F0B3",
       "serialNumber": "IW-2025-158",
       "deviceModel": "智能雨刷设备",
       "firmwareVersion": "v2.0",
@@ -130,14 +124,12 @@
         }
       },
       "upgradedAt": "2025-06-01T01:10:45.183Z",
-      "upgradeNote": "已自动升级为16位激活码",
-      "fixedAt": "2025-06-01T01:14:54.733Z",
-      "fixNote": "已修复为正确的16位激活码格式"
+      "upgradeNote": "已自动升级为16位激活码"
     },
     "testuser2": {
       "deviceId": "2446043353",
       "deviceName": "intelligent_wiper_testuser2",
-      "activationCode": "WIPE-2559-2150-908B",
+      "activationCode": "WIPE-25159-5DAB-380D",
       "serialNumber": "IW-2025-159",
       "deviceModel": "智能雨刷设备",
       "firmwareVersion": "v2.0",
@@ -228,14 +220,12 @@
         }
       },
       "upgradedAt": "2025-06-01T01:10:45.183Z",
-      "upgradeNote": "已自动升级为16位激活码",
-      "fixedAt": "2025-06-01T01:14:54.733Z",
-      "fixNote": "已修复为正确的16位激活码格式"
+      "upgradeNote": "已自动升级为16位激活码"
     },
     "testuser3": {
       "deviceId": "2446044085",
       "deviceName": "intelligent_wiper_testuser3",
-      "activationCode": "WIPE-2560-5430-5DCE",
+      "activationCode": "WIPE-25160-E35B-8AC3",
       "serialNumber": "IW-2025-160",
       "deviceModel": "智能雨刷设备",
       "firmwareVersion": "v2.0",
@@ -326,61 +316,51 @@
         }
       },
       "upgradedAt": "2025-06-01T01:10:45.183Z",
-      "upgradeNote": "已自动升级为16位激活码",
-      "fixedAt": "2025-06-01T01:14:54.733Z",
-      "fixNote": "已修复为正确的16位激活码格式"
+      "upgradeNote": "已自动升级为16位激活码"
     },
     "user1": {
       "deviceId": 2445951703,
       "deviceName": "intelligent_wiper_user1",
-      "activationCode": "WIPE-2561-E4CD-CC39",
+      "activationCode": "WIPE-25161-61D5-1EA8",
       "serialNumber": "IW-2025-161",
       "deviceModel": "智能雨刷设备",
       "firmwareVersion": "v2.0",
       "activatedAt": "2025-05-31T14:45:37.957Z",
       "upgradedAt": "2025-06-01T01:10:45.183Z",
-      "upgradeNote": "已自动升级为16位激活码",
-      "fixedAt": "2025-06-01T01:14:54.734Z",
-      "fixNote": "已修复为正确的16位激活码格式"
+      "upgradeNote": "已自动升级为16位激活码"
     },
     "user4": {
       "deviceId": 2446036267,
       "deviceName": "intelligent_wiper_user4",
-      "activationCode": "WIPE-2562-7B26-6E08",
+      "activationCode": "WIPE-25162-360A-AC55",
       "serialNumber": "IW-2025-162",
       "deviceModel": "智能雨刷设备",
       "firmwareVersion": "v2.0",
       "activatedAt": "2025-05-31T14:46:53.793Z",
       "upgradedAt": "2025-06-01T01:10:45.183Z",
-      "upgradeNote": "已自动升级为16位激活码",
-      "fixedAt": "2025-06-01T01:14:54.734Z",
-      "fixNote": "已修复为正确的16位激活码格式"
+      "upgradeNote": "已自动升级为16位激活码"
     },
     "testuser5": {
       "deviceId": 2446049603,
       "deviceName": "intelligent_wiper_testuser5",
-      "activationCode": "WIPE-2563-508F-12C2",
+      "activationCode": "WIPE-25163-CD8D-CF88",
       "serialNumber": "IW-2025-163",
       "deviceModel": "智能雨刷设备",
       "firmwareVersion": "v2.0",
       "activatedAt": "2025-05-31T15:05:01.478Z",
       "upgradedAt": "2025-06-01T01:10:45.183Z",
-      "upgradeNote": "已自动升级为16位激活码",
-      "fixedAt": "2025-06-01T01:14:54.734Z",
-      "fixNote": "已修复为正确的16位激活码格式"
+      "upgradeNote": "已自动升级为16位激活码"
     },
     "testuser6": {
       "deviceId": 2446050619,
       "deviceName": "intelligent_wiper_testuser6",
-      "activationCode": "WIPE-2564-07DC-B1F6",
+      "activationCode": "WIPE-25164-77CB-F966",
       "serialNumber": "IW-2025-164",
       "deviceModel": "智能雨刷设备",
       "firmwareVersion": "v2.0",
       "activatedAt": "2025-05-31T15:28:29.764Z",
       "upgradedAt": "2025-06-01T01:10:45.183Z",
-      "upgradeNote": "已自动升级为16位激活码",
-      "fixedAt": "2025-06-01T01:14:54.734Z",
-      "fixNote": "已修复为正确的16位激活码格式"
+      "upgradeNote": "已自动升级为16位激活码"
     },
     "testuser7": {
       "deviceId": 2446082184,
@@ -633,6 +613,106 @@
       "firmwareVersion": "v2.0",
       "generatedAt": "2025-06-01T01:06:00.761Z"
     },
+    "WIPE-25155-6B11-42CB": {
+      "isUsed": true,
+      "deviceModel": "智能雨刷设备",
+      "serialNumber": "IW-2025-155",
+      "firmwareVersion": "v2.0",
+      "generatedAt": "2025-06-01T01:10:45.181Z",
+      "usedBy": "admin",
+      "usedAt": "2025-05-31T12:35:56.696Z",
+      "replacedFrom": "WIPER-2025-0001_DEPRECATED"
+    },
+    "WIPE-25156-C845-33D1": {
+      "isUsed": true,
+      "deviceModel": "智能雨刷设备",
+      "serialNumber": "IW-2025-156",
+      "firmwareVersion": "v2.0",
+      "generatedAt": "2025-06-01T01:10:45.182Z",
+      "usedBy": "user5",
+      "usedAt": "2025-05-31T12:45:27.509Z",
+      "replacedFrom": "WIPER-2025-0002_DEPRECATED"
+    },
+    "WIPE-25157-0AFE-9D1B": {
+      "isUsed": true,
+      "deviceModel": "智能雨刷设备",
+      "serialNumber": "IW-2025-157",
+      "firmwareVersion": "v2.0",
+      "generatedAt": "2025-06-01T01:10:45.182Z",
+      "usedBy": "testuser",
+      "usedAt": "2025-05-31T12:46:29.269Z",
+      "replacedFrom": "WIPER-2025-0003_DEPRECATED"
+    },
+    "WIPE-25158-7CE4-F0B3": {
+      "isUsed": true,
+      "deviceModel": "智能雨刷设备",
+      "serialNumber": "IW-2025-158",
+      "firmwareVersion": "v2.0",
+      "generatedAt": "2025-06-01T01:10:45.182Z",
+      "usedBy": "newuser",
+      "usedAt": "2025-05-31T13:02:35.450Z",
+      "replacedFrom": "WIPER-2025-0004_DEPRECATED"
+    },
+    "WIPE-25159-5DAB-380D": {
+      "isUsed": true,
+      "deviceModel": "智能雨刷设备",
+      "serialNumber": "IW-2025-159",
+      "firmwareVersion": "v2.0",
+      "generatedAt": "2025-06-01T01:10:45.182Z",
+      "usedBy": "testuser2",
+      "usedAt": "2025-05-31T13:02:43.283Z",
+      "replacedFrom": "WIPER-2025-0005_DEPRECATED"
+    },
+    "WIPE-25160-E35B-8AC3": {
+      "isUsed": true,
+      "deviceModel": "智能雨刷设备",
+      "serialNumber": "IW-2025-160",
+      "firmwareVersion": "v2.0",
+      "generatedAt": "2025-06-01T01:10:45.182Z",
+      "usedBy": "testuser3",
+      "usedAt": "2025-05-31T13:14:47.423Z",
+      "replacedFrom": "WIPER-2025-0006_DEPRECATED"
+    },
+    "WIPE-25161-61D5-1EA8": {
+      "isUsed": true,
+      "deviceModel": "智能雨刷设备",
+      "serialNumber": "IW-2025-161",
+      "firmwareVersion": "v2.0",
+      "generatedAt": "2025-06-01T01:10:45.182Z",
+      "usedBy": "user1",
+      "usedAt": "2025-05-31T14:45:37.957Z",
+      "replacedFrom": "WIPER-2025-0007_DEPRECATED"
+    },
+    "WIPE-25162-360A-AC55": {
+      "isUsed": true,
+      "deviceModel": "智能雨刷设备",
+      "serialNumber": "IW-2025-162",
+      "firmwareVersion": "v2.0",
+      "generatedAt": "2025-06-01T01:10:45.182Z",
+      "usedBy": "user4",
+      "usedAt": "2025-05-31T14:46:53.793Z",
+      "replacedFrom": "WIPER-2025-0008_DEPRECATED"
+    },
+    "WIPE-25163-CD8D-CF88": {
+      "isUsed": true,
+      "deviceModel": "智能雨刷设备",
+      "serialNumber": "IW-2025-163",
+      "firmwareVersion": "v2.0",
+      "generatedAt": "2025-06-01T01:10:45.182Z",
+      "usedBy": "testuser5",
+      "usedAt": "2025-05-31T15:05:01.478Z",
+      "replacedFrom": "WIPER-2025-0009_DEPRECATED"
+    },
+    "WIPE-25164-77CB-F966": {
+      "isUsed": true,
+      "deviceModel": "智能雨刷设备",
+      "serialNumber": "IW-2025-164",
+      "firmwareVersion": "v2.0",
+      "generatedAt": "2025-06-01T01:10:45.182Z",
+      "usedBy": "testuser6",
+      "usedAt": "2025-05-31T15:28:29.764Z",
+      "replacedFrom": "WIPER-2025-0016_DEPRECATED"
+    },
     "WIPE-2565-3D64-A467": {
       "isUsed": false,
       "deviceModel": "智能雨刷设备",
@@ -653,113 +733,6 @@
       "serialNumber": "IW-2025-167",
       "firmwareVersion": "v2.0",
       "generatedAt": "2025-06-01T01:14:10.079Z"
-    },
-    "WIPE-2555-C69B-C163": {
-      "isUsed": true,
-      "deviceModel": "智能雨刷设备",
-      "serialNumber": "IW-2025-155",
-      "firmwareVersion": "v2.0",
-      "generatedAt": "2025-06-01T01:14:54.733Z",
-      "usedBy": "admin",
-      "usedAt": "2025-05-31T12:35:56.696Z",
-      "fixedFrom": "WIPE-25155-6B11-42CB"
-    },
-    "WIPE-2556-6D1D-23E6": {
-      "isUsed": true,
-      "deviceModel": "智能雨刷设备",
-      "serialNumber": "IW-2025-156",
-      "firmwareVersion": "v2.0",
-      "generatedAt": "2025-06-01T01:14:54.733Z",
-      "usedBy": "user5",
-      "usedAt": "2025-05-31T12:45:27.509Z",
-      "fixedFrom": "WIPE-25156-C845-33D1"
-    },
-    "WIPE-2557-BCC9-12CA": {
-      "isUsed": true,
-      "deviceModel": "智能雨刷设备",
-      "serialNumber": "IW-2025-157",
-      "firmwareVersion": "v2.0",
-      "generatedAt": "2025-06-01T01:14:54.733Z",
-      "usedBy": "testuser",
-      "usedAt": "2025-05-31T12:46:29.269Z",
-      "fixedFrom": "WIPE-25157-0AFE-9D1B"
-    },
-    "WIPE-2558-33B0-36EE": {
-      "isUsed": true,
-      "deviceModel": "智能雨刷设备",
-      "serialNumber": "IW-2025-158",
-      "firmwareVersion": "v2.0",
-      "generatedAt": "2025-06-01T01:14:54.733Z",
-      "usedBy": "newuser",
-      "usedAt": "2025-05-31T13:02:35.450Z",
-      "fixedFrom": "WIPE-25158-7CE4-F0B3"
-    },
-    "WIPE-2559-2150-908B": {
-      "isUsed": true,
-      "deviceModel": "智能雨刷设备",
-      "serialNumber": "IW-2025-159",
-      "firmwareVersion": "v2.0",
-      "generatedAt": "2025-06-01T01:14:54.733Z",
-      "usedBy": "testuser2",
-      "usedAt": "2025-05-31T13:02:43.283Z",
-      "fixedFrom": "WIPE-25159-5DAB-380D"
-    },
-    "WIPE-2560-5430-5DCE": {
-      "isUsed": true,
-      "deviceModel": "智能雨刷设备",
-      "serialNumber": "IW-2025-160",
-      "firmwareVersion": "v2.0",
-      "generatedAt": "2025-06-01T01:14:54.733Z",
-      "usedBy": "testuser3",
-      "usedAt": "2025-05-31T13:14:47.423Z",
-      "fixedFrom": "WIPE-25160-E35B-8AC3"
-    },
-    "WIPE-2561-E4CD-CC39": {
-      "isUsed": true,
-      "deviceModel": "智能雨刷设备",
-      "serialNumber": "IW-2025-161",
-      "firmwareVersion": "v2.0",
-      "generatedAt": "2025-06-01T01:14:54.734Z",
-      "usedBy": "user1",
-      "usedAt": "2025-05-31T14:45:37.957Z",
-      "fixedFrom": "WIPE-25161-61D5-1EA8"
-    },
-    "WIPE-2562-7B26-6E08": {
-      "isUsed": true,
-      "deviceModel": "智能雨刷设备",
-      "serialNumber": "IW-2025-162",
-      "firmwareVersion": "v2.0",
-      "generatedAt": "2025-06-01T01:14:54.734Z",
-      "usedBy": "user4",
-      "usedAt": "2025-05-31T14:46:53.793Z",
-      "fixedFrom": "WIPE-25162-360A-AC55"
-    },
-    "WIPE-2563-508F-12C2": {
-      "isUsed": true,
-      "deviceModel": "智能雨刷设备",
-      "serialNumber": "IW-2025-163",
-      "firmwareVersion": "v2.0",
-      "generatedAt": "2025-06-01T01:14:54.734Z",
-      "usedBy": "testuser5",
-      "usedAt": "2025-05-31T15:05:01.478Z",
-      "fixedFrom": "WIPE-25163-CD8D-CF88"
-    },
-    "WIPE-2564-07DC-B1F6": {
-      "isUsed": true,
-      "deviceModel": "智能雨刷设备",
-      "serialNumber": "IW-2025-164",
-      "firmwareVersion": "v2.0",
-      "generatedAt": "2025-06-01T01:14:54.734Z",
-      "usedBy": "testuser6",
-      "usedAt": "2025-05-31T15:28:29.764Z",
-      "fixedFrom": "WIPE-25164-77CB-F966"
-    },
-    "WIPE-2568-91A9-BB30": {
-      "isUsed": false,
-      "deviceModel": "智能雨刷设备",
-      "serialNumber": "IW-2025-168",
-      "firmwareVersion": "v2.0",
-      "generatedAt": "2025-06-01T01:19:55.887Z"
     }
   }
 }
