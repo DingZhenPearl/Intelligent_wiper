@@ -115,7 +115,7 @@
 <script>
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { post } from '@/services/api'  // 导入API服务
+import { get, post } from '@/services/api'  // 导入API服务
 import { isNative } from '@/utils/platform'  // 导入平台检测工具
 import oneNetService from '@/services/oneNetService'  // 导入OneNet服务
 
@@ -192,7 +192,24 @@ export default {
           isNative: isNative()
         })
 
+        // 先测试服务器连接
+        if (isNative()) {
+          console.log('原生应用：测试服务器连接...')
+          try {
+            const testResponse = await get('/api/auth/verify')
+            console.log('服务器连接测试结果:', testResponse.status)
+            if (!testResponse.ok && testResponse.status !== 401) {
+              throw new Error(`服务器连接失败: ${testResponse.status}`)
+            }
+          } catch (testError) {
+            console.error('服务器连接测试失败:', testError)
+            errorMessage.value = '无法连接到服务器，请检查网络连接和服务器状态'
+            return
+          }
+        }
+
         // 发送登录请求
+        console.log('发送登录请求...')
         const response = await post('/api/auth/login', loginData)
 
         console.log('登录响应:', response)
@@ -206,6 +223,17 @@ export default {
             user_id: data.user_id,
             username: data.username
           };
+
+          // 如果是原生应用且返回了token，保存token
+          if (isNative() && data.token) {
+            userData.token = data.token;
+            userData.auth_type = 'token';
+            console.log('[登录页面] 原生应用保存token认证信息');
+          } else if (data.auth_type === 'session') {
+            userData.auth_type = 'session';
+            console.log('[登录页面] Web应用使用session认证');
+          }
+
           console.log('[登录页面] 存储到localStorage的用户信息:', userData);
           localStorage.setItem('user', JSON.stringify(userData));
 

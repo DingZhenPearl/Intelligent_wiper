@@ -8,8 +8,9 @@ const config: CapacitorConfig = {
     androidScheme: 'http',
     cleartext: true,
     allowNavigation: ['*'],
-    hostname: 'localhost', // 允许localhost
-    iosScheme: 'http'      // 为iOS也设置http
+    // 在开发模式下，让安卓应用连接到开发服务器
+    url: 'http://10.129.154.206:3000', // 使用服务器显示的IP地址
+    iosScheme: 'http'
   },
   plugins: {
     CapacitorHttp: {

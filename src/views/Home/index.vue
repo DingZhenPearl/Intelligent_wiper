@@ -70,6 +70,7 @@ import rainfallDataService from '@/services/rainfallDataService'
 import voiceService from '@/services/voiceService'
 import wiperService from '@/services/wiperService'
 import oneNetService from '@/services/oneNetService'
+import { isNative } from '@/utils/platform'
 
 export default {
   name: 'ControlPanel',
@@ -657,21 +658,43 @@ export default {
       console.log('[Home] 检查登录状态');
 
       try {
-        // 使用专门的验证API检查session是否有效
+        // 准备请求头
+        const headers = {
+          'Content-Type': 'application/json'
+        };
+
+        // 如果是原生应用，添加token到Authorization头
+        if (isNative()) {
+          const userData = localStorage.getItem('user');
+          if (userData) {
+            try {
+              const user = JSON.parse(userData);
+              if (user && user.token) {
+                headers['Authorization'] = `Bearer ${user.token}`;
+                console.log('[Home] 原生应用添加token到请求头');
+              }
+            } catch (e) {
+              console.error('[Home] 解析用户数据失败:', e);
+            }
+          }
+        }
+
+        // 使用专门的验证API检查认证状态
         const response = await fetch('/api/auth/verify', {
           method: 'GET',
-          credentials: 'include'
+          headers: headers,
+          credentials: 'include' // Web端需要携带cookie
         });
 
         if (response.ok) {
           const data = await response.json();
           if (data.success && data.isLoggedIn) {
-            console.log(`[Home] Session有效，用户已登录: ${data.username}`);
+            console.log(`[Home] 认证有效，用户已登录: ${data.username} (${data.auth_type})`);
             return true;
           }
         }
 
-        console.log('[Home] Session无效或已过期');
+        console.log('[Home] 认证无效或已过期');
         // 清除本地存储的用户信息
         localStorage.removeItem('user');
         // 跳转到登录页面

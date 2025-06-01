@@ -44,7 +44,8 @@ router.post('/login', async (req, res) => {
     console.log('收到登录请求:', {
       headers: maskSensitiveInfo(req.headers),
       body: maskSensitiveInfo(req.body),
-      origin: req.get('origin')
+      origin: req.get('origin'),
+      userAgent: req.get('user-agent')
     });
 
     // 检查请求体是否为空
@@ -75,47 +76,70 @@ router.post('/login', async (req, res) => {
     console.log('登录处理结果:', maskSensitiveInfo(result));
 
     if (result && result.success) {
-      // 保存用户信息到session
-      req.session.user = {
-        user_id: result.user_id,
-        username: result.username
-      };
+      // 检测是否为原生应用请求
+      const isNativeApp = req.headers['x-capacitor-platform'] ||
+                         req.headers['user-agent']?.includes('CapacitorHttp') ||
+                         req.headers['x-user-name']; // 原生应用会添加这个头
 
-      // 强制保存session
-      await new Promise((resolve, reject) => {
-        req.session.save((err) => {
-          if (err) {
-            console.error('保存session失败:', err);
-            reject(err);
-          } else {
-            console.log('✅ Session保存成功');
-            resolve();
-          }
+      console.log('🔍 检测到的客户端类型:', isNativeApp ? '原生应用' : 'Web浏览器');
+
+      if (isNativeApp) {
+        // 原生应用：生成并返回token
+        const jwt = require('jsonwebtoken');
+        const token = jwt.sign(
+          {
+            user_id: result.user_id,
+            username: result.username
+          },
+          config.server.secret_key,
+          { expiresIn: '24h' }
+        );
+
+        console.log(`✅ 原生应用用户 ${result.username} 登录成功，生成token`);
+
+        res.json({
+          message: result.message,
+          user_id: result.user_id,
+          username: result.username,
+          token: token, // 为原生应用返回token
+          auth_type: 'token'
         });
-      });
+      } else {
+        // Web浏览器：使用session
+        req.session.user = {
+          user_id: result.user_id,
+          username: result.username
+        };
 
-      // 详细输出用户信息和session信息
-      console.log(`✅ 用户 ${result.username} 登录成功，用户ID: ${result.user_id}`);
-      console.log('🔍 登录后的用户信息:', req.session.user);
-      console.log('🔍 登录后的完整session:', {
-        id: req.session.id,
-        user: req.session.user,
-        cookie: req.session.cookie
-      });
-      console.log('🔍 Session ID:', req.session.id);
-      console.log('🔍 Cookie设置:', req.session.cookie);
+        // 强制保存session
+        await new Promise((resolve, reject) => {
+          req.session.save((err) => {
+            if (err) {
+              console.error('保存session失败:', err);
+              reject(err);
+            } else {
+              console.log('✅ Session保存成功');
+              resolve();
+            }
+          });
+        });
+
+        console.log(`✅ Web用户 ${result.username} 登录成功，使用session认证`);
+        console.log('🔍 Session ID:', req.session.id);
+
+        res.json({
+          message: result.message,
+          user_id: result.user_id,
+          username: result.username,
+          session_id: req.session.id,
+          auth_type: 'session'
+        });
+      }
 
       // 登录时不再自动启动数据采集器
-      // 设置不重启标志
       setShouldRestartCollector(false);
       console.log(`用户${result.username}登录，设置不重启标志`);
 
-      res.json({
-        message: result.message,
-        user_id: result.user_id,
-        username: result.username,
-        session_id: req.session.id // 返回session ID用于调试
-      });
     } else if (result) {
       res.status(401).json({ error: result.error || "登录失败" });
     } else {
@@ -163,25 +187,74 @@ router.post('/logout', async (req, res) => {
   }
 });
 
-// 🔧 新增：验证session状态的API
+// 🔧 新增：验证认证状态的API（支持session和token）
 router.get('/verify', (req, res) => {
-  console.log(`🔍 验证session状态`);
-  console.log(`   Session ID: ${req.sessionID}`);
-  console.log(`   Session用户: ${req.session?.user?.username || '未登录'}`);
+  try {
+    console.log(`🔍 验证认证状态`);
 
-  const username = req.session?.user?.username;
-  if (username) {
-    res.json({
-      success: true,
-      isLoggedIn: true,
-      username: username,
-      message: 'Session有效'
-    });
-  } else {
-    res.status(401).json({
+    // 检查Authorization头中的token
+    const authHeader = req.headers.authorization;
+    const token = authHeader && authHeader.startsWith('Bearer ') ? authHeader.substring(7) : null;
+
+    // 检测客户端类型
+    const isNativeApp = req.headers['x-capacitor-platform'] ||
+                       req.headers['user-agent']?.includes('CapacitorHttp') ||
+                       req.headers['x-user-name'] ||
+                       token;
+
+    console.log(`🔍 客户端类型: ${isNativeApp ? '原生应用' : 'Web浏览器'}`);
+
+    if (isNativeApp && token) {
+      // 原生应用：验证token
+      try {
+        const jwt = require('jsonwebtoken');
+        const decoded = jwt.verify(token, config.server.secret_key);
+
+        console.log(`✅ Token验证成功，用户: ${decoded.username}`);
+        res.json({
+          success: true,
+          isLoggedIn: true,
+          username: decoded.username,
+          user_id: decoded.user_id,
+          auth_type: 'token',
+          message: 'Token有效'
+        });
+      } catch (tokenError) {
+        console.log(`🚫 Token验证失败: ${tokenError.message}`);
+        res.status(401).json({
+          success: false,
+          isLoggedIn: false,
+          auth_type: 'token',
+          message: 'Token无效或已过期'
+        });
+      }
+    } else if (!isNativeApp && req.session?.user?.username) {
+      // Web浏览器：验证session
+      const username = req.session.user.username;
+      console.log(`✅ Session验证成功，用户: ${username}`);
+      res.json({
+        success: true,
+        isLoggedIn: true,
+        username: username,
+        user_id: req.session.user.user_id,
+        auth_type: 'session',
+        message: 'Session有效'
+      });
+    } else {
+      console.log(`🚫 认证失败 - 无有效的session或token`);
+      res.status(401).json({
+        success: false,
+        isLoggedIn: false,
+        auth_type: isNativeApp ? 'token' : 'session',
+        message: '未登录或认证已过期'
+      });
+    }
+  } catch (error) {
+    console.error('🚫 验证认证状态出错:', error);
+    res.status(500).json({
       success: false,
       isLoggedIn: false,
-      message: 'Session无效或已过期'
+      message: '认证服务错误'
     });
   }
 });

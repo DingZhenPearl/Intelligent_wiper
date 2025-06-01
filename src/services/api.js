@@ -8,9 +8,9 @@ const getBaseUrl = () => {
     // 从localStorage中获取服务器地址，如果没有则使用默认地址
     const savedServerUrl = localStorage.getItem('serverUrl');
 
-    // 默认服务器地址 - 可以根据实际情况修改
+    // 默认服务器地址 - 使用当前服务器的IP地址
     // 注意：在实际部署时，这应该是您的服务器公网地址
-    const defaultServerUrl = 'http://10.29.101.231:3000';
+    const defaultServerUrl = 'http://10.129.154.206:3000';
 
     const nativeBaseUrl = savedServerUrl || defaultServerUrl;
     console.log(`[API] 原生环境使用服务器地址: ${nativeBaseUrl}`);
@@ -87,12 +87,14 @@ const apiRequest = async (endpoint, options = {}) => {
           headers: {
             'Accept': 'application/json',
             'Content-Type': 'application/json',
+            'X-Capacitor-Platform': 'android', // 标识原生应用
+            'User-Agent': 'CapacitorHttp/Android', // 标识CapacitorHttp
             ...(options.headers || {})
           },
           data: options.body ? JSON.parse(options.body) : undefined
         };
 
-        // 在原生环境中，手动添加用户信息到请求头
+        // 在原生环境中，添加认证信息到请求头
         try {
           const userData = localStorage.getItem('user');
           if (userData) {
@@ -100,6 +102,12 @@ const apiRequest = async (endpoint, options = {}) => {
             if (user && user.username) {
               requestConfig.headers['X-User-Name'] = user.username;
               console.log('[API] 原生环境添加用户信息到请求头:', user.username);
+            }
+
+            // 如果有token，添加到Authorization头
+            if (user && user.token) {
+              requestConfig.headers['Authorization'] = `Bearer ${user.token}`;
+              console.log('[API] 原生环境添加token到Authorization头');
             }
           }
         } catch (e) {

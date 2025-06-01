@@ -6,6 +6,7 @@
 const express = require('express');
 const { spawn } = require('child_process');
 const path = require('path');
+const { authMiddleware } = require('./middleware/auth');
 const router = express.Router();
 
 // Python脚本路径
@@ -16,25 +17,12 @@ const TEST_SCRIPT = path.join(__dirname, '../python/test_mqtt_control.py');
  * 获取雨刷状态
  * GET /api/wiper/status
  */
-router.get('/status', async (req, res) => {
+router.get('/status', authMiddleware, async (req, res) => {
   try {
     console.log('获取雨刷状态');
 
-    // 🔧 修复：获取当前用户（从session中获取），不使用默认admin
-    console.log(`🔍 Session ID:`, req.sessionID);
-    console.log(`🔍 Session信息:`, req.session);
-    console.log(`🔍 用户信息:`, req.session?.user);
-
-    const username = req.session?.user?.username;
-    if (!username) {
-      console.log(`❌ 用户未登录，session中没有用户信息`);
-      return res.status(401).json({
-        success: false,
-        error: '用户未登录',
-        details: '请先登录后再获取设备状态'
-      });
-    }
-
+    // 🔧 使用认证中间件获取用户信息
+    const username = req.user?.username;
     console.log(`🎯 为已登录用户 ${username} 获取雨刷状态`);
 
     // 调用Python脚本获取状态，传入用户名
@@ -102,7 +90,7 @@ router.get('/status', async (req, res) => {
  * POST /api/wiper/control
  * 请求体: { status: 'off' | 'low' | 'medium' | 'high' }
  */
-router.post('/control', async (req, res) => {
+router.post('/control', authMiddleware, async (req, res) => {
   try {
     const { status } = req.body;
 
@@ -116,21 +104,8 @@ router.post('/control', async (req, res) => {
       });
     }
 
-    // 🔧 修复：获取当前用户（从session中获取），不使用默认admin
-    console.log(`🔍 Session ID:`, req.sessionID);
-    console.log(`🔍 Session信息:`, req.session);
-    console.log(`🔍 用户信息:`, req.session?.user);
-
-    const username = req.session?.user?.username;
-    if (!username) {
-      console.log(`❌ 用户未登录，session中没有用户信息`);
-      return res.status(401).json({
-        success: false,
-        error: '用户未登录',
-        details: '请先登录后再进行设备控制操作'
-      });
-    }
-
+    // 🔧 使用认证中间件获取用户信息
+    const username = req.user?.username;
     console.log(`🎯 为已登录用户 ${username} 控制雨刷: ${status}`);
 
     // 调用Python脚本控制雨刷，传入用户名
@@ -198,7 +173,7 @@ router.post('/control', async (req, res) => {
  * POST /api/wiper/api-control
  * 请求体: { command: 'off' | 'low' | 'medium' | 'high' }
  */
-router.post('/api-control', async (req, res) => {
+router.post('/api-control', authMiddleware, async (req, res) => {
   try {
     const { command } = req.body;
 
@@ -212,21 +187,8 @@ router.post('/api-control', async (req, res) => {
       });
     }
 
-    // 🔧 修复：获取当前用户（从session中获取），不使用默认admin
-    console.log(`🔍 Session ID:`, req.sessionID);
-    console.log(`🔍 Session信息:`, req.session);
-    console.log(`🔍 用户信息:`, req.session?.user);
-
-    const username = req.session?.user?.username;
-    if (!username) {
-      console.log(`❌ 用户未登录，session中没有用户信息`);
-      return res.status(401).json({
-        success: false,
-        error: '用户未登录',
-        details: '请先登录后再进行设备控制操作'
-      });
-    }
-
+    // 🔧 使用认证中间件获取用户信息
+    const username = req.user?.username;
     console.log(`🎯 通过API为已登录用户 ${username} 控制雨刷: ${command}`);
 
     // 🔧 修复：使用MQTT控制方式而不是HTTP API
@@ -293,23 +255,10 @@ router.post('/api-control', async (req, res) => {
  * 启动MQTT服务
  * POST /api/wiper/start-service
  */
-router.post('/start-service', async (req, res) => {
+router.post('/start-service', authMiddleware, async (req, res) => {
   try {
-    // 🔧 修复：获取当前用户（从session中获取），不使用默认admin
-    console.log(`🔍 Session ID:`, req.sessionID);
-    console.log(`🔍 Session信息:`, req.session);
-    console.log(`🔍 用户信息:`, req.session?.user);
-
-    const username = req.session?.user?.username;
-    if (!username) {
-      console.log(`❌ 用户未登录，session中没有用户信息`);
-      return res.status(401).json({
-        success: false,
-        error: '用户未登录',
-        details: '请先登录后再启动MQTT服务'
-      });
-    }
-
+    // 🔧 使用认证中间件获取用户信息
+    const username = req.user?.username;
     console.log(`🎯 为已登录用户 ${username} 启动MQTT控制服务`);
 
     // 调用Python脚本启动MQTT服务，传入用户名
@@ -339,23 +288,10 @@ router.post('/start-service', async (req, res) => {
  * 停止MQTT服务
  * POST /api/wiper/stop-service
  */
-router.post('/stop-service', async (req, res) => {
+router.post('/stop-service', authMiddleware, async (req, res) => {
   try {
-    // 🔧 修复：获取当前用户（从session中获取），不使用默认admin
-    console.log(`🔍 Session ID:`, req.sessionID);
-    console.log(`🔍 Session信息:`, req.session);
-    console.log(`🔍 用户信息:`, req.session?.user);
-
-    const username = req.session?.user?.username;
-    if (!username) {
-      console.log(`❌ 用户未登录，session中没有用户信息`);
-      return res.status(401).json({
-        success: false,
-        error: '用户未登录',
-        details: '请先登录后再停止MQTT服务'
-      });
-    }
-
+    // 🔧 使用认证中间件获取用户信息
+    const username = req.user?.username;
     console.log(`🎯 为已登录用户 ${username} 停止MQTT控制服务`);
 
     // 调用Python脚本停止MQTT服务，传入用户名
