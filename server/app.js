@@ -11,7 +11,7 @@ const statusRoutes = require('./routes/statusRoutes');
 const weatherRoutes = require('./routes/weatherRoutes');
 const ipLocationRoutes = require('./routes/ipLocationRoutes');
 const amapWeatherRoutes = require('./routes/amapWeatherRoutes');
- const wiperControlRoutes = require('./wiper-control'); // 暂时注释掉，文件不存在
+ const wiperControlRoutes = require('./wiper-control');
 const deviceActivationRoutes = require('./routes/deviceActivationRoutes');
 
 // 创建Express应用
@@ -88,7 +88,7 @@ app.use('/api/status', statusRoutes);
 app.use('/api/weather', weatherRoutes);
 app.use('/api/iplocation', ipLocationRoutes);
 app.use('/api/amap', amapWeatherRoutes);
-// app.use('/api/wiper', wiperControlRoutes); // 暂时注释掉，文件不存在
+app.use('/api/wiper', wiperControlRoutes);
 app.use('/api/device/activation', deviceActivationRoutes);
 
 // 处理所有前端路由 - 必须放在所有API路由之后
