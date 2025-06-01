@@ -30,9 +30,42 @@ const mapService = {
     try {
       console.log('[地图服务] 开始获取当前位置');
 
-      // 使用locationService获取当前位置
-      const position = await locationService.getCurrentPosition(options);
-      console.log('[地图服务] 获取当前位置成功:', position);
+      // 使用locationService获取当前位置，与其他页面保持一致
+      const positionResult = await locationService.getCurrentPosition({
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 0,
+        ...options
+      });
+
+      console.log('[地图服务] locationService返回结果:', positionResult);
+
+      // 检查返回结果格式
+      if (!positionResult) {
+        throw new Error('定位服务返回空结果');
+      }
+
+      let position;
+      if (positionResult.success) {
+        // locationService返回的格式
+        position = {
+          coords: {
+            latitude: positionResult.coords.latitude,
+            longitude: positionResult.coords.longitude,
+            accuracy: positionResult.coords.accuracy,
+            altitude: positionResult.coords.altitude,
+            heading: positionResult.coords.heading,
+            speed: positionResult.coords.speed
+          },
+          timestamp: positionResult.timestamp,
+          source: positionResult.source || 'unknown'
+        };
+      } else {
+        // 如果定位失败，抛出错误
+        throw new Error(positionResult.error || '定位失败');
+      }
+
+      console.log('[地图服务] 格式化后的位置信息:', position);
 
       // 保存位置信息
       this.status.value.position = position;
@@ -40,6 +73,7 @@ const mapService = {
       return position;
     } catch (error) {
       console.error('[地图服务] 获取当前位置失败:', error);
+      this.status.value.error = `获取位置失败: ${error.message}`;
       throw error;
     }
   },
@@ -148,57 +182,15 @@ const mapService = {
   },
 
   /**
-   * 使用高德地图API进行定位
-   * @param {Object} map - 地图实例
+   * 使用高德地图API进行定位（已弃用）
+   * @deprecated 使用getCurrentPosition方法替代，该方法使用统一的定位服务
+   * @param {Object} map - 地图实例（已弃用，不再使用）
    * @returns {Promise<Object>} - 位置信息
    */
+  // eslint-disable-next-line no-unused-vars
   getPositionByAMap(map) {
-    return new Promise((resolve, reject) => {
-      try {
-        console.log('[地图服务] 开始使用高德地图API定位');
-
-        // 创建定位插件
-        const geolocation = new window.AMap.Geolocation({
-          enableHighAccuracy: true,
-          timeout: 10000,
-          buttonPosition: 'RB',
-          buttonOffset: new window.AMap.Pixel(10, 20),
-          zoomToAccuracy: true
-        });
-
-        // 将定位插件添加到地图
-        map.addControl(geolocation);
-
-        // 获取当前位置
-        geolocation.getCurrentPosition((status, result) => {
-          if (status === 'complete') {
-            console.log('[地图服务] 高德地图API定位成功:', result);
-
-            // 格式化位置信息
-            const position = {
-              coords: {
-                latitude: result.position.lat,
-                longitude: result.position.lng,
-                accuracy: result.accuracy
-              },
-              timestamp: result.timestamp,
-              provider: 'amap'
-            };
-
-            // 保存位置信息
-            this.status.value.position = position;
-
-            resolve(position);
-          } else {
-            console.error('[地图服务] 高德地图API定位失败:', result);
-            reject(new Error(result.message));
-          }
-        });
-      } catch (error) {
-        console.error('[地图服务] 使用高德地图API定位失败:', error);
-        reject(error);
-      }
-    });
+    console.warn('[地图服务] getPositionByAMap方法已弃用，请使用getCurrentPosition方法');
+    return this.getCurrentPosition();
   }
 };
 

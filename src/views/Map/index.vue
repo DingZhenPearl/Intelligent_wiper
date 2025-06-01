@@ -190,6 +190,7 @@ export default {
     const isLoading = ref(false);
     const errorMessage = ref('');
     const hasError = computed(() => errorMessage.value !== '');
+    const currentLocationMarker = ref(null); // 当前位置标记
 
     // 天气相关状态
     const weatherModeActive = ref(false);
@@ -246,8 +247,9 @@ export default {
 
         console.log('[地图] 地图初始化成功');
 
-        // 自动定位
-        await locateMe();
+        // 不再自动定位，让用户手动触发定位
+        // 这样可以避免权限问题，并与其他页面的行为保持一致
+        console.log('[地图] 地图初始化完成，等待用户手动定位');
 
         isLoading.value = false;
       } catch (error) {
@@ -266,10 +268,45 @@ export default {
         }
 
         isLoading.value = true;
+        errorMessage.value = ''; // 清除之前的错误信息
         console.log('[地图] 开始定位');
 
-        // 使用高德地图API定位
-        await mapService.getPositionByAMap(map.value);
+        // 使用统一的定位服务，与其他页面保持一致
+        const position = await mapService.getCurrentPosition();
+        console.log('[地图] 定位成功:', position);
+
+        // 确保位置信息存在
+        if (!position || !position.coords) {
+          throw new Error('无法获取位置信息');
+        }
+
+        // 移除之前的当前位置标记
+        if (currentLocationMarker.value) {
+          map.value.remove(currentLocationMarker.value);
+          currentLocationMarker.value = null;
+        }
+
+        // 在地图上标记当前位置
+        const longitude = position.coords.longitude;
+        const latitude = position.coords.latitude;
+
+        // 创建标记
+        currentLocationMarker.value = new window.AMap.Marker({
+          position: [longitude, latitude],
+          title: `我的位置 (精度: ${position.coords.accuracy ? Math.round(position.coords.accuracy) + 'm' : '未知'})`,
+          icon: 'https://webapi.amap.com/theme/v1.3/markers/n/mark_b.png',
+          animation: 'AMAP_ANIMATION_DROP'
+        });
+
+        // 将标记添加到地图
+        map.value.add(currentLocationMarker.value);
+
+        // 设置地图中心点并调整缩放级别
+        map.value.setCenter([longitude, latitude]);
+        map.value.setZoom(16); // 设置合适的缩放级别
+
+        console.log('[地图] 定位和标记成功');
+        console.log(`[地图] 位置信息: 经度=${longitude}, 纬度=${latitude}, 精度=${position.coords.accuracy}m, 来源=${position.source}`);
 
         isLoading.value = false;
       } catch (error) {
@@ -977,6 +1014,12 @@ export default {
       // 移除点击监听器和标记
       removeMapClickListener();
       removeClickMarker();
+
+      // 移除当前位置标记
+      if (currentLocationMarker.value && map.value) {
+        map.value.remove(currentLocationMarker.value);
+        currentLocationMarker.value = null;
+      }
 
       // 移除采样点标记
       removeSampleMarkers();
