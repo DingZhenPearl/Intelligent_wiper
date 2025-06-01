@@ -19,7 +19,8 @@ from onenet_api import (
     PRODUCT_ID,
     DEVICE_NAME,
     ACCESS_KEY,
-    generate_token
+    generate_token,
+    get_user_device_config
 )
 
 # MQTT服务器配置
@@ -27,30 +28,33 @@ MQTT_HOST = "mqtts.heclouds.com"
 MQTT_PORT = 1883
 MQTT_KEEPALIVE = 120
 
-# 雨刷控制命令主题
-# 订阅主题：接收命令
-MQTT_TOPIC_COMMAND = f"$sys/{PRODUCT_ID}/{DEVICE_NAME}/thing/property/set"
-# 发布主题：命令响应
-MQTT_TOPIC_COMMAND_REPLY = f"$sys/{PRODUCT_ID}/{DEVICE_NAME}/thing/property/set_reply"
-# 发布主题：上报属性
-MQTT_TOPIC_PROPERTY_POST = f"$sys/{PRODUCT_ID}/{DEVICE_NAME}/thing/property/post"
-# 订阅主题：属性上报响应
-MQTT_TOPIC_PROPERTY_POST_REPLY = f"$sys/{PRODUCT_ID}/{DEVICE_NAME}/thing/property/post/reply"
-
 # 全局变量
 mqtt_client = None
 running = True
 wiper_status = None  # 雨刷状态：off, interval, low, medium, high, smart
+current_device_name = DEVICE_NAME  # 当前使用的设备名称
+current_username = "admin"  # 当前用户名
+
+def get_mqtt_topics(device_name):
+    """根据设备名称获取MQTT主题"""
+    return {
+        'command': f"$sys/{PRODUCT_ID}/{device_name}/thing/property/set",
+        'command_reply': f"$sys/{PRODUCT_ID}/{device_name}/thing/property/set_reply",
+        'property_post': f"$sys/{PRODUCT_ID}/{device_name}/thing/property/post",
+        'property_post_reply': f"$sys/{PRODUCT_ID}/{device_name}/thing/property/post/reply"
+    }
 
 def on_connect(client, userdata, flags, rc, *args):
     """MQTT连接回调函数"""
     if rc == 0:
         log(f"成功连接到MQTT服务器: {MQTT_HOST}")
+        # 获取当前设备的MQTT主题
+        topics = get_mqtt_topics(current_device_name)
         # 订阅命令主题
-        client.subscribe(MQTT_TOPIC_COMMAND)
-        client.subscribe(MQTT_TOPIC_PROPERTY_POST_REPLY)
-        log(f"已订阅主题: {MQTT_TOPIC_COMMAND}")
-        log(f"已订阅主题: {MQTT_TOPIC_PROPERTY_POST_REPLY}")
+        client.subscribe(topics['command'])
+        client.subscribe(topics['property_post_reply'])
+        log(f"已订阅主题: {topics['command']}")
+        log(f"已订阅主题: {topics['property_post_reply']}")
 
         # 不再自动上报状态
     else:
@@ -69,10 +73,11 @@ def on_message(client, userdata, msg):
         payload = msg.payload.decode('utf-8')
         log(f"收到MQTT消息，主题: {topic}, 内容: {payload}")
 
-        if topic == MQTT_TOPIC_COMMAND:
+        topics = get_mqtt_topics(current_device_name)
+        if topic == topics['command']:
             # 处理命令消息
             handle_command(payload)
-        elif topic == MQTT_TOPIC_PROPERTY_POST_REPLY:
+        elif topic == topics['property_post_reply']:
             # 处理属性上报响应
             log(f"属性上报响应: {payload}")
     except Exception as e:
@@ -169,7 +174,8 @@ def reply_success(command_id):
     }
 
     # 发布回复消息
-    mqtt_client.publish(MQTT_TOPIC_COMMAND_REPLY, json.dumps(reply))
+    topics = get_mqtt_topics(current_device_name)
+    mqtt_client.publish(topics['command_reply'], json.dumps(reply))
     log(f"已回复命令执行成功，命令ID: {command_id}")
 
 def reply_error(command_id, code, message):
@@ -187,7 +193,8 @@ def reply_error(command_id, code, message):
     }
 
     # 发布回复消息
-    mqtt_client.publish(MQTT_TOPIC_COMMAND_REPLY, json.dumps(reply))
+    topics = get_mqtt_topics(current_device_name)
+    mqtt_client.publish(topics['command_reply'], json.dumps(reply))
     log(f"已回复命令执行失败，命令ID: {command_id}, 错误: {message}")
 
 def report_wiper_status():
@@ -213,7 +220,8 @@ def report_wiper_status():
     }
 
     # 发布状态上报消息
-    mqtt_client.publish(MQTT_TOPIC_PROPERTY_POST, json.dumps(report))
+    topics = get_mqtt_topics(current_device_name)
+    mqtt_client.publish(topics['property_post'], json.dumps(report))
 
     log(f"已上报雨刷状态: {wiper_status}, 报告ID: {report_id}")
 
@@ -222,8 +230,8 @@ def connect_mqtt():
     global mqtt_client
 
     try:
-        # 创建MQTT客户端实例
-        client_id = DEVICE_NAME
+        # 创建MQTT客户端实例，使用当前设备名称
+        client_id = current_device_name
         mqtt_client = mqtt.Client(client_id=client_id)
 
         # 设置回调函数
@@ -241,6 +249,7 @@ def connect_mqtt():
 
         # 连接到MQTT服务器
         log(f"正在连接到MQTT服务器: {MQTT_HOST}:{MQTT_PORT}")
+        log(f"使用设备名称: {current_device_name}")
         mqtt_client.connect(MQTT_HOST, MQTT_PORT, MQTT_KEEPALIVE)
 
         # 启动MQTT客户端循环
@@ -296,15 +305,23 @@ def stop_mqtt_service():
 
 def main():
     """主函数，处理命令行参数并执行相应操作"""
-    global wiper_status
+    global wiper_status, current_device_name, current_username
 
     parser = argparse.ArgumentParser(description='OneNET MQTT雨刷控制工具')
     parser.add_argument('--action', choices=['start', 'stop', 'status', 'control'],
                         default='start', help='执行的操作')
     parser.add_argument('--status', choices=['off', 'low', 'medium', 'high', 'interval', 'smart'],
                         help='设置雨刷状态（仅在action=control时有效）')
+    parser.add_argument('--username', default='admin', help='用户名，用于确定使用哪个设备')
 
     args = parser.parse_args()
+
+    # 设置当前用户和设备
+    current_username = args.username
+    device_config = get_user_device_config(current_username)
+    current_device_name = device_config['device_name']
+
+    log(f"用户: {current_username}, 设备: {current_device_name}")
 
     if args.action == 'start':
         start_mqtt_service()

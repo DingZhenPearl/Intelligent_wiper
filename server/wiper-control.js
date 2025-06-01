@@ -20,8 +20,12 @@ router.get('/status', async (req, res) => {
   try {
     console.log('获取雨刷状态');
 
-    // 调用Python脚本获取状态
-    const python = spawn('python', [PYTHON_SCRIPT, '--action', 'status']);
+    // 获取当前用户（从session中获取）
+    const username = req.session?.user?.username || 'admin';
+    console.log(`为用户 ${username} 获取雨刷状态`);
+
+    // 调用Python脚本获取状态，传入用户名
+    const python = spawn('python', [PYTHON_SCRIPT, '--action', 'status', '--username', username]);
 
     let dataString = '';
     let errorString = '';
@@ -99,10 +103,12 @@ router.post('/control', async (req, res) => {
       });
     }
 
-    console.log(`控制雨刷: ${status}`);
+    // 获取当前用户（从session中获取）
+    const username = req.session?.user?.username || 'admin';
+    console.log(`为用户 ${username} 控制雨刷: ${status}`);
 
-    // 调用Python脚本控制雨刷
-    const python = spawn('python', [PYTHON_SCRIPT, '--action', 'control', '--status', status]);
+    // 调用Python脚本控制雨刷，传入用户名
+    const python = spawn('python', [PYTHON_SCRIPT, '--action', 'control', '--status', status, '--username', username]);
 
     let dataString = '';
     let errorString = '';
