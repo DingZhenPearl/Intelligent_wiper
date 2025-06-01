@@ -11,7 +11,7 @@ const statusRoutes = require('./routes/statusRoutes');
 const weatherRoutes = require('./routes/weatherRoutes');
 const ipLocationRoutes = require('./routes/ipLocationRoutes');
 const amapWeatherRoutes = require('./routes/amapWeatherRoutes');
-// const wiperControlRoutes = require('./wiper-control'); // 暂时注释掉，文件不存在
+ const wiperControlRoutes = require('./wiper-control'); // 暂时注释掉，文件不存在
 const deviceActivationRoutes = require('./routes/deviceActivationRoutes');
 
 // 创建Express应用

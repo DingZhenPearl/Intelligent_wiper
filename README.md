@@ -191,6 +191,23 @@ conda list --export > requirements.txt
 
 实现 `python/rainfall_collector.py` 中的 `collect_real_data()` 函数，连接您的硬件设备。
 
+## 项目维护
+
+### 清理临时文件
+
+```bash
+# 清理Python缓存
+find . -name "__pycache__" -type d -exec rm -rf {} +
+find . -name "*.pyc" -delete
+
+# 清理构建文件（可选）
+rm -rf dist/
+rm -rf android/build/
+
+# 重新构建
+npm run build
+```
+
 ## 自定义配置
 
 更多Vue配置信息，请参考 [Vue CLI配置参考](https://cli.vuejs.org/config/)。
