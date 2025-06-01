@@ -45,6 +45,82 @@ def get_user_datastream_id(username):
     # 为其他用户生成唯一的数据流ID
     return f"rain_info_{username}"
 
+def get_device_id_by_name(device_name):
+    """根据设备名称查询设备ID
+
+    参数:
+        device_name: 设备名称
+
+    返回:
+        str: 设备ID，如果未找到返回None
+    """
+    try:
+        # 生成token
+        token = generate_token()
+        if not token:
+            log(f"无法生成token，无法查询设备 {device_name}")
+            return None
+
+        # 查询产品下的所有设备 - 尝试多个可能的API端点
+        api_endpoints = [
+            f"{ONENET_API_BASE}/device",
+            f"{ONENET_API_BASE}/devices",
+            f"{ONENET_API_BASE}/product/{PRODUCT_ID}/device",
+            f"{ONENET_API_BASE}/product/{PRODUCT_ID}/devices"
+        ]
+
+        headers = {
+            "authorization": token,
+            "Content-Type": "application/json"
+        }
+        params = {
+            "product_id": PRODUCT_ID,
+            "limit": 100
+        }
+
+        # 尝试每个API端点
+        for url in api_endpoints:
+            log(f"尝试查询设备API端点: {url}")
+            try:
+                response = requests.get(url, headers=headers, params=params)
+                log(f"响应状态码: {response.status_code}")
+
+                if response.status_code == 200:
+                    data = response.json()
+                    # 检查不同的成功标识
+                    if data.get('code') == 0 or data.get('errno') == 0:
+                        devices = data.get('data', {}).get('devices', [])
+                        log(f"找到 {len(devices)} 个设备")
+                        for device in devices:
+                            # 检查不同的设备名称字段
+                            device_title = device.get('title', device.get('name', ''))
+                            if device_title == device_name:
+                                device_id = device.get('id')
+                                log(f"找到设备 {device_name}，ID: {device_id}")
+                                return str(device_id) if device_id else None
+
+                        # 如果在这个端点找到了设备列表但没有目标设备，继续尝试其他端点
+                        log(f"在端点 {url} 中未找到设备: {device_name}")
+                        continue
+                    else:
+                        log(f"OneNET API错误: {data.get('msg', data.get('error', 'Unknown error'))}")
+                        continue
+                else:
+                    log(f"查询设备失败，HTTP错误: {response.status_code}")
+                    continue
+
+            except Exception as e:
+                log(f"API端点 {url} 调用失败: {str(e)}")
+                continue
+
+        # 所有端点都尝试过了，仍未找到设备
+        log(f"所有API端点都尝试过了，未找到设备: {device_name}")
+        return None
+
+    except Exception as e:
+        log(f"查询设备ID时出错: {str(e)}")
+        return None
+
 def get_user_device_config(username):
     """获取用户的设备配置
 
@@ -56,19 +132,40 @@ def get_user_device_config(username):
     返回:
         dict: 包含设备名称、设备ID和数据流ID的配置
     """
-    if username == "admin" or username == "default" or username == "legacy" or username == "original":
-        # 管理员或默认用户使用原始设备和数据流
-        return {
-            "device_name": DEVICE_NAME,  # 原始设备名称
-            "device_id": DEVICE_ID,     # 原始设备ID
-            "datastream_id": "rain_info"  # 原始数据流ID
-        }
+    log(f"🔍 获取用户 {username} 的设备配置")
+
+    # 🚨 重要修复：只有真正的admin用户才使用test设备
+    # 其他所有用户（包括session失效时的默认admin）都使用专用设备
+    if username == "admin":
+        # 检查是否存在admin专用设备，如果存在则使用专用设备
+        admin_device_name = "intelligent_wiper_admin"
+        admin_device_id = get_device_id_by_name(admin_device_name)
+
+        if admin_device_id:
+            log(f"✅ 使用admin专用设备: {admin_device_name}")
+            return {
+                "device_name": admin_device_name,
+                "device_id": admin_device_id,
+                "datastream_id": "rain_info"
+            }
+        else:
+            log(f"⚠️ admin专用设备不存在，使用原始test设备: {DEVICE_NAME}")
+            return {
+                "device_name": DEVICE_NAME,  # 原始设备名称 (test)
+                "device_id": DEVICE_ID,     # 原始设备ID
+                "datastream_id": "rain_info"  # 原始数据流ID
+            }
     else:
-        # 普通用户使用专用设备
+        # 所有其他用户使用专用设备
         user_device_name = f"intelligent_wiper_{username}"
+        log(f"🎯 为用户 {username} 使用专用设备: {user_device_name}")
+
+        # 动态查询设备ID
+        device_id = get_device_id_by_name(user_device_name)
+
         return {
             "device_name": user_device_name,  # 用户专用设备名称
-            "device_id": None,  # 需要创建设备后获取
+            "device_id": device_id,  # 动态查询的设备ID
             "datastream_id": "rain_info"  # 使用标准数据流ID（在设备的物模型中）
         }
 
@@ -1031,16 +1128,22 @@ def create_datastream_by_datapoint(datastream_id, username, token):
 
 
 
-def generate_token():
+def generate_token(device_name=None):
     """生成OneNET平台的JWT token
+
+    参数:
+        device_name: 设备名称，如果为None则使用默认的DEVICE_NAME
 
     返回:
         str: JWT token字符串
     """
     try:
+        # 使用传入的设备名称，如果没有则使用默认的
+        target_device_name = device_name if device_name is not None else DEVICE_NAME
+
         # 设置token参数
         version = '2018-10-31'
-        res = f"products/{PRODUCT_ID}/devices/{DEVICE_NAME}"
+        res = f"products/{PRODUCT_ID}/devices/{target_device_name}"
         # 设置token过期时间，这里设置为10小时后过期
         et = str(int(time.time()) + 36000)
         # 签名方法，支持md5、sha1、sha256
@@ -1061,7 +1164,7 @@ def generate_token():
         # token参数拼接
         token = f'version={version}&res={res}&et={et}&method={method}&sign={sign}'
 
-        log(f"生成的OneNET token: {token[:30]}...")
+        log(f"生成的OneNET token for device {target_device_name}: {token[:30]}...")
         return token
     except Exception as e:
         error_msg = f"生成OneNET token失败: {str(e)}"

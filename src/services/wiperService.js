@@ -23,6 +23,19 @@ const wiperService = {
       console.log('[wiperService] 获取雨刷状态');
       const response = await get('/api/wiper/status');
 
+      // 🔧 修复：处理401未登录错误
+      if (response.status === 401) {
+        console.error('[wiperService] 用户未登录，需要重新登录');
+        // 清除本地用户信息
+        localStorage.removeItem('user');
+        // 跳转到登录页面
+        window.location.href = '/login';
+        return {
+          success: false,
+          error: '用户未登录，请重新登录'
+        };
+      }
+
       // 处理响应数据
       const data = await response.json();
 
@@ -53,6 +66,19 @@ const wiperService = {
     try {
       console.log(`[wiperService] 控制雨刷: ${status}`);
       const response = await post('/api/wiper/control', { status });
+
+      // 🔧 修复：处理401未登录错误
+      if (response.status === 401) {
+        console.error('[wiperService] 用户未登录，需要重新登录');
+        // 清除本地用户信息
+        localStorage.removeItem('user');
+        // 跳转到登录页面
+        window.location.href = '/login';
+        return {
+          success: false,
+          error: '用户未登录，请重新登录'
+        };
+      }
 
       // 处理响应数据
       const data = await response.json();

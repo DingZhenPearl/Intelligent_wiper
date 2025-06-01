@@ -232,6 +232,8 @@ def connect_mqtt():
     try:
         # 创建MQTT客户端实例，使用当前设备名称
         client_id = current_device_name
+        log(f"DEBUG: connect_mqtt() - current_device_name = {current_device_name}")
+        log(f"DEBUG: connect_mqtt() - client_id = {client_id}")
         mqtt_client = mqtt.Client(client_id=client_id)
 
         # 设置回调函数
@@ -239,13 +241,22 @@ def connect_mqtt():
         mqtt_client.on_message = on_message
         mqtt_client.on_disconnect = on_disconnect
 
-        # 设置认证信息
-        token = generate_token()
-        if not token:
-            log("生成token失败，无法连接MQTT服务器")
+        # 设置认证信息 - 🔧 修复：使用设备密钥生成设备级token
+        from onenet_api import get_device_key, generate_device_token
+
+        # 获取设备密钥
+        device_key = get_device_key(current_device_name)
+        if not device_key:
+            log(f"无法获取设备 {current_device_name} 的密钥")
             return False
 
-        mqtt_client.username_pw_set(PRODUCT_ID, token)
+        # 生成设备级token
+        device_token = generate_device_token(current_device_name, device_key)
+        if not device_token:
+            log("生成设备token失败，无法连接MQTT服务器")
+            return False
+
+        mqtt_client.username_pw_set(PRODUCT_ID, device_token)
 
         # 连接到MQTT服务器
         log(f"正在连接到MQTT服务器: {MQTT_HOST}:{MQTT_PORT}")
@@ -318,8 +329,11 @@ def main():
 
     # 设置当前用户和设备
     current_username = args.username
+    log(f"DEBUG: 开始获取用户 {current_username} 的设备配置")
     device_config = get_user_device_config(current_username)
+    log(f"DEBUG: 获取到设备配置: {device_config}")
     current_device_name = device_config['device_name']
+    log(f"DEBUG: 设置 current_device_name = {current_device_name}")
 
     log(f"用户: {current_username}, 设备: {current_device_name}")
 

@@ -81,10 +81,29 @@ router.post('/login', async (req, res) => {
         username: result.username
       };
 
+      // 强制保存session
+      await new Promise((resolve, reject) => {
+        req.session.save((err) => {
+          if (err) {
+            console.error('保存session失败:', err);
+            reject(err);
+          } else {
+            console.log('✅ Session保存成功');
+            resolve();
+          }
+        });
+      });
+
       // 详细输出用户信息和session信息
-      console.log(`用户 ${result.username} 登录成功，用户ID: ${result.user_id}`);
-      console.log('登录后的用户信息:', req.session.user);
-      console.log('登录后的完整session:', req.session);
+      console.log(`✅ 用户 ${result.username} 登录成功，用户ID: ${result.user_id}`);
+      console.log('🔍 登录后的用户信息:', req.session.user);
+      console.log('🔍 登录后的完整session:', {
+        id: req.session.id,
+        user: req.session.user,
+        cookie: req.session.cookie
+      });
+      console.log('🔍 Session ID:', req.session.id);
+      console.log('🔍 Cookie设置:', req.session.cookie);
 
       // 登录时不再自动启动数据采集器
       // 设置不重启标志
@@ -94,7 +113,8 @@ router.post('/login', async (req, res) => {
       res.json({
         message: result.message,
         user_id: result.user_id,
-        username: result.username
+        username: result.username,
+        session_id: req.session.id // 返回session ID用于调试
       });
     } else if (result) {
       res.status(401).json({ error: result.error || "登录失败" });
@@ -140,6 +160,29 @@ router.post('/logout', async (req, res) => {
   } catch (error) {
     console.error('登出过程出错:', error);
     res.status(500).json({ error: '登出失败' });
+  }
+});
+
+// 🔧 新增：验证session状态的API
+router.get('/verify', (req, res) => {
+  console.log(`🔍 验证session状态`);
+  console.log(`   Session ID: ${req.sessionID}`);
+  console.log(`   Session用户: ${req.session?.user?.username || '未登录'}`);
+
+  const username = req.session?.user?.username;
+  if (username) {
+    res.json({
+      success: true,
+      isLoggedIn: true,
+      username: username,
+      message: 'Session有效'
+    });
+  } else {
+    res.status(401).json({
+      success: false,
+      isLoggedIn: false,
+      message: 'Session无效或已过期'
+    });
   }
 });
 

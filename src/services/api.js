@@ -92,6 +92,20 @@ const apiRequest = async (endpoint, options = {}) => {
           data: options.body ? JSON.parse(options.body) : undefined
         };
 
+        // 在原生环境中，手动添加用户信息到请求头
+        try {
+          const userData = localStorage.getItem('user');
+          if (userData) {
+            const user = JSON.parse(userData);
+            if (user && user.username) {
+              requestConfig.headers['X-User-Name'] = user.username;
+              console.log('[API] 原生环境添加用户信息到请求头:', user.username);
+            }
+          }
+        } catch (e) {
+          console.warn('[API] 无法获取用户信息:', e);
+        }
+
         console.log('[API] CapacitorHttp请求配置:', JSON.stringify(requestConfig));
 
         // 发送请求

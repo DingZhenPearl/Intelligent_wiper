@@ -652,6 +652,42 @@ export default {
       isVoiceListening.value = voiceService.isListening.value;
     };
 
+    // 🔧 修复：检查登录状态
+    const checkLoginStatus = async () => {
+      console.log('[Home] 检查登录状态');
+
+      try {
+        // 使用专门的验证API检查session是否有效
+        const response = await fetch('/api/auth/verify', {
+          method: 'GET',
+          credentials: 'include'
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          if (data.success && data.isLoggedIn) {
+            console.log(`[Home] Session有效，用户已登录: ${data.username}`);
+            return true;
+          }
+        }
+
+        console.log('[Home] Session无效或已过期');
+        // 清除本地存储的用户信息
+        localStorage.removeItem('user');
+        // 跳转到登录页面
+        window.location.href = '/login';
+        return false;
+
+      } catch (error) {
+        console.error('[Home] 检查登录状态失败:', error);
+        // 清除本地存储的用户信息
+        localStorage.removeItem('user');
+        // 跳转到登录页面
+        window.location.href = '/login';
+        return false;
+      }
+    };
+
     // 设置语音事件监听器
     const setupVoiceEventListeners = () => {
       console.log('[Home] 设置语音事件监听器');
@@ -684,6 +720,9 @@ export default {
       console.log('[Home] 组件已挂载');
 
       try {
+        // 🔧 修复：首先验证登录状态
+        await checkLoginStatus();
+
         // 设置语音事件监听器
         setupVoiceEventListeners();
 

@@ -67,19 +67,30 @@ app.use((req, res, next) => {
   next();
 });
 
-// 配置session
+// 配置session - 修复session传递问题
 app.use(session({
   secret: config.server.secret_key,
   resave: false,
   saveUninitialized: false,
+  name: 'sessionId', // 明确指定session名称
   cookie: {
-    // 在开发环境中不强制使用secure，以便HTTP和HTTPS都能工作
-    secure: false,
-    // 允许跨站点cookie，以便前端能够正常工作
-    sameSite: 'none',
-    maxAge: 24 * 60 * 60 * 1000
+    secure: false, // 开发环境使用false，生产环境应该设为true
+    sameSite: 'lax', // 允许同站点请求携带cookie
+    maxAge: 24 * 60 * 60 * 1000, // 24小时
+    httpOnly: false, // 修复：设为false以便前端能访问cookie进行调试
+    path: '/' // 确保cookie在所有路径下都有效
   }
 }));
+
+// 🔧 添加session调试中间件
+app.use((req, res, next) => {
+  console.log(`🔍 [Session Debug] 请求路径: ${req.method} ${req.url}`);
+  console.log(`🔍 [Session Debug] Session ID: ${req.sessionID}`);
+  console.log(`🔍 [Session Debug] Session存在: ${!!req.session}`);
+  console.log(`🔍 [Session Debug] Session用户: ${req.session?.user?.username || '未登录'}`);
+  console.log(`🔍 [Session Debug] Cookie: ${req.headers.cookie || '无Cookie'}`);
+  next();
+});
 
 // 注册路由
 app.use('/api/auth', authRoutes);

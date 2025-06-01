@@ -20,9 +20,22 @@ router.get('/status', async (req, res) => {
   try {
     console.log('获取雨刷状态');
 
-    // 获取当前用户（从session中获取）
-    const username = req.session?.user?.username || 'admin';
-    console.log(`为用户 ${username} 获取雨刷状态`);
+    // 🔧 修复：获取当前用户（从session中获取），不使用默认admin
+    console.log(`🔍 Session ID:`, req.sessionID);
+    console.log(`🔍 Session信息:`, req.session);
+    console.log(`🔍 用户信息:`, req.session?.user);
+
+    const username = req.session?.user?.username;
+    if (!username) {
+      console.log(`❌ 用户未登录，session中没有用户信息`);
+      return res.status(401).json({
+        success: false,
+        error: '用户未登录',
+        details: '请先登录后再获取设备状态'
+      });
+    }
+
+    console.log(`🎯 为已登录用户 ${username} 获取雨刷状态`);
 
     // 调用Python脚本获取状态，传入用户名
     const python = spawn('python', [PYTHON_SCRIPT, '--action', 'status', '--username', username]);
@@ -103,9 +116,22 @@ router.post('/control', async (req, res) => {
       });
     }
 
-    // 获取当前用户（从session中获取）
-    const username = req.session?.user?.username || 'admin';
-    console.log(`为用户 ${username} 控制雨刷: ${status}`);
+    // 🔧 修复：获取当前用户（从session中获取），不使用默认admin
+    console.log(`🔍 Session ID:`, req.sessionID);
+    console.log(`🔍 Session信息:`, req.session);
+    console.log(`🔍 用户信息:`, req.session?.user);
+
+    const username = req.session?.user?.username;
+    if (!username) {
+      console.log(`❌ 用户未登录，session中没有用户信息`);
+      return res.status(401).json({
+        success: false,
+        error: '用户未登录',
+        details: '请先登录后再进行设备控制操作'
+      });
+    }
+
+    console.log(`🎯 为已登录用户 ${username} 控制雨刷: ${status}`);
 
     // 调用Python脚本控制雨刷，传入用户名
     const python = spawn('python', [PYTHON_SCRIPT, '--action', 'control', '--status', status, '--username', username]);
@@ -186,10 +212,25 @@ router.post('/api-control', async (req, res) => {
       });
     }
 
-    console.log(`通过API控制雨刷: ${command}`);
+    // 🔧 修复：获取当前用户（从session中获取），不使用默认admin
+    console.log(`🔍 Session ID:`, req.sessionID);
+    console.log(`🔍 Session信息:`, req.session);
+    console.log(`🔍 用户信息:`, req.session?.user);
 
-    // 调用Python测试脚本通过API控制雨刷
-    const python = spawn('python', [TEST_SCRIPT, '--action', 'control', '--command', command]);
+    const username = req.session?.user?.username;
+    if (!username) {
+      console.log(`❌ 用户未登录，session中没有用户信息`);
+      return res.status(401).json({
+        success: false,
+        error: '用户未登录',
+        details: '请先登录后再进行设备控制操作'
+      });
+    }
+
+    console.log(`🎯 通过API为已登录用户 ${username} 控制雨刷: ${command}`);
+
+    // 🔧 修复：使用MQTT控制方式而不是HTTP API
+    const python = spawn('python', [PYTHON_SCRIPT, '--action', 'control', '--status', command, '--username', username]);
 
     let dataString = '';
     let errorString = '';
@@ -254,10 +295,25 @@ router.post('/api-control', async (req, res) => {
  */
 router.post('/start-service', async (req, res) => {
   try {
-    console.log('启动MQTT控制服务');
+    // 🔧 修复：获取当前用户（从session中获取），不使用默认admin
+    console.log(`🔍 Session ID:`, req.sessionID);
+    console.log(`🔍 Session信息:`, req.session);
+    console.log(`🔍 用户信息:`, req.session?.user);
 
-    // 调用Python脚本启动MQTT服务
-    const python = spawn('python', [PYTHON_SCRIPT, '--action', 'start'], {
+    const username = req.session?.user?.username;
+    if (!username) {
+      console.log(`❌ 用户未登录，session中没有用户信息`);
+      return res.status(401).json({
+        success: false,
+        error: '用户未登录',
+        details: '请先登录后再启动MQTT服务'
+      });
+    }
+
+    console.log(`🎯 为已登录用户 ${username} 启动MQTT控制服务`);
+
+    // 调用Python脚本启动MQTT服务，传入用户名
+    const python = spawn('python', [PYTHON_SCRIPT, '--action', 'start', '--username', username], {
       detached: true, // 使进程在后台运行
       stdio: ['ignore', 'ignore', 'ignore'] // 忽略标准输入输出
     });
@@ -285,10 +341,25 @@ router.post('/start-service', async (req, res) => {
  */
 router.post('/stop-service', async (req, res) => {
   try {
-    console.log('停止MQTT控制服务');
+    // 🔧 修复：获取当前用户（从session中获取），不使用默认admin
+    console.log(`🔍 Session ID:`, req.sessionID);
+    console.log(`🔍 Session信息:`, req.session);
+    console.log(`🔍 用户信息:`, req.session?.user);
 
-    // 调用Python脚本停止MQTT服务
-    const python = spawn('python', [PYTHON_SCRIPT, '--action', 'stop']);
+    const username = req.session?.user?.username;
+    if (!username) {
+      console.log(`❌ 用户未登录，session中没有用户信息`);
+      return res.status(401).json({
+        success: false,
+        error: '用户未登录',
+        details: '请先登录后再停止MQTT服务'
+      });
+    }
+
+    console.log(`🎯 为已登录用户 ${username} 停止MQTT控制服务`);
+
+    // 调用Python脚本停止MQTT服务，传入用户名
+    const python = spawn('python', [PYTHON_SCRIPT, '--action', 'stop', '--username', username]);
 
     let dataString = '';
     let errorString = '';
