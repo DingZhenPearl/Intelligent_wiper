@@ -573,6 +573,11 @@ export default {
           font-weight: 600;
         }
 
+        .status-need-reactivation {
+          color: #f44336;
+          font-weight: 600;
+        }
+
         .device-id {
           font-family: monospace;
           background: #f5f5f5;

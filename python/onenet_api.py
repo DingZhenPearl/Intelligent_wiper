@@ -2745,13 +2745,39 @@ def check_device_activation_status(device_name, token):
                         activate_time = target_device.get("activate_time")
                         last_time = target_device.get("last_time")
 
+                        # 详细记录设备信息用于诊断
+                        log(f"设备详细信息: {json.dumps(target_device, ensure_ascii=False, indent=2)}")
+                        log(f"原始activate_time: '{activate_time}' (类型: {type(activate_time)})")
+                        log(f"原始last_time: '{last_time}' (类型: {type(last_time)})")
+
                         # 检查是否已激活（activate_time不为默认值）
+                        # 更宽松的激活状态判断逻辑
+                        default_time_patterns = [
+                            "0001-01-01T08:05:43+08:05",
+                            "0001-01-01T00:00:00Z",
+                            "1970-01-01T00:00:00Z",
+                            "",
+                            None
+                        ]
+
                         is_activated = (
                             activate_time and
-                            activate_time != "0001-01-01T08:05:43+08:05" and
-                            last_time and
-                            last_time != "0001-01-01T08:05:43+08:05"
+                            activate_time not in default_time_patterns and
+                            str(activate_time).strip() != ""
                         )
+
+                        # 额外检查：如果activate_time看起来是有效的时间戳，认为已激活
+                        if not is_activated and activate_time:
+                            try:
+                                # 尝试解析时间，如果能解析且不是默认时间，认为已激活
+                                from datetime import datetime
+                                parsed_time = datetime.fromisoformat(activate_time.replace('Z', '+00:00'))
+                                # 如果时间在2020年之后，认为是有效的激活时间
+                                if parsed_time.year >= 2020:
+                                    is_activated = True
+                                    log(f"通过时间解析判断设备已激活: {parsed_time}")
+                            except:
+                                pass
 
                         log(f"设备激活状态检查结果: 已激活={is_activated}, activate_time={activate_time}, last_time={last_time}")
 
@@ -2761,7 +2787,12 @@ def check_device_activation_status(device_name, token):
                             "activate_time": activate_time,
                             "last_time": last_time,
                             "device_info": target_device,
-                            "message": f"设备激活状态: {'已激活' if is_activated else '未激活'}"
+                            "message": f"设备激活状态: {'已激活' if is_activated else '未激活'}",
+                            "debug_info": {
+                                "activate_time_raw": activate_time,
+                                "last_time_raw": last_time,
+                                "activation_logic": "enhanced_check"
+                            }
                         }
                     else:
                         return {
@@ -2811,6 +2842,8 @@ def check_device_status_for_user(username):
 
         if status_result.get("success"):
             is_activated = status_result.get("is_activated", False)
+            device_info = status_result.get("device_info")
+
             return {
                 "success": True,
                 "device_name": device_name,
@@ -2818,12 +2851,17 @@ def check_device_status_for_user(username):
                 "activate_time": status_result.get("activate_time"),
                 "last_time": status_result.get("last_time"),
                 "message": f"设备 {device_name} 状态: {'已激活' if is_activated else '未激活'}",
-                "device_info": status_result.get("device_info")
+                "device_info": device_info
             }
         else:
+            # 即使查询失败，也尝试返回设备基本信息（如果有的话）
             return {
                 "success": False,
                 "device_name": device_name,
+                "is_activated": False,
+                "activate_time": None,
+                "last_time": None,
+                "device_info": None,
                 "error": status_result.get("error", "检查设备状态失败")
             }
 

@@ -12,324 +12,6 @@
       "fixedAt": "2025-06-01T01:14:54.732Z",
       "fixNote": "已修复为正确的16位激活码格式"
     },
-    "user5": {
-      "deviceId": "device_user5_1748695527509",
-      "activationCode": "WIPE-2556-6D1D-23E6",
-      "serialNumber": "IW-2025-156",
-      "deviceModel": "智能雨刷设备",
-      "firmwareVersion": "v2.0",
-      "activatedAt": "2025-05-31T12:45:27.509Z",
-      "upgradedAt": "2025-06-01T01:10:45.182Z",
-      "upgradeNote": "已自动升级为16位激活码",
-      "fixedAt": "2025-06-01T01:14:54.733Z",
-      "fixNote": "已修复为正确的16位激活码格式"
-    },
-    "testuser": {
-      "deviceId": "device_testuser_1748695589269",
-      "activationCode": "WIPE-2557-BCC9-12CA",
-      "serialNumber": "IW-2025-157",
-      "deviceModel": "智能雨刷设备",
-      "firmwareVersion": "v2.0",
-      "activatedAt": "2025-05-31T12:46:29.269Z",
-      "upgradedAt": "2025-06-01T01:10:45.183Z",
-      "upgradeNote": "已自动升级为16位激活码",
-      "fixedAt": "2025-06-01T01:14:54.733Z",
-      "fixNote": "已修复为正确的16位激活码格式"
-    },
-    "newuser": {
-      "deviceId": "2446043345",
-      "deviceName": "intelligent_wiper_newuser",
-      "activationCode": "WIPE-2558-33B0-36EE",
-      "serialNumber": "IW-2025-158",
-      "deviceModel": "智能雨刷设备",
-      "firmwareVersion": "v2.0",
-      "activatedAt": "2025-05-31T13:02:35.450Z",
-      "oneNetResponse": {
-        "success": true,
-        "method": "new_api",
-        "device_name": "intelligent_wiper_newuser",
-        "device_id": "2446043345",
-        "device_info": {
-          "did": 2446043345,
-          "pid": "66eIb47012",
-          "access_pt": 2,
-          "auth_info": "intelligent_wiper_newuser",
-          "data_pt": 4,
-          "name": "intelligent_wiper_newuser",
-          "desc": "智能雨刷设备 - 用户newuser",
-          "status": 2,
-          "create_time": "2025-05-31T21:02:36.0759513+08:00",
-          "activate_time": "0001-01-01T00:00:00Z",
-          "last_time": "0001-01-01T00:00:00Z",
-          "imsi": "",
-          "imei": "",
-          "psk": "",
-          "group_id": "",
-          "enable_status": true,
-          "tags": [
-            "user_newuser",
-            "intelligent_wiper",
-            "rainfall"
-          ],
-          "lat": "",
-          "lon": "",
-          "auth_code": "",
-          "sec_key": "WndNRU9Uc3hYcExhRWMyR0doQmVRcmlOUE1hQ0lSRWE=",
-          "chip": 0,
-          "obsv": false,
-          "obsv_st": false,
-          "private": false,
-          "imsi_old": [
-            ""
-          ],
-          "imsi_mt": "0001-01-01T00:00:00Z",
-          "intelligent_way": 1
-        },
-        "api_endpoint": "https://iot-api.heclouds.com/device/create",
-        "message": "通过新版API成功创建设备 intelligent_wiper_newuser (ID: 2446043345)",
-        "response_data": {
-          "code": 0,
-          "data": {
-            "did": 2446043345,
-            "pid": "66eIb47012",
-            "access_pt": 2,
-            "auth_info": "intelligent_wiper_newuser",
-            "data_pt": 4,
-            "name": "intelligent_wiper_newuser",
-            "desc": "智能雨刷设备 - 用户newuser",
-            "status": 2,
-            "create_time": "2025-05-31T21:02:36.0759513+08:00",
-            "activate_time": "0001-01-01T00:00:00Z",
-            "last_time": "0001-01-01T00:00:00Z",
-            "imsi": "",
-            "imei": "",
-            "psk": "",
-            "group_id": "",
-            "enable_status": true,
-            "tags": [
-              "user_newuser",
-              "intelligent_wiper",
-              "rainfall"
-            ],
-            "lat": "",
-            "lon": "",
-            "auth_code": "",
-            "sec_key": "WndNRU9Uc3hYcExhRWMyR0doQmVRcmlOUE1hQ0lSRWE=",
-            "chip": 0,
-            "obsv": false,
-            "obsv_st": false,
-            "private": false,
-            "imsi_old": [
-              ""
-            ],
-            "imsi_mt": "0001-01-01T00:00:00Z",
-            "intelligent_way": 1
-          },
-          "msg": "succ",
-          "request_id": "3428d722f2af4b76b165ed9b90f00643"
-        }
-      },
-      "upgradedAt": "2025-06-01T01:10:45.183Z",
-      "upgradeNote": "已自动升级为16位激活码",
-      "fixedAt": "2025-06-01T01:14:54.733Z",
-      "fixNote": "已修复为正确的16位激活码格式"
-    },
-    "testuser2": {
-      "deviceId": "2446043353",
-      "deviceName": "intelligent_wiper_testuser2",
-      "activationCode": "WIPE-2559-2150-908B",
-      "serialNumber": "IW-2025-159",
-      "deviceModel": "智能雨刷设备",
-      "firmwareVersion": "v2.0",
-      "activatedAt": "2025-05-31T13:02:43.283Z",
-      "oneNetResponse": {
-        "success": true,
-        "method": "new_api",
-        "device_name": "intelligent_wiper_testuser2",
-        "device_id": "2446043353",
-        "device_info": {
-          "did": 2446043353,
-          "pid": "66eIb47012",
-          "access_pt": 2,
-          "auth_info": "intelligent_wiper_testuser2",
-          "data_pt": 4,
-          "name": "intelligent_wiper_testuser2",
-          "desc": "智能雨刷设备 - 用户testuser2",
-          "status": 2,
-          "create_time": "2025-05-31T21:02:43.913480166+08:00",
-          "activate_time": "0001-01-01T00:00:00Z",
-          "last_time": "0001-01-01T00:00:00Z",
-          "imsi": "",
-          "imei": "",
-          "psk": "",
-          "group_id": "",
-          "enable_status": true,
-          "tags": [
-            "user_testuser2",
-            "intelligent_wiper",
-            "rainfall"
-          ],
-          "lat": "",
-          "lon": "",
-          "auth_code": "",
-          "sec_key": "OU9CQk10bUtuckxCRHlGbWszYjk1MlBXUnhwYUhrQnI=",
-          "chip": 0,
-          "obsv": false,
-          "obsv_st": false,
-          "private": false,
-          "imsi_old": [
-            ""
-          ],
-          "imsi_mt": "0001-01-01T00:00:00Z",
-          "intelligent_way": 1
-        },
-        "api_endpoint": "https://iot-api.heclouds.com/device/create",
-        "message": "通过新版API成功创建设备 intelligent_wiper_testuser2 (ID: 2446043353)",
-        "response_data": {
-          "code": 0,
-          "data": {
-            "did": 2446043353,
-            "pid": "66eIb47012",
-            "access_pt": 2,
-            "auth_info": "intelligent_wiper_testuser2",
-            "data_pt": 4,
-            "name": "intelligent_wiper_testuser2",
-            "desc": "智能雨刷设备 - 用户testuser2",
-            "status": 2,
-            "create_time": "2025-05-31T21:02:43.913480166+08:00",
-            "activate_time": "0001-01-01T00:00:00Z",
-            "last_time": "0001-01-01T00:00:00Z",
-            "imsi": "",
-            "imei": "",
-            "psk": "",
-            "group_id": "",
-            "enable_status": true,
-            "tags": [
-              "user_testuser2",
-              "intelligent_wiper",
-              "rainfall"
-            ],
-            "lat": "",
-            "lon": "",
-            "auth_code": "",
-            "sec_key": "OU9CQk10bUtuckxCRHlGbWszYjk1MlBXUnhwYUhrQnI=",
-            "chip": 0,
-            "obsv": false,
-            "obsv_st": false,
-            "private": false,
-            "imsi_old": [
-              ""
-            ],
-            "imsi_mt": "0001-01-01T00:00:00Z",
-            "intelligent_way": 1
-          },
-          "msg": "succ",
-          "request_id": "faa33f7598fb423eb4cd0b9c9214f904"
-        }
-      },
-      "upgradedAt": "2025-06-01T01:10:45.183Z",
-      "upgradeNote": "已自动升级为16位激活码",
-      "fixedAt": "2025-06-01T01:14:54.733Z",
-      "fixNote": "已修复为正确的16位激活码格式"
-    },
-    "testuser3": {
-      "deviceId": "2446044085",
-      "deviceName": "intelligent_wiper_testuser3",
-      "activationCode": "WIPE-2560-5430-5DCE",
-      "serialNumber": "IW-2025-160",
-      "deviceModel": "智能雨刷设备",
-      "firmwareVersion": "v2.0",
-      "activatedAt": "2025-05-31T13:14:47.423Z",
-      "oneNetResponse": {
-        "success": true,
-        "method": "new_api",
-        "device_name": "intelligent_wiper_testuser3",
-        "device_id": "2446044085",
-        "device_info": {
-          "did": 2446044085,
-          "pid": "66eIb47012",
-          "access_pt": 2,
-          "auth_info": "intelligent_wiper_testuser3",
-          "data_pt": 4,
-          "name": "intelligent_wiper_testuser3",
-          "desc": "智能雨刷设备 - 用户testuser3",
-          "status": 2,
-          "create_time": "2025-05-31T21:14:48.016050569+08:00",
-          "activate_time": "0001-01-01T00:00:00Z",
-          "last_time": "0001-01-01T00:00:00Z",
-          "imsi": "",
-          "imei": "",
-          "psk": "",
-          "group_id": "",
-          "enable_status": true,
-          "tags": [
-            "user_testuser3",
-            "intelligent_wiper",
-            "rainfall"
-          ],
-          "lat": "",
-          "lon": "",
-          "auth_code": "",
-          "sec_key": "WDRmVUFSeU13bjN2OFVGWFJyeU1QUkdTTndWMWVteHQ=",
-          "chip": 0,
-          "obsv": false,
-          "obsv_st": false,
-          "private": false,
-          "imsi_old": [
-            ""
-          ],
-          "imsi_mt": "0001-01-01T00:00:00Z",
-          "intelligent_way": 1
-        },
-        "api_endpoint": "https://iot-api.heclouds.com/device/create",
-        "message": "通过新版API成功创建设备 intelligent_wiper_testuser3 (ID: 2446044085)",
-        "response_data": {
-          "code": 0,
-          "data": {
-            "did": 2446044085,
-            "pid": "66eIb47012",
-            "access_pt": 2,
-            "auth_info": "intelligent_wiper_testuser3",
-            "data_pt": 4,
-            "name": "intelligent_wiper_testuser3",
-            "desc": "智能雨刷设备 - 用户testuser3",
-            "status": 2,
-            "create_time": "2025-05-31T21:14:48.016050569+08:00",
-            "activate_time": "0001-01-01T00:00:00Z",
-            "last_time": "0001-01-01T00:00:00Z",
-            "imsi": "",
-            "imei": "",
-            "psk": "",
-            "group_id": "",
-            "enable_status": true,
-            "tags": [
-              "user_testuser3",
-              "intelligent_wiper",
-              "rainfall"
-            ],
-            "lat": "",
-            "lon": "",
-            "auth_code": "",
-            "sec_key": "WDRmVUFSeU13bjN2OFVGWFJyeU1QUkdTTndWMWVteHQ=",
-            "chip": 0,
-            "obsv": false,
-            "obsv_st": false,
-            "private": false,
-            "imsi_old": [
-              ""
-            ],
-            "imsi_mt": "0001-01-01T00:00:00Z",
-            "intelligent_way": 1
-          },
-          "msg": "succ",
-          "request_id": "66d10c2026fe42b68f53001784066ab4"
-        }
-      },
-      "upgradedAt": "2025-06-01T01:10:45.183Z",
-      "upgradeNote": "已自动升级为16位激活码",
-      "fixedAt": "2025-06-01T01:14:54.733Z",
-      "fixNote": "已修复为正确的16位激活码格式"
-    },
     "user1": {
       "deviceId": 2445951703,
       "deviceName": "intelligent_wiper_user1",
@@ -356,58 +38,43 @@
       "fixedAt": "2025-06-01T01:14:54.734Z",
       "fixNote": "已修复为正确的16位激活码格式"
     },
-    "testuser5": {
-      "deviceId": 2446049603,
-      "deviceName": "intelligent_wiper_testuser5",
-      "activationCode": "WIPE-2563-508F-12C2",
-      "serialNumber": "IW-2025-163",
+    "user6": {
+      "deviceId": 2446090185,
+      "deviceName": "intelligent_wiper_user6",
+      "activationCode": "WIPE-2550-92F7-98A9",
+      "serialNumber": "IW-2025-050",
       "deviceModel": "智能雨刷设备",
       "firmwareVersion": "v2.0",
-      "activatedAt": "2025-05-31T15:05:01.478Z",
-      "upgradedAt": "2025-06-01T01:10:45.183Z",
-      "upgradeNote": "已自动升级为16位激活码",
-      "fixedAt": "2025-06-01T01:14:54.734Z",
-      "fixNote": "已修复为正确的16位激活码格式"
+      "activatedAt": "2025-06-01T02:58:53.874Z"
     },
-    "testuser6": {
-      "deviceId": 2446050619,
-      "deviceName": "intelligent_wiper_testuser6",
-      "activationCode": "WIPE-2564-07DC-B1F6",
-      "serialNumber": "IW-2025-164",
+    "user5": {
+      "deviceId": 2446089484,
+      "deviceName": "intelligent_wiper_user5",
+      "activationCode": "TEST-2025-BCEE-0AC7",
+      "serialNumber": "IW-2025-001",
       "deviceModel": "智能雨刷设备",
       "firmwareVersion": "v2.0",
-      "activatedAt": "2025-05-31T15:28:29.764Z",
-      "upgradedAt": "2025-06-01T01:10:45.183Z",
-      "upgradeNote": "已自动升级为16位激活码",
-      "fixedAt": "2025-06-01T01:14:54.734Z",
-      "fixNote": "已修复为正确的16位激活码格式"
-    },
-    "testuser7": {
-      "deviceId": 2446082184,
-      "deviceName": "intelligent_wiper_testuser7",
-      "activationCode": "WIPE-2535-2E3E-B1D2",
-      "serialNumber": "IW-2025-035",
-      "deviceModel": "智能雨刷设备",
-      "firmwareVersion": "v2.0",
-      "activatedAt": "2025-06-01T01:02:34.620Z"
+      "activatedAt": "2025-06-01T03:07:57.010Z"
     }
   },
   "activationCodes": {
-    "TEST-2025-BCEE0AC7": {
-      "isUsed": false,
+    "TEST-2025-BCEE-0AC7": {
+      "isUsed": true,
       "deviceModel": "智能雨刷设备",
       "serialNumber": "IW-2025-001",
       "firmwareVersion": "v2.0",
-      "generatedAt": "2025-05-31T15:25:01.100Z"
+      "generatedAt": "2025-05-31T15:25:01.100Z",
+      "usedBy": "user5",
+      "usedAt": "2025-06-01T03:07:57.010Z"
     },
-    "TEST-2025-D80FA02F": {
+    "TEST-2025-D80F-A02F": {
       "isUsed": false,
       "deviceModel": "智能雨刷设备",
       "serialNumber": "IW-2025-002",
       "firmwareVersion": "v2.0",
       "generatedAt": "2025-05-31T15:25:01.100Z"
     },
-    "TEST-2025-5F9F18CB": {
+    "TEST-2025-5F9F-18CB": {
       "isUsed": false,
       "deviceModel": "智能雨刷设备",
       "serialNumber": "IW-2025-003",
@@ -599,11 +266,13 @@
       "generatedAt": "2025-06-01T01:06:00.760Z"
     },
     "WIPE-2550-92F7-98A9": {
-      "isUsed": false,
+      "isUsed": true,
       "deviceModel": "智能雨刷设备",
       "serialNumber": "IW-2025-050",
       "firmwareVersion": "v2.0",
-      "generatedAt": "2025-06-01T01:06:00.761Z"
+      "generatedAt": "2025-06-01T01:06:00.761Z",
+      "usedBy": "user6",
+      "usedAt": "2025-06-01T02:58:53.874Z"
     },
     "WIPE-2551-C447-C5E2": {
       "isUsed": false,

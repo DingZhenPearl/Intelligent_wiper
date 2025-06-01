@@ -99,45 +99,39 @@ router.get('/status', async (req, res) => {
       // 从OneNET平台获取到真实设备信息
       const deviceInfo = oneNetStatus.device_info;
 
-      // 从本地数据获取激活码和序列号等补充信息
-      const data = readDeviceActivationData();
-      const userActivation = data.activations[username];
-
       res.json({
         success: true,
         isActivated: true,
         deviceId: deviceInfo.did,  // 使用OneNET的真实设备ID
         deviceName: deviceInfo.name,  // 使用OneNET的真实设备名称
-        activationCode: userActivation?.activationCode,  // 添加激活码信息
-        serialNumber: userActivation?.serialNumber || `IW-${deviceInfo.did}`,  // 本地序列号或生成
-        deviceModel: userActivation?.deviceModel || "智能雨刷设备",  // 统一设备型号
-        firmwareVersion: userActivation?.firmwareVersion || "v2.0",  // 统一固件版本
+        serialNumber: `IW-${deviceInfo.did}`,  // 基于设备ID生成序列号
+        deviceModel: "智能雨刷设备",  // 统一设备型号
+        firmwareVersion: "v2.0",  // 统一固件版本
         activatedAt: deviceInfo.activate_time,  // 使用OneNET的真实激活时间
         lastTime: deviceInfo.last_time,  // 添加最后活动时间
         status: deviceInfo.status,  // 添加设备状态
         createTime: deviceInfo.create_time  // 添加创建时间
       });
     } else {
-      // OneNET平台上没有激活的设备，检查本地数据作为备用
-      const data = readDeviceActivationData();
-      const userActivation = data.activations[username];
-
-      if (userActivation) {
-        // 本地有激活记录但OneNET上未激活，可能是数据不同步
+      // OneNET平台上设备未激活或不存在
+      if (oneNetStatus.success) {
+        // 设备存在但未激活
+        const deviceInfo = oneNetStatus.device_info;
         res.json({
           success: true,
-          isActivated: false,  // 以OneNET平台状态为准
-          deviceId: userActivation.deviceId,
-          deviceName: userActivation.deviceName,
-          activationCode: userActivation.activationCode,  // 添加激活码信息
-          serialNumber: userActivation.serialNumber,
-          deviceModel: userActivation.deviceModel,
-          firmwareVersion: userActivation.firmwareVersion,
-          activatedAt: userActivation.activatedAt,
-          warning: "设备在OneNET平台上未激活，请重新激活"
+          isActivated: false,
+          deviceId: deviceInfo ? deviceInfo.did : null,
+          deviceName: deviceInfo ? deviceInfo.name : null,
+          serialNumber: deviceInfo ? `IW-${deviceInfo.did}` : null,
+          deviceModel: deviceInfo ? "智能雨刷设备" : null,
+          firmwareVersion: deviceInfo ? "v2.0" : null,
+          activatedAt: null,  // 未激活时不显示激活时间
+          lastTime: deviceInfo ? deviceInfo.last_time : null,
+          status: deviceInfo ? deviceInfo.status : null,
+          createTime: deviceInfo ? deviceInfo.create_time : null
         });
       } else {
-        // 用户未激活设备
+        // 设备不存在
         res.json({
           success: true,
           isActivated: false,
