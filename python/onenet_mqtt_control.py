@@ -31,7 +31,7 @@ MQTT_KEEPALIVE = 120
 # 全局变量
 mqtt_client = None
 running = True
-wiper_status = None  # 雨刷状态：off, interval, low, medium, high, smart
+wiper_status = None  # 雨刷状态：off, interval, low,  high, smart
 current_device_name = DEVICE_NAME  # 当前使用的设备名称
 current_username = "admin"  # 当前用户名
 
@@ -59,10 +59,15 @@ def on_connect(client, userdata, flags, rc, *args):
         client.subscribe(topics['property_post_reply'])
         log(f"已订阅数据上报回复主题: {topics['property_post_reply']}")
 
-        # 订阅通用命令回复主题（使用通配符）
+        # 订阅CMD命令请求主题（使用通配符）
         cmd_request_wildcard = f"$sys/{PRODUCT_ID}/{current_device_name}/cmd/request/+"
         client.subscribe(cmd_request_wildcard)
-        log(f"已订阅命令请求主题（通配符）: {cmd_request_wildcard}")
+        log(f"已订阅CMD命令请求主题（通配符）: {cmd_request_wildcard}")
+
+        # 订阅CMD命令回复主题（使用通配符）
+        cmd_response_wildcard = f"$sys/{PRODUCT_ID}/{current_device_name}/cmd/response/+"
+        client.subscribe(cmd_response_wildcard)
+        log(f"已订阅CMD命令回复主题（通配符）: {cmd_response_wildcard}")
 
         # 不再自动上报状态
     else:
@@ -89,6 +94,12 @@ def on_message(client, userdata, msg):
                 cmdid = topic_parts[-1]  # 最后一部分是cmdid
                 log(f"收到CMD请求，命令ID: {cmdid}")
                 handle_cmd_command(payload, cmdid)
+        elif '/cmd/response/' in topic:
+            # 处理CMD命令回复
+            topic_parts = topic.split('/')
+            if len(topic_parts) >= 6:
+                cmdid = topic_parts[-1]  # 最后一部分是cmdid
+                log(f"收到CMD回复，命令ID: {cmdid}, 内容: {payload}")
         elif '/dp/post/json/accepted' in topic:
             # 处理数据上报回复
             log(f"数据上报确认: {payload}")
@@ -186,7 +197,7 @@ def control_wiper(command):
     """控制雨刷硬件
 
     参数:
-        command: 雨刷控制命令，可选值: off, low, medium, high
+        command: 雨刷控制命令，可选值: off, low, high
     """
     # 这里实现实际的雨刷控制逻辑
     # 在实际应用中，这里可能会调用硬件接口或发送信号给硬件控制器
@@ -380,6 +391,58 @@ def start_mqtt_service():
     log("MQTT控制服务已停止")
     return True
 
+def send_cmd_control_command(command):
+    """发送CMD格式的控制命令"""
+    global mqtt_client, current_device_name
+
+    try:
+        if not mqtt_client or not hasattr(mqtt_client, 'is_connected') or not mqtt_client.is_connected():
+            return {"success": False, "error": "MQTT客户端未连接"}
+
+        # 生成命令ID
+        cmdid = int(time.time() * 1000)
+
+        # 构建CMD格式的控制命令
+        cmd_data = {
+            "wiper_control": command,
+            "timestamp": cmdid
+        }
+
+        # 获取MQTT主题
+        topics = get_mqtt_topics(current_device_name, cmdid)
+        command_topic = topics['command']
+        payload = json.dumps(cmd_data)
+
+        log(f"发送CMD控制命令到主题: {command_topic}")
+        log(f"命令内容: {payload}")
+
+        # 发送命令
+        result = mqtt_client.publish(command_topic, payload, qos=1)
+
+        if result.rc == mqtt.MQTT_ERR_SUCCESS:
+            log("CMD控制命令发送成功")
+
+            # 执行本地控制逻辑
+            control_wiper(command)
+
+            # 上报状态
+            report_wiper_status()
+
+            return {
+                "success": True,
+                "message": "CMD控制命令发送成功",
+                "command": command,
+                "device_name": current_device_name,
+                "method": "MQTT_CMD",
+                "cmdid": cmdid,
+                "topic": command_topic
+            }
+        else:
+            return {"success": False, "error": f"CMD命令发送失败，错误码: {result.rc}"}
+
+    except Exception as e:
+        return {"success": False, "error": f"发送CMD控制命令失败: {str(e)}"}
+
 def stop_mqtt_service():
     """停止MQTT服务"""
     global running
@@ -450,10 +513,13 @@ def main():
                 return
             time.sleep(1)  # 等待连接建立
 
-        # 执行控制并上报
-        control_wiper(status)
-        report_wiper_status()
-        print(json.dumps({"success": True, "status": status}, ensure_ascii=False))
+        # 发送CMD格式的控制命令
+        result = send_cmd_control_command(status)
+
+        if result['success']:
+            print(json.dumps(result, ensure_ascii=False))
+        else:
+            print(json.dumps(result, ensure_ascii=False))
 
         # 断开连接
         disconnect_mqtt()
