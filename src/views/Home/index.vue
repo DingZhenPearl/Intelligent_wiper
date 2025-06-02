@@ -738,6 +738,37 @@ export default {
       console.log('[Home] 语音事件监听器移除完成');
     };
 
+    // 获取当前雨刷状态
+    const fetchCurrentWiperStatus = async () => {
+      try {
+        console.log('[Home] 获取当前雨刷状态');
+
+        // 首先尝试通过CMD命令获取状态
+        const cmdResult = await wiperService.getCurrentStatusViaCMD();
+
+        if (cmdResult.success && cmdResult.status) {
+          currentStatus.value = cmdResult.status;
+          console.log(`[Home] 通过CMD获取雨刷状态成功: ${cmdResult.status}`);
+          return;
+        }
+
+        // 如果CMD方式失败，尝试普通API方式
+        console.log('[Home] CMD方式获取状态失败，尝试普通API方式');
+        const apiResult = await wiperService.getStatus();
+
+        if (apiResult.success && apiResult.status) {
+          currentStatus.value = apiResult.status;
+          console.log(`[Home] 通过API获取雨刷状态成功: ${apiResult.status}`);
+        } else {
+          console.warn('[Home] 获取雨刷状态失败，使用默认状态');
+          currentStatus.value = 'off'; // 默认状态
+        }
+      } catch (error) {
+        console.error('[Home] 获取雨刷状态错误:', error);
+        currentStatus.value = 'off'; // 默认状态
+      }
+    };
+
     // 组件挂载后初始化
     onMounted(async () => {
       console.log('[Home] 组件已挂载');
@@ -745,6 +776,9 @@ export default {
       try {
         // 🔧 修复：首先验证登录状态
         await checkLoginStatus();
+
+        // 🔧 新增：获取当前雨刷状态
+        await fetchCurrentWiperStatus();
 
         // 设置语音事件监听器
         setupVoiceEventListeners();

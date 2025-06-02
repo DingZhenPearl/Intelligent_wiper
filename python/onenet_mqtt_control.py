@@ -306,6 +306,56 @@ def send_cmd_control_command(command):
     except Exception as e:
         return {"success": False, "error": f"发送CMD控制命令失败: {str(e)}"}
 
+def send_cmd_get_status_command():
+    """发送CMD格式的获取状态命令到OneNET平台"""
+    global mqtt_client, current_device_name
+
+    try:
+        if not mqtt_client or not hasattr(mqtt_client, 'is_connected') or not mqtt_client.is_connected():
+            return {"success": False, "error": "MQTT客户端未连接"}
+
+        # 生成命令ID
+        cmdid = int(time.time() * 1000)
+
+        # 构建CMD格式的获取状态命令
+        cmd_data = {
+            "get_status": True,
+            "timestamp": cmdid
+        }
+
+        # 获取MQTT主题
+        topics = get_mqtt_topics(current_device_name, cmdid)
+        command_topic = topics['command']
+        payload = json.dumps(cmd_data)
+
+        log(f"📤 发送CMD获取状态命令到主题: {command_topic}")
+        log(f"📤 命令内容: {payload}")
+
+        # 发送命令到OneNET平台
+        result = mqtt_client.publish(command_topic, payload, qos=1)
+
+        if result.rc == mqtt.MQTT_ERR_SUCCESS:
+            log("✅ CMD获取状态命令发送成功，等待设备回复...")
+
+            # 🔧 修复：控制端只负责发送命令，不执行本地状态查询逻辑
+            # 真实的设备会接收命令并回复当前状态
+
+            return {
+                "success": True,
+                "message": "CMD获取状态命令发送成功，等待设备回复",
+                "status": "unknown",  # 状态需要从设备回复中获取
+                "device_name": current_device_name,
+                "method": "MQTT_CMD",
+                "cmdid": cmdid,
+                "topic": command_topic,
+                "note": "状态查询命令已发送到OneNET平台，等待真实设备回复当前状态"
+            }
+        else:
+            return {"success": False, "error": f"CMD获取状态命令发送失败，错误码: {result.rc}"}
+
+    except Exception as e:
+        return {"success": False, "error": f"发送CMD获取状态命令失败: {str(e)}"}
+
 def stop_mqtt_service():
     """停止MQTT服务"""
     global running
@@ -317,7 +367,7 @@ def main():
     global wiper_status, current_device_name, current_username
 
     parser = argparse.ArgumentParser(description='OneNET MQTT雨刷控制工具')
-    parser.add_argument('--action', choices=['start', 'stop', 'status', 'control'],
+    parser.add_argument('--action', choices=['start', 'stop', 'status', 'control', 'get-status'],
                         default='start', help='执行的操作')
     parser.add_argument('--status', choices=['off', 'low', 'high', 'interval', 'smart'],
                         help='设置雨刷状态（仅在action=control时有效）')
@@ -369,6 +419,24 @@ def main():
 
         # 发送CMD格式的控制命令到OneNET平台
         result = send_cmd_control_command(status)
+
+        # 输出结果
+        print(json.dumps(result, ensure_ascii=False))
+
+        # 断开连接
+        disconnect_mqtt()
+    elif args.action == 'get-status':
+        log(f"📤 准备发送获取状态命令到设备: {current_device_name}")
+
+        # 如果MQTT客户端未连接，先连接
+        if not mqtt_client or not hasattr(mqtt_client, 'is_connected') or not mqtt_client.is_connected():
+            if not connect_mqtt():
+                print(json.dumps({"success": False, "error": "无法连接到MQTT服务器"}, ensure_ascii=False))
+                return
+            time.sleep(1)  # 等待连接建立
+
+        # 发送CMD格式的获取状态命令到OneNET平台
+        result = send_cmd_get_status_command()
 
         # 输出结果
         print(json.dumps(result, ensure_ascii=False))

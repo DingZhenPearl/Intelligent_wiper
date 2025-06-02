@@ -345,4 +345,76 @@ router.post('/stop-service', authMiddleware, async (req, res) => {
   }
 });
 
+/**
+ * 通过CMD命令获取雨刷状态
+ * POST /api/wiper/get-status-cmd
+ */
+router.post('/get-status-cmd', authMiddleware, async (req, res) => {
+  try {
+    console.log('🎯 收到CMD获取雨刷状态请求');
+
+    // 🔧 使用认证中间件获取用户信息
+    const username = req.user?.username;
+    console.log(`🎯 为已登录用户 ${username} 通过CMD获取雨刷状态`);
+
+    // 调用Python脚本获取状态，传入用户名
+    const python = spawn('python', [PYTHON_SCRIPT, '--action', 'get-status', '--username', username]);
+
+    let dataString = '';
+    let errorString = '';
+
+    // 收集标准输出
+    python.stdout.on('data', (data) => {
+      dataString += data.toString();
+    });
+
+    // 收集标准错误
+    python.stderr.on('data', (data) => {
+      const output = data.toString();
+      errorString += output;
+
+      // 区分日志和真正的错误
+      if (output.trim().startsWith('LOG:')) {
+        console.log(`Python日志: ${output.trim()}`);  // 作为普通日志输出
+      } else {
+        console.error(`Python错误: ${output}`);  // 真正的错误
+      }
+    });
+
+    // 脚本执行完成
+    python.on('close', (code) => {
+      console.log(`Python脚本退出，状态码: ${code}`);
+
+      if (code !== 0) {
+        return res.status(500).json({
+          success: false,
+          error: `Python脚本执行失败，状态码: ${code}`,
+          details: errorString
+        });
+      }
+
+      try {
+        // 解析Python脚本的输出
+        const result = JSON.parse(dataString);
+        return res.json(result);
+      } catch (error) {
+        console.error('解析Python输出失败:', error);
+        return res.status(500).json({
+          success: false,
+          error: '解析Python输出失败',
+          details: error.message,
+          output: dataString
+        });
+      }
+    });
+  } catch (error) {
+    console.error('CMD获取雨刷状态失败:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'CMD获取雨刷状态失败',
+      details: error.message
+    });
+  }
+});
+
 module.exports = router;

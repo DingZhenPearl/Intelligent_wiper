@@ -58,6 +58,51 @@ const wiperService = {
   },
 
   /**
+   * 通过CMD命令获取雨刷当前状态
+   * @returns {Promise<Object>} 包含雨刷状态的对象
+   */
+  async getCurrentStatusViaCMD() {
+    try {
+      console.log('[wiperService] 通过CMD命令获取雨刷当前状态');
+      const response = await post('/api/wiper/get-status-cmd', {});
+
+      // 🔧 修复：处理401未登录错误
+      if (response.status === 401) {
+        console.error('[wiperService] 用户未登录，需要重新登录');
+        // 清除本地用户信息
+        localStorage.removeItem('user');
+        // 跳转到登录页面
+        window.location.href = '/login';
+        return {
+          success: false,
+          error: '用户未登录，请重新登录'
+        };
+      }
+
+      // 处理响应数据
+      const data = await response.json();
+
+      if (data.success) {
+        // 更新本地状态
+        if (data.status) {
+          wiperStatus.value = data.status;
+          console.log(`[wiperService] 通过CMD获取雨刷状态: ${wiperStatus.value}`);
+        }
+      } else {
+        console.error('[wiperService] 通过CMD获取雨刷状态失败:', data.error);
+      }
+
+      return data;
+    } catch (error) {
+      console.error('[wiperService] 通过CMD获取雨刷状态错误:', error);
+      return {
+        success: false,
+        error: error.message || '通过CMD获取雨刷状态失败'
+      };
+    }
+  },
+
+  /**
    * 控制雨刷
    * @param {string} status - 雨刷状态，可选值: off, low, medium, high
    * @returns {Promise<Object>} 包含操作结果的对象
