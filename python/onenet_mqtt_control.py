@@ -1,6 +1,24 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
+"""
+OneNET MQTT 控制端脚本
+
+🔧 重要修改：已移除设备端模拟功能，现在只作为控制端使用
+
+功能说明：
+- ✅ 发送控制命令到OneNET平台 (cmd/request主题)
+- ✅ 接收设备回复 (cmd/response主题)
+- ❌ 不再模拟设备端行为
+- ❌ 不再处理cmd/request主题
+- ❌ 不再执行本地硬件控制
+- ❌ 不再上报设备状态
+
+架构说明：
+控制端 (本脚本) → OneNET平台 → 真实设备
+真实设备 → OneNET平台 → 控制端 (本脚本)
+"""
+
 import sys
 import json
 import traceback
@@ -55,21 +73,22 @@ def on_connect(client, userdata, flags, rc, *args):
         # 获取当前设备的MQTT主题
         topics = get_mqtt_topics(current_device_name)
 
-        # 订阅数据上报回复主题（固定主题）
-        client.subscribe(topics['property_post_reply'])
-        log(f"已订阅数据上报回复主题: {topics['property_post_reply']}")
+        # 🔧 修复：只订阅控制端需要的主题，不再模拟设备端
 
-        # 订阅CMD命令请求主题（使用通配符）
-        cmd_request_wildcard = f"$sys/{PRODUCT_ID}/{current_device_name}/cmd/request/+"
-        client.subscribe(cmd_request_wildcard)
-        log(f"已订阅CMD命令请求主题（通配符）: {cmd_request_wildcard}")
-
-        # 订阅CMD命令回复主题（使用通配符）
+        # 订阅CMD命令回复主题（接收设备的回复）
         cmd_response_wildcard = f"$sys/{PRODUCT_ID}/{current_device_name}/cmd/response/+"
         client.subscribe(cmd_response_wildcard)
         log(f"已订阅CMD命令回复主题（通配符）: {cmd_response_wildcard}")
 
-        # 不再自动上报状态
+        # 订阅数据上报回复主题（可选，用于确认数据上报）
+        client.subscribe(topics['property_post_reply'])
+        log(f"已订阅数据上报回复主题: {topics['property_post_reply']}")
+
+        # ❌ 移除：不再订阅CMD请求主题，因为我们是控制端，不是设备端
+        # cmd_request_wildcard = f"$sys/{PRODUCT_ID}/{current_device_name}/cmd/request/+"
+        # client.subscribe(cmd_request_wildcard)
+
+        log("✅ 控制端MQTT连接完成，只订阅回复主题")
     else:
         log(f"连接MQTT服务器失败，返回码: {rc}")
 
@@ -80,233 +99,79 @@ def on_disconnect(client, userdata, rc, *args):
         log("意外断开连接，尝试重新连接...")
 
 def on_message(client, userdata, msg):
-    """MQTT消息接收回调函数"""
+    """MQTT消息接收回调函数 - 只处理控制端需要的消息"""
     try:
         topic = msg.topic
         payload = msg.payload.decode('utf-8')
         log(f"收到MQTT消息，主题: {topic}, 内容: {payload}")
 
-        # 检查是否是CMD请求
-        if '/cmd/request/' in topic:
-            # 提取命令ID
+        # 🔧 修复：只处理控制端关心的消息
+        if '/cmd/response/' in topic:
+            # 处理CMD命令回复（来自真实设备的回复）
             topic_parts = topic.split('/')
             if len(topic_parts) >= 6:
                 cmdid = topic_parts[-1]  # 最后一部分是cmdid
-                log(f"收到CMD请求，命令ID: {cmdid}")
-                handle_cmd_command(payload, cmdid)
-        elif '/cmd/response/' in topic:
-            # 处理CMD命令回复
-            topic_parts = topic.split('/')
-            if len(topic_parts) >= 6:
-                cmdid = topic_parts[-1]  # 最后一部分是cmdid
-                log(f"收到CMD回复，命令ID: {cmdid}, 内容: {payload}")
+                log(f"✅ 收到设备CMD回复，命令ID: {cmdid}, 内容: {payload}")
+                # 这里可以解析设备回复，判断命令是否执行成功
+                try:
+                    response_data = json.loads(payload)
+                    if response_data.get('errno') == 0:
+                        log(f"✅ 设备成功执行命令 {cmdid}")
+                    else:
+                        log(f"❌ 设备执行命令失败 {cmdid}: {response_data.get('error', '未知错误')}")
+                except json.JSONDecodeError:
+                    log(f"⚠️ 无法解析设备回复JSON: {payload}")
         elif '/dp/post/json/accepted' in topic:
-            # 处理数据上报回复
-            log(f"数据上报确认: {payload}")
+            # 处理数据上报回复确认
+            log(f"📤 数据上报确认: {payload}")
+        else:
+            # 其他消息类型
+            log(f"ℹ️ 收到其他类型消息: {topic}")
+
+        # ❌ 移除：不再处理CMD请求，因为我们是控制端，不是设备端
+        # if '/cmd/request/' in topic:
+        #     handle_cmd_command(payload, cmdid)
+
     except Exception as e:
         log(f"处理MQTT消息时出错: {str(e)}")
         log(traceback.format_exc())
 
-def handle_cmd_command(payload, cmdid):
-    """处理接收到的CMD格式命令"""
-    global wiper_status
+# ❌ 移除：设备端命令处理函数，因为我们只作为控制端
+# def handle_cmd_command(payload, cmdid):
+#     """处理接收到的CMD格式命令 - 已移除，不再模拟设备端"""
+#     pass
 
-    try:
-        # 解析命令JSON
-        command_data = json.loads(payload)
-        log(f"解析CMD命令: {command_data}")
+# ❌ 移除：旧格式命令处理函数，因为我们只作为控制端
+# def handle_command(payload):
+#     """处理接收到的旧格式命令 - 已移除，不再模拟设备端"""
+#     pass
 
-        # 检查是否包含雨刷控制命令
-        if "wiper_control" in command_data:
-            # 获取雨刷控制命令值
-            wiper_command = command_data["wiper_control"]
-            log(f"收到雨刷控制命令: {wiper_command}")
+# ❌ 移除：硬件控制函数，因为控制端不直接控制硬件
+# def control_wiper(command):
+#     """控制雨刷硬件 - 已移除，硬件控制由真实设备端负责"""
+#     pass
 
-            # 验证命令值
-            if wiper_command in ["off", "low", "high", "interval", "smart"]:
-                # 更新雨刷状态
-                wiper_status = wiper_command
+# ❌ 移除：设备端回复函数，因为控制端不需要回复自己发送的命令
+# def reply_cmd_success(cmdid):
+#     """回复CMD命令执行成功 - 已移除，由真实设备端负责回复"""
+#     pass
 
-                # 执行雨刷控制操作
-                control_wiper(wiper_command)
+# def reply_cmd_error(cmdid, errno, message):
+#     """回复CMD命令执行失败 - 已移除，由真实设备端负责回复"""
+#     pass
 
-                # 回复命令已执行
-                reply_cmd_success(cmdid)
+# def reply_success(command_id):
+#     """回复旧格式命令执行成功 - 已移除，由真实设备端负责回复"""
+#     pass
 
-                # 上报新状态
-                report_wiper_status()
-            else:
-                log(f"无效的雨刷控制命令值: {wiper_command}")
-                reply_cmd_error(cmdid, 400, f"无效的雨刷控制命令值: {wiper_command}")
-        else:
-            log("CMD命令中未包含雨刷控制参数")
-            reply_cmd_error(cmdid, 400, "CMD命令中未包含雨刷控制参数")
-    except json.JSONDecodeError:
-        log(f"无法解析CMD命令JSON: {payload}")
-        reply_cmd_error(cmdid, 400, "无法解析CMD命令JSON")
-    except Exception as e:
-        log(f"处理CMD命令时出错: {str(e)}")
-        log(traceback.format_exc())
-        reply_cmd_error(cmdid, 500, f"处理CMD命令时出错: {str(e)}")
+# def reply_error(command_id, code, message):
+#     """回复旧格式命令执行失败 - 已移除，由真实设备端负责回复"""
+#     pass
 
-def handle_command(payload):
-    """处理接收到的旧格式命令（保持兼容性）"""
-    global wiper_status
-
-    try:
-        # 解析命令JSON
-        command_data = json.loads(payload)
-
-        # 获取命令ID，用于回复
-        command_id = command_data.get("id")
-
-        # 检查是否包含雨刷控制命令
-        if "params" in command_data and "wiper_control" in command_data["params"]:
-            # 获取雨刷控制命令值
-            wiper_command = command_data["params"]["wiper_control"]["value"]
-            log(f"收到雨刷控制命令: {wiper_command}")
-
-            # 验证命令值
-            if wiper_command in ["off", "low", "high", "interval", "smart"]:
-                # 更新雨刷状态
-                wiper_status = wiper_command
-
-                # 执行雨刷控制操作
-                control_wiper(wiper_command)
-
-                # 回复命令已执行
-                reply_success(command_id)
-
-                # 上报新状态
-                report_wiper_status()
-            else:
-                log(f"无效的雨刷控制命令值: {wiper_command}")
-                reply_error(command_id, 400, f"无效的雨刷控制命令值: {wiper_command}")
-        else:
-            log("命令中未包含雨刷控制参数")
-            reply_error(command_id, 400, "命令中未包含雨刷控制参数")
-    except json.JSONDecodeError:
-        log(f"无法解析命令JSON: {payload}")
-        reply_error(command_id if 'command_id' in locals() else "unknown", 400, "无法解析命令JSON")
-    except Exception as e:
-        log(f"处理命令时出错: {str(e)}")
-        log(traceback.format_exc())
-        reply_error(command_id if 'command_id' in locals() else "unknown", 500, f"处理命令时出错: {str(e)}")
-
-def control_wiper(command):
-    """控制雨刷硬件
-
-    参数:
-        command: 雨刷控制命令，可选值: off, low, high
-    """
-    # 这里实现实际的雨刷控制逻辑
-    # 在实际应用中，这里可能会调用硬件接口或发送信号给硬件控制器
-    log(f"执行雨刷控制: {command}")
-
-    # 示例：可以在这里添加与硬件通信的代码
-    # 例如，通过串口发送命令到Arduino或其他控制器
-    # 或者通过GPIO控制树莓派上连接的继电器等
-
-    # 模拟控制成功
-    return True
-
-def reply_cmd_success(cmdid):
-    """回复CMD命令执行成功
-
-    参数:
-        cmdid: 命令ID
-    """
-    reply = {
-        "errno": 0,
-        "msg": "success"
-    }
-
-    # 发布回复消息到CMD回复主题
-    topics = get_mqtt_topics(current_device_name, cmdid)
-    mqtt_client.publish(topics['command_reply'], json.dumps(reply))
-    log(f"已回复CMD命令执行成功，命令ID: {cmdid}")
-
-def reply_cmd_error(cmdid, errno, message):
-    """回复CMD命令执行失败
-
-    参数:
-        cmdid: 命令ID
-        errno: 错误代码
-        message: 错误消息
-    """
-    reply = {
-        "errno": errno,
-        "error": message
-    }
-
-    # 发布回复消息到CMD回复主题
-    topics = get_mqtt_topics(current_device_name, cmdid)
-    mqtt_client.publish(topics['command_reply'], json.dumps(reply))
-    log(f"已回复CMD命令执行失败，命令ID: {cmdid}, 错误: {message}")
-
-def reply_success(command_id):
-    """回复旧格式命令执行成功
-
-    参数:
-        command_id: 命令ID
-    """
-    reply = {
-        "id": command_id,
-        "code": 200,
-        "msg": "success"
-    }
-
-    # 发布回复消息
-    topics = get_mqtt_topics(current_device_name)
-    mqtt_client.publish(topics['command_reply'], json.dumps(reply))
-    log(f"已回复命令执行成功，命令ID: {command_id}")
-
-def reply_error(command_id, code, message):
-    """回复旧格式命令执行失败
-
-    参数:
-        command_id: 命令ID
-        code: 错误代码
-        message: 错误消息
-    """
-    reply = {
-        "id": command_id,
-        "code": code,
-        "msg": message
-    }
-
-    # 发布回复消息
-    topics = get_mqtt_topics(current_device_name)
-    mqtt_client.publish(topics['command_reply'], json.dumps(reply))
-    log(f"已回复命令执行失败，命令ID: {command_id}, 错误: {message}")
-
-def report_wiper_status():
-    """上报雨刷当前状态"""
-    global wiper_status
-
-    # 如果状态未设置，不上报
-    if wiper_status is None:
-        log("雨刷状态未设置，跳过状态上报")
-        return
-
-    # 生成唯一ID
-    report_id = str(int(time.time()))
-
-    # 构建上报消息
-    report = {
-        "id": report_id,
-        "params": {
-            "wiper_status": {
-                "value": wiper_status
-            }
-        }
-    }
-
-    # 发布状态上报消息
-    topics = get_mqtt_topics(current_device_name)
-    mqtt_client.publish(topics['property_post'], json.dumps(report))
-
-    log(f"已上报雨刷状态: {wiper_status}, 报告ID: {report_id}")
+# ❌ 移除：状态上报函数，因为控制端不需要上报状态
+# def report_wiper_status():
+#     """上报雨刷当前状态 - 已移除，由真实设备端负责状态上报"""
+#     pass
 
 def connect_mqtt():
     """连接到MQTT服务器"""
@@ -392,7 +257,7 @@ def start_mqtt_service():
     return True
 
 def send_cmd_control_command(command):
-    """发送CMD格式的控制命令"""
+    """发送CMD格式的控制命令到OneNET平台"""
     global mqtt_client, current_device_name
 
     try:
@@ -413,29 +278,27 @@ def send_cmd_control_command(command):
         command_topic = topics['command']
         payload = json.dumps(cmd_data)
 
-        log(f"发送CMD控制命令到主题: {command_topic}")
-        log(f"命令内容: {payload}")
+        log(f"📤 发送CMD控制命令到主题: {command_topic}")
+        log(f"📤 命令内容: {payload}")
 
-        # 发送命令
+        # 发送命令到OneNET平台
         result = mqtt_client.publish(command_topic, payload, qos=1)
 
         if result.rc == mqtt.MQTT_ERR_SUCCESS:
-            log("CMD控制命令发送成功")
+            log("✅ CMD控制命令发送成功，等待设备回复...")
 
-            # 执行本地控制逻辑
-            control_wiper(command)
-
-            # 上报状态
-            report_wiper_status()
+            # 🔧 修复：控制端只负责发送命令，不执行本地控制逻辑
+            # 真实的设备会接收命令并执行，然后回复结果
 
             return {
                 "success": True,
-                "message": "CMD控制命令发送成功",
+                "message": "CMD控制命令发送成功，等待设备执行",
                 "command": command,
                 "device_name": current_device_name,
                 "method": "MQTT_CMD",
                 "cmdid": cmdid,
-                "topic": command_topic
+                "topic": command_topic,
+                "note": "命令已发送到OneNET平台，等待真实设备执行并回复"
             }
         else:
             return {"success": False, "error": f"CMD命令发送失败，错误码: {result.rc}"}
@@ -477,34 +340,25 @@ def main():
     elif args.action == 'stop':
         stop_mqtt_service()
     elif args.action == 'status':
-        # 如果MQTT客户端未连接，先连接
-        if not mqtt_client or not hasattr(mqtt_client, 'is_connected') or not mqtt_client.is_connected():
-            if not connect_mqtt():
-                print(json.dumps({"success": False, "error": "无法连接到MQTT服务器"}, ensure_ascii=False))
-                return
-            time.sleep(1)  # 等待连接建立
-
-        # 上报当前状态（如果已设置）
-        if wiper_status is not None:
-            report_wiper_status()
-            print(json.dumps({"success": True, "status": wiper_status}, ensure_ascii=False))
-        else:
-            log("雨刷状态未设置")
-            print(json.dumps({"success": True, "status": "未设置"}, ensure_ascii=False))
-
-        # 断开连接
-        disconnect_mqtt()
+        # 🔧 修复：控制端不维护设备状态，状态由真实设备管理
+        log("⚠️ 控制端不维护设备状态，请查询真实设备的状态")
+        print(json.dumps({
+            "success": True,
+            "status": "控制端不维护状态",
+            "message": "设备状态由真实设备管理，请通过OneNET平台或设备端查询",
+            "device_name": current_device_name
+        }, ensure_ascii=False))
     elif args.action == 'control':
         if not args.status:
             print(json.dumps({"success": False, "error": "控制操作需要指定--status参数"}, ensure_ascii=False))
             return
 
-        # 直接使用前端状态
+        # 获取要发送的控制命令
         status = args.status
-        log(f"使用状态: '{status}'")
+        log(f"📤 准备发送控制命令: '{status}' 到设备: {current_device_name}")
 
-        # 先更新全局状态变量，这样连接时自动上报的就是新状态
-        wiper_status = status
+        # 🔧 修复：控制端不维护本地状态，只发送命令
+        # wiper_status = status  # 移除本地状态管理
 
         # 如果MQTT客户端未连接，先连接
         if not mqtt_client or not hasattr(mqtt_client, 'is_connected') or not mqtt_client.is_connected():
@@ -513,13 +367,11 @@ def main():
                 return
             time.sleep(1)  # 等待连接建立
 
-        # 发送CMD格式的控制命令
+        # 发送CMD格式的控制命令到OneNET平台
         result = send_cmd_control_command(status)
 
-        if result['success']:
-            print(json.dumps(result, ensure_ascii=False))
-        else:
-            print(json.dumps(result, ensure_ascii=False))
+        # 输出结果
+        print(json.dumps(result, ensure_ascii=False))
 
         # 断开连接
         disconnect_mqtt()
