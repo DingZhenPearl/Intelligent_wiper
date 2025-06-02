@@ -30,6 +30,7 @@
           <li :class="{ active: currentStatus === 'off' }" @click="changeStatus('off')">关闭</li>
           <li :class="{ active: currentStatus === 'interval' }" @click="changeStatus('interval')">间歇</li>
           <li :class="{ active: currentStatus === 'low' }" @click="changeStatus('low')">低速</li>
+          <li :class="{ active: currentStatus === 'medium' }" @click="changeStatus('medium')">中速</li>
           <li :class="{ active: currentStatus === 'high' }" @click="changeStatus('high')">高速</li>
           <li :class="{ active: currentStatus === 'smart' }" @click="changeStatus('smart')">智能</li>
         </ul>

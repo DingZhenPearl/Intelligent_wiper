@@ -95,7 +95,7 @@ router.post('/control', authMiddleware, async (req, res) => {
     const { status } = req.body;
 
     // 验证状态值
-    const validStatuses = ['off', 'interval', 'low', 'medium', 'high', 'smart'];
+    const validStatuses = ['off', 'interval', 'low', 'high', 'smart'];
     if (!status || !validStatuses.includes(status)) {
       return res.status(400).json({
         success: false,
@@ -178,7 +178,7 @@ router.post('/api-control', authMiddleware, async (req, res) => {
     const { command } = req.body;
 
     // 验证命令值
-    const validCommands = ['off', 'interval', 'low', 'medium', 'high', 'smart'];
+    const validCommands = ['off', 'interval', 'low', 'high', 'smart'];
     if (!command || !validCommands.includes(command)) {
       return res.status(400).json({
         success: false,

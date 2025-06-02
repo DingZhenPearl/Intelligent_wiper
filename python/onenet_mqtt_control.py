@@ -35,13 +35,17 @@ wiper_status = None  # 雨刷状态：off, interval, low, medium, high, smart
 current_device_name = DEVICE_NAME  # 当前使用的设备名称
 current_username = "admin"  # 当前用户名
 
-def get_mqtt_topics(device_name):
+def get_mqtt_topics(device_name, cmdid=None):
     """根据设备名称获取MQTT主题"""
+    if cmdid is None:
+        cmdid = int(time.time() * 1000)  # 使用时间戳作为命令ID
+
     return {
-        'command': f"$sys/{PRODUCT_ID}/{device_name}/thing/property/set",
-        'command_reply': f"$sys/{PRODUCT_ID}/{device_name}/thing/property/set_reply",
-        'property_post': f"$sys/{PRODUCT_ID}/{device_name}/thing/property/post",
-        'property_post_reply': f"$sys/{PRODUCT_ID}/{device_name}/thing/property/post/reply"
+        'command': f"$sys/{PRODUCT_ID}/{device_name}/cmd/request/{cmdid}",
+        'command_reply': f"$sys/{PRODUCT_ID}/{device_name}/cmd/response/{cmdid}",
+        'property_post': f"$sys/{PRODUCT_ID}/{device_name}/dp/post/json",
+        'property_post_reply': f"$sys/{PRODUCT_ID}/{device_name}/dp/post/json/accepted",
+        'cmdid': cmdid
     }
 
 def on_connect(client, userdata, flags, rc, *args):
@@ -50,11 +54,15 @@ def on_connect(client, userdata, flags, rc, *args):
         log(f"成功连接到MQTT服务器: {MQTT_HOST}")
         # 获取当前设备的MQTT主题
         topics = get_mqtt_topics(current_device_name)
-        # 订阅命令主题
-        client.subscribe(topics['command'])
+
+        # 订阅数据上报回复主题（固定主题）
         client.subscribe(topics['property_post_reply'])
-        log(f"已订阅主题: {topics['command']}")
-        log(f"已订阅主题: {topics['property_post_reply']}")
+        log(f"已订阅数据上报回复主题: {topics['property_post_reply']}")
+
+        # 订阅通用命令回复主题（使用通配符）
+        cmd_request_wildcard = f"$sys/{PRODUCT_ID}/{current_device_name}/cmd/request/+"
+        client.subscribe(cmd_request_wildcard)
+        log(f"已订阅命令请求主题（通配符）: {cmd_request_wildcard}")
 
         # 不再自动上报状态
     else:
@@ -73,19 +81,65 @@ def on_message(client, userdata, msg):
         payload = msg.payload.decode('utf-8')
         log(f"收到MQTT消息，主题: {topic}, 内容: {payload}")
 
-        topics = get_mqtt_topics(current_device_name)
-        if topic == topics['command']:
-            # 处理命令消息
-            handle_command(payload)
-        elif topic == topics['property_post_reply']:
-            # 处理属性上报响应
-            log(f"属性上报响应: {payload}")
+        # 检查是否是CMD请求
+        if '/cmd/request/' in topic:
+            # 提取命令ID
+            topic_parts = topic.split('/')
+            if len(topic_parts) >= 6:
+                cmdid = topic_parts[-1]  # 最后一部分是cmdid
+                log(f"收到CMD请求，命令ID: {cmdid}")
+                handle_cmd_command(payload, cmdid)
+        elif '/dp/post/json/accepted' in topic:
+            # 处理数据上报回复
+            log(f"数据上报确认: {payload}")
     except Exception as e:
         log(f"处理MQTT消息时出错: {str(e)}")
         log(traceback.format_exc())
 
+def handle_cmd_command(payload, cmdid):
+    """处理接收到的CMD格式命令"""
+    global wiper_status
+
+    try:
+        # 解析命令JSON
+        command_data = json.loads(payload)
+        log(f"解析CMD命令: {command_data}")
+
+        # 检查是否包含雨刷控制命令
+        if "wiper_control" in command_data:
+            # 获取雨刷控制命令值
+            wiper_command = command_data["wiper_control"]
+            log(f"收到雨刷控制命令: {wiper_command}")
+
+            # 验证命令值
+            if wiper_command in ["off", "low", "high", "interval", "smart"]:
+                # 更新雨刷状态
+                wiper_status = wiper_command
+
+                # 执行雨刷控制操作
+                control_wiper(wiper_command)
+
+                # 回复命令已执行
+                reply_cmd_success(cmdid)
+
+                # 上报新状态
+                report_wiper_status()
+            else:
+                log(f"无效的雨刷控制命令值: {wiper_command}")
+                reply_cmd_error(cmdid, 400, f"无效的雨刷控制命令值: {wiper_command}")
+        else:
+            log("CMD命令中未包含雨刷控制参数")
+            reply_cmd_error(cmdid, 400, "CMD命令中未包含雨刷控制参数")
+    except json.JSONDecodeError:
+        log(f"无法解析CMD命令JSON: {payload}")
+        reply_cmd_error(cmdid, 400, "无法解析CMD命令JSON")
+    except Exception as e:
+        log(f"处理CMD命令时出错: {str(e)}")
+        log(traceback.format_exc())
+        reply_cmd_error(cmdid, 500, f"处理CMD命令时出错: {str(e)}")
+
 def handle_command(payload):
-    """处理接收到的命令"""
+    """处理接收到的旧格式命令（保持兼容性）"""
     global wiper_status
 
     try:
@@ -102,7 +156,7 @@ def handle_command(payload):
             log(f"收到雨刷控制命令: {wiper_command}")
 
             # 验证命令值
-            if wiper_command in ["off", "low", "medium", "high"]:
+            if wiper_command in ["off", "low", "high", "interval", "smart"]:
                 # 更新雨刷状态
                 wiper_status = wiper_command
 
@@ -112,23 +166,7 @@ def handle_command(payload):
                 # 回复命令已执行
                 reply_success(command_id)
 
-                # 上报新状态（无需比较，因为状态已经更新）
-                report_wiper_status()
-            # 处理所有状态
-            elif wiper_command in ["interval", "smart", "off", "low", "medium", "high"]:
-                # 直接使用前端状态
-                log(f"收到雨刷控制命令: {wiper_command}")
-
-                # 更新雨刷状态
-                wiper_status = wiper_command
-
-                # 执行雨刷控制操作
-                control_wiper(wiper_command)
-
-                # 回复命令已执行
-                reply_success(command_id)
-
-                # 上报新状态（无需比较，因为状态已经更新）
+                # 上报新状态
                 report_wiper_status()
             else:
                 log(f"无效的雨刷控制命令值: {wiper_command}")
@@ -161,8 +199,42 @@ def control_wiper(command):
     # 模拟控制成功
     return True
 
+def reply_cmd_success(cmdid):
+    """回复CMD命令执行成功
+
+    参数:
+        cmdid: 命令ID
+    """
+    reply = {
+        "errno": 0,
+        "msg": "success"
+    }
+
+    # 发布回复消息到CMD回复主题
+    topics = get_mqtt_topics(current_device_name, cmdid)
+    mqtt_client.publish(topics['command_reply'], json.dumps(reply))
+    log(f"已回复CMD命令执行成功，命令ID: {cmdid}")
+
+def reply_cmd_error(cmdid, errno, message):
+    """回复CMD命令执行失败
+
+    参数:
+        cmdid: 命令ID
+        errno: 错误代码
+        message: 错误消息
+    """
+    reply = {
+        "errno": errno,
+        "error": message
+    }
+
+    # 发布回复消息到CMD回复主题
+    topics = get_mqtt_topics(current_device_name, cmdid)
+    mqtt_client.publish(topics['command_reply'], json.dumps(reply))
+    log(f"已回复CMD命令执行失败，命令ID: {cmdid}, 错误: {message}")
+
 def reply_success(command_id):
-    """回复命令执行成功
+    """回复旧格式命令执行成功
 
     参数:
         command_id: 命令ID
@@ -179,7 +251,7 @@ def reply_success(command_id):
     log(f"已回复命令执行成功，命令ID: {command_id}")
 
 def reply_error(command_id, code, message):
-    """回复命令执行失败
+    """回复旧格式命令执行失败
 
     参数:
         command_id: 命令ID
@@ -321,7 +393,7 @@ def main():
     parser = argparse.ArgumentParser(description='OneNET MQTT雨刷控制工具')
     parser.add_argument('--action', choices=['start', 'stop', 'status', 'control'],
                         default='start', help='执行的操作')
-    parser.add_argument('--status', choices=['off', 'low', 'medium', 'high', 'interval', 'smart'],
+    parser.add_argument('--status', choices=['off', 'low', 'high', 'interval', 'smart'],
                         help='设置雨刷状态（仅在action=control时有效）')
     parser.add_argument('--username', default='admin', help='用户名，用于确定使用哪个设备')
 
