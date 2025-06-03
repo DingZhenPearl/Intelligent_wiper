@@ -27,18 +27,39 @@
       <div class="work-status">
         <h2>当前雨刷工作状态</h2>
         <ul class="status-list">
-          <li :class="{ active: currentStatus === 'off' }" @click="changeStatus('off')">关闭</li>
-          <li :class="{ active: currentStatus === 'interval' }" @click="changeStatus('interval')">间歇</li>
-          <li :class="{ active: currentStatus === 'low' }" @click="changeStatus('low')">低速</li>
-          <li :class="{ active: currentStatus === 'high' }" @click="changeStatus('high')">高速</li>
-          <li :class="{ active: currentStatus === 'smart' }" @click="changeStatus('smart')">智能</li>
+          <li :class="{ active: currentStatus === 'off', disabled: isWiperControlLoading }"
+              @click="!isWiperControlLoading && changeStatus('off')">
+            关闭
+            <span v-if="isWiperControlLoading && pendingStatus === 'off'" class="loading-indicator">⏳</span>
+          </li>
+          <li :class="{ active: currentStatus === 'interval', disabled: isWiperControlLoading }"
+              @click="!isWiperControlLoading && changeStatus('interval')">
+            间歇
+            <span v-if="isWiperControlLoading && pendingStatus === 'interval'" class="loading-indicator">⏳</span>
+          </li>
+          <li :class="{ active: currentStatus === 'low', disabled: isWiperControlLoading }"
+              @click="!isWiperControlLoading && changeStatus('low')">
+            低速
+            <span v-if="isWiperControlLoading && pendingStatus === 'low'" class="loading-indicator">⏳</span>
+          </li>
+          <li :class="{ active: currentStatus === 'high', disabled: isWiperControlLoading }"
+              @click="!isWiperControlLoading && changeStatus('high')">
+            高速
+            <span v-if="isWiperControlLoading && pendingStatus === 'high'" class="loading-indicator">⏳</span>
+          </li>
+          <li :class="{ active: currentStatus === 'smart', disabled: isWiperControlLoading }"
+              @click="!isWiperControlLoading && changeStatus('smart')">
+            智能
+            <span v-if="isWiperControlLoading && pendingStatus === 'smart'" class="loading-indicator">⏳</span>
+          </li>
         </ul>
 
         <!-- 控制按钮 -->
-        <button class="control-btn" @click="toggleWiper">
+        <button class="control-btn" @click="toggleWiper" :disabled="isWiperControlLoading">
         <!-- 将 ⏻ 替换为更通用的图标 -->
         <span class="icon material-icons">power_settings_new</span>
-          {{ currentStatus === 'off' ? '开启雨刷' : '立即关闭' }}
+          <span v-if="isWiperControlLoading">控制中...</span>
+          <span v-else>{{ currentStatus === 'off' ? '开启雨刷' : '立即关闭' }}</span>
         </button>
 
         <!-- 语音控制按钮 -->
@@ -306,6 +327,7 @@ export default {
 
     // 雨刷控制状态
     const isWiperControlLoading = ref(false);
+    const pendingStatus = ref(''); // 正在执行的状态切换
 
     // 显示雨刷控制结果消息
     const showWiperControlMessage = (message, success = true) => {
@@ -323,14 +345,14 @@ export default {
     // 修改雨刷状态
     const changeStatus = async (status, logChange = true) => {
       try {
-        // 设置加载状态
+        // 设置加载状态和待处理状态
         isWiperControlLoading.value = true;
+        pendingStatus.value = status;
 
         if (logChange) {
           console.log(`[Home] 准备切换雨刷状态为: ${status}`);
         }
 
-        // 直接使用前端状态
         // 调用服务控制雨刷
         const result = await wiperService.control(status);
 
@@ -340,11 +362,23 @@ export default {
 
           if (logChange) {
             console.log(`[Home] 雨刷状态已切换为: ${status}`);
-            showWiperControlMessage(`雨刷已切换到${getStatusText(status)}模式`);
+
+            // 根据不同的错误类型显示不同的消息
+            if (result.error_code === 'DEVICE_OFFLINE') {
+              showWiperControlMessage(`设备当前离线，无法执行控制命令`, false);
+            } else {
+              showWiperControlMessage(`雨刷已切换到${getStatusText(status)}模式`);
+            }
           }
         } else {
           console.error('[Home] 控制雨刷失败:', result.error);
-          showWiperControlMessage(`控制雨刷失败: ${result.error || '未知错误'}`, false);
+
+          // 根据不同的错误类型显示不同的消息
+          if (result.error_code === 'DEVICE_OFFLINE') {
+            showWiperControlMessage(`设备当前离线，无法执行控制命令`, false);
+          } else {
+            showWiperControlMessage(`控制雨刷失败: ${result.error || '未知错误'}`, false);
+          }
         }
       } catch (error) {
         console.error('[Home] 控制雨刷错误:', error);
@@ -352,6 +386,7 @@ export default {
       } finally {
         // 重置加载状态
         isWiperControlLoading.value = false;
+        pendingStatus.value = '';
       }
     };
 
@@ -893,7 +928,8 @@ export default {
       // 雨刷控制消息相关
       wiperControlMessage,
       wiperControlSuccess,
-      isWiperControlLoading
+      isWiperControlLoading,
+      pendingStatus
     }
   }
 }
@@ -1115,8 +1151,20 @@ export default {
           color: white;
         }
 
-        &:hover:not(.active) {
+        &:hover:not(.active):not(.disabled) {
           background-color: #e0e0e0;
+        }
+
+        &.disabled {
+          opacity: 0.6;
+          cursor: not-allowed;
+          pointer-events: none;
+        }
+
+        .loading-indicator {
+          margin-left: var(--spacing-xs);
+          font-size: var(--font-size-sm);
+          animation: pulse 1.5s infinite;
         }
       }
     }
@@ -1139,8 +1187,14 @@ export default {
     max-width: 400px;
     justify-content: center;
 
-    &:hover {
+    &:hover:not(:disabled) {
       background-color: #3367d6;
+    }
+
+    &:disabled {
+      background-color: #a0a0a0;
+      cursor: not-allowed;
+      opacity: 0.7;
     }
 
     .icon {

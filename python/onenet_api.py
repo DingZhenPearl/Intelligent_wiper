@@ -2543,19 +2543,15 @@ def send_sync_command(device_name, command_data, timeout=30):
         # OneNET HTTP同步命令API端点（🔧 修正：使用正确的API路径）
         url = f"https://iot-api.heclouds.com/datapoint/synccmds"
 
-        # 🔧 修正：根据JSON示例，使用query参数和JSON请求体
+        # 🔧 修正：根据OneNET HTTP同步命令API文档，使用query参数和命令数据作为请求体
         query_params = {
             "product_id": PRODUCT_ID,
             "device_name": device_name,
             "timeout": str(timeout)
         }
 
-        # 请求体（根据JSON示例格式）
-        request_body = {
-            "product_id": PRODUCT_ID,
-            "device_name": device_name,
-            "timeout": str(timeout)
-        }
+        # 请求体应该是实际的命令数据，而不是产品信息
+        request_body = command_data
 
         # 请求头（根据JSON示例修正）
         headers = {

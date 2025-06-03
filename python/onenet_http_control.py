@@ -57,12 +57,13 @@ def control_wiper_http(username, status, timeout=10):
         device_name = device_config['device_name']
         log_output(f"设备名称: {device_name}")
         
-        # 构建控制命令
+        # 构建控制命令 - 使用设备端期望的格式
         command_data = {
-            "action": "control_wiper",
-            "status": status,
+            "wiper_control": status,  # 设备端期望的字段名
             "timestamp": int(__import__('time').time()),
-            "source": "http_sync_command"
+            "source": "http_sync_command",
+            "command_id": f"wiper_ctrl_{int(__import__('time').time() * 1000)}",
+            "user": username
         }
         
         log_output(f"发送HTTP同步命令: {command_data}")
@@ -80,15 +81,54 @@ def control_wiper_http(username, status, timeout=10):
             # 解析设备响应
             device_response = result.get('decoded_resp', result.get('cmd_resp', ''))
             log_output(f"设备响应: {device_response}")
-            
-            return {
-                "success": True,
-                "status": status,
-                "message": f"雨刷已切换到{status}模式",
-                "device_response": device_response,
-                "cmd_uuid": result.get('cmd_uuid', ''),
-                "method": "HTTP同步命令"
-            }
+
+            # 尝试解析设备响应，检查是否有错误
+            try:
+                if isinstance(device_response, str) and device_response.strip():
+                    import json
+                    response_data = json.loads(device_response)
+
+                    # 检查设备响应中的错误
+                    if response_data.get('errno', 0) != 0:
+                        error_msg = response_data.get('error', response_data.get('message', '设备执行命令失败'))
+                        log_output(f"设备执行命令失败: {error_msg}")
+                        return {
+                            "success": False,
+                            "error": f"设备执行命令失败: {error_msg}",
+                            "device_response": device_response,
+                            "method": "HTTP同步命令"
+                        }
+
+                    # 成功执行，获取实际状态
+                    actual_status = response_data.get('data', {}).get('wiper_status', status)
+                    return {
+                        "success": True,
+                        "status": actual_status,
+                        "message": f"雨刷已切换到{actual_status}模式",
+                        "device_response": device_response,
+                        "cmd_uuid": result.get('cmd_uuid', ''),
+                        "method": "HTTP同步命令"
+                    }
+                else:
+                    # 没有设备响应或响应为空，但命令发送成功
+                    return {
+                        "success": True,
+                        "status": status,
+                        "message": f"雨刷控制命令已发送",
+                        "device_response": device_response,
+                        "cmd_uuid": result.get('cmd_uuid', ''),
+                        "method": "HTTP同步命令"
+                    }
+            except:
+                # 无法解析设备响应，但命令发送成功
+                return {
+                    "success": True,
+                    "status": status,
+                    "message": f"雨刷控制命令已发送",
+                    "device_response": device_response,
+                    "cmd_uuid": result.get('cmd_uuid', ''),
+                    "method": "HTTP同步命令"
+                }
         else:
             error_msg = result.get('error', '未知错误')
             log_output(f"HTTP同步命令发送失败: {error_msg}")
@@ -143,11 +183,13 @@ def get_wiper_status_http(username, timeout=10):
         device_name = device_config['device_name']
         log_output(f"设备名称: {device_name}")
         
-        # 构建状态查询命令
+        # 构建状态查询命令 - 使用设备端期望的格式
         command_data = {
-            "action": "get_wiper_status",
+            "wiper_status_query": True,  # 设备端期望的状态查询标识
             "timestamp": int(__import__('time').time()),
-            "source": "http_sync_command"
+            "source": "http_sync_command",
+            "command_id": f"wiper_status_{int(__import__('time').time() * 1000)}",
+            "user": username
         }
         
         log_output(f"发送HTTP同步状态查询命令: {command_data}")
@@ -173,12 +215,15 @@ def get_wiper_status_http(username, timeout=10):
                 else:
                     response_data = device_response
                 
-                wiper_status = response_data.get('wiper_status', 'unknown')
-                
+                # 从设备响应的data字段中获取状态
+                data_section = response_data.get('data', {})
+                wiper_status = data_section.get('wiper_status', 'unknown')
+                device_message = data_section.get('message', f"当前雨刷状态: {wiper_status}")
+
                 return {
                     "success": True,
                     "status": wiper_status,
-                    "message": f"当前雨刷状态: {wiper_status}",
+                    "message": device_message,
                     "device_response": device_response,
                     "cmd_uuid": result.get('cmd_uuid', ''),
                     "method": "HTTP同步命令"

@@ -264,34 +264,72 @@ def handle_cmd_request(topic, payload):
 def process_command(cmd_data):
     """处理具体的命令并返回响应数据"""
     global device_state
-    
+
     try:
         # 更新设备最后更新时间
         device_state["last_update"] = datetime.now().isoformat()
-        
+
         # 处理雨刷控制命令
         if "wiper_control" in cmd_data:
             wiper_command = cmd_data["wiper_control"]
-            log(f"🎮 执行雨刷控制命令: {wiper_command}")
-            
+            command_id = cmd_data.get("command_id", "unknown")
+            user = cmd_data.get("user", "unknown")
+
+            log(f"🎮 执行雨刷控制命令: {wiper_command} (命令ID: {command_id}, 用户: {user})")
+
+            # 验证命令有效性
+            valid_commands = ['off', 'interval', 'low', 'high', 'smart']
+            if wiper_command not in valid_commands:
+                log(f"❌ 无效的雨刷命令: {wiper_command}")
+                return {
+                    "errno": 1,
+                    "error": f"无效的雨刷命令: {wiper_command}",
+                    "message": f"命令必须是以下值之一: {', '.join(valid_commands)}",
+                    "command_id": command_id
+                }
+
             # 模拟设备执行命令
             old_status = device_state["wiper_status"]
             device_state["wiper_status"] = wiper_command
-            
+
             # 模拟执行延迟
             time.sleep(0.5)
-            
+
             log(f"✅ 雨刷状态已从 {old_status} 切换到 {wiper_command}")
-            
+
             return {
                 "errno": 0,
                 "data": {
-                    "status": wiper_command,
+                    "wiper_status": wiper_command,  # 使用标准字段名
                     "previous_status": old_status,
                     "message": f"雨刷已切换到{get_status_text(wiper_command)}模式",
                     "timestamp": device_state["last_update"],
                     "battery_level": device_state["battery_level"],
-                    "signal_strength": device_state["signal_strength"]
+                    "signal_strength": device_state["signal_strength"],
+                    "command_id": command_id,
+                    "user": user
+                }
+            }
+
+        # 处理雨刷状态查询命令
+        elif "wiper_status_query" in cmd_data:
+            command_id = cmd_data.get("command_id", "unknown")
+            user = cmd_data.get("user", "unknown")
+
+            log(f"📊 处理雨刷状态查询 (命令ID: {command_id}, 用户: {user})")
+
+            current_status = device_state["wiper_status"]
+
+            return {
+                "errno": 0,
+                "data": {
+                    "wiper_status": current_status,
+                    "message": f"当前雨刷状态: {get_status_text(current_status)}",
+                    "timestamp": device_state["last_update"],
+                    "battery_level": device_state["battery_level"],
+                    "signal_strength": device_state["signal_strength"],
+                    "command_id": command_id,
+                    "user": user
                 }
             }
         
