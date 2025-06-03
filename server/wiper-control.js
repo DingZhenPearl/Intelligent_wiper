@@ -1,6 +1,20 @@
 /**
  * 雨刷控制API接口
  * 提供通过OneNET平台控制雨刷的功能
+ *
+ * 🔧 重要更新：已完全改为HTTP同步命令控制
+ * - ✅ 已从MQTT命令下发改为HTTP同步命令API
+ * - ✅ 使用OneNET HTTP同步命令API实现实时设备控制
+ * - ✅ 支持5-30秒的超时时间设置
+ * - ✅ 实时获取设备响应，无需等待MQTT回复
+ * - ✅ API接口保持不变，确保前端无需修改
+ * - ✅ 使用正确的用户级鉴权和API格式
+ *
+ * API端点：
+ * 1. 雨刷状态控制 (POST /api/wiper/control) - 使用HTTP同步命令
+ * 2. 雨刷状态查询 (GET /api/wiper/status) - 使用HTTP同步命令
+ * 3. API方式控制 (POST /api/wiper/api-control) - 使用HTTP同步命令
+ * 4. HTTP同步命令状态查询 (POST /api/wiper/get-status-cmd) - 使用HTTP同步命令
  */
 
 const express = require('express');
@@ -10,7 +24,8 @@ const { authMiddleware } = require('./middleware/auth');
 const router = express.Router();
 
 // Python脚本路径
-const PYTHON_SCRIPT = path.join(__dirname, '../python/onenet_mqtt_control.py');
+const HTTP_CONTROL_SCRIPT = path.join(__dirname, '../python/onenet_http_control.py');
+const MQTT_SCRIPT = path.join(__dirname, '../python/onenet_mqtt_control.py'); // 保留MQTT脚本作为备用
 const TEST_SCRIPT = path.join(__dirname, '../python/test_mqtt_control.py');
 
 /**
@@ -25,8 +40,8 @@ router.get('/status', authMiddleware, async (req, res) => {
     const username = req.user?.username;
     console.log(`🎯 为已登录用户 ${username} 获取雨刷状态`);
 
-    // 调用Python脚本获取状态，传入用户名
-    const python = spawn('python', [PYTHON_SCRIPT, '--action', 'status', '--username', username]);
+    // 🔧 更新：使用HTTP同步命令获取状态
+    const python = spawn('python', [HTTP_CONTROL_SCRIPT, '--action', 'status', '--username', username, '--timeout', '10']);
 
     let dataString = '';
     let errorString = '';
@@ -86,9 +101,11 @@ router.get('/status', authMiddleware, async (req, res) => {
 });
 
 /**
- * 控制雨刷
+ * 控制雨刷（使用HTTP同步命令）
  * POST /api/wiper/control
  * 请求体: { status: 'off' | 'low' | 'medium' | 'high' }
+ *
+ * 🔧 更新：使用OneNET HTTP同步命令API实现实时设备控制
  */
 router.post('/control', authMiddleware, async (req, res) => {
   try {
@@ -108,8 +125,8 @@ router.post('/control', authMiddleware, async (req, res) => {
     const username = req.user?.username;
     console.log(`🎯 为已登录用户 ${username} 控制雨刷: ${status}`);
 
-    // 调用Python脚本控制雨刷，传入用户名
-    const python = spawn('python', [PYTHON_SCRIPT, '--action', 'control', '--status', status, '--username', username]);
+    // 🔧 更新：使用HTTP同步命令控制雨刷
+    const python = spawn('python', [HTTP_CONTROL_SCRIPT, '--action', 'control', '--status', status, '--username', username, '--timeout', '15']);
 
     let dataString = '';
     let errorString = '';
@@ -169,9 +186,11 @@ router.post('/control', authMiddleware, async (req, res) => {
 });
 
 /**
- * 使用API方式控制雨刷
+ * 使用HTTP同步命令API控制雨刷
  * POST /api/wiper/api-control
  * 请求体: { command: 'off' | 'low' | 'medium' | 'high' }
+ *
+ * 🔧 更新：使用OneNET HTTP同步命令API实现实时设备控制
  */
 router.post('/api-control', authMiddleware, async (req, res) => {
   try {
@@ -191,8 +210,8 @@ router.post('/api-control', authMiddleware, async (req, res) => {
     const username = req.user?.username;
     console.log(`🎯 通过API为已登录用户 ${username} 控制雨刷: ${command}`);
 
-    // 🔧 修复：使用MQTT控制方式而不是HTTP API
-    const python = spawn('python', [PYTHON_SCRIPT, '--action', 'control', '--status', command, '--username', username]);
+    // 🔧 更新：使用HTTP同步命令API控制雨刷
+    const python = spawn('python', [HTTP_CONTROL_SCRIPT, '--action', 'control', '--status', command, '--username', username, '--timeout', '15']);
 
     let dataString = '';
     let errorString = '';
@@ -346,19 +365,21 @@ router.post('/stop-service', authMiddleware, async (req, res) => {
 });
 
 /**
- * 通过CMD命令获取雨刷状态
+ * 通过HTTP同步命令获取雨刷状态
  * POST /api/wiper/get-status-cmd
+ *
+ * 🔧 更新：使用OneNET HTTP同步命令API实现实时状态查询
  */
 router.post('/get-status-cmd', authMiddleware, async (req, res) => {
   try {
-    console.log('🎯 收到CMD获取雨刷状态请求');
+    console.log('🎯 收到HTTP同步命令获取雨刷状态请求');
 
     // 🔧 使用认证中间件获取用户信息
     const username = req.user?.username;
-    console.log(`🎯 为已登录用户 ${username} 通过CMD获取雨刷状态`);
+    console.log(`🎯 为已登录用户 ${username} 通过HTTP同步命令获取雨刷状态`);
 
-    // 调用Python脚本获取状态，传入用户名
-    const python = spawn('python', [PYTHON_SCRIPT, '--action', 'get-status', '--username', username]);
+    // 🔧 更新：使用HTTP同步命令获取状态
+    const python = spawn('python', [HTTP_CONTROL_SCRIPT, '--action', 'get-status', '--username', username, '--timeout', '10']);
 
     let dataString = '';
     let errorString = '';

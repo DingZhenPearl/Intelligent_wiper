@@ -32,8 +32,7 @@ mqtt_client = None
 running = True
 current_device_name = DEVICE_NAME  # 保持兼容性
 current_username = "admin"
-current_real_device_name = None     # 真实设备名称（用于主题）
-current_virtual_device_name = None  # 虚拟设备名称（用于连接）
+current_real_device_name = None     # 真实设备名称
 
 # 设备状态
 device_state = {
@@ -59,22 +58,19 @@ def get_user_device_config(username):
         config = get_config(username)
 
         return {
-            "real_device_name": config.get("device_name", DEVICE_NAME),
-            "virtual_device_name": config.get("virtual_device_name", f"{DEVICE_NAME}_virtual"),
+            "device_name": config.get("device_name", DEVICE_NAME),
             "product_id": PRODUCT_ID
         }
     except ImportError:
         # 回退到简化配置
         if username == "admin":
             return {
-                "real_device_name": "test",
-                "virtual_device_name": "test_virtual",
+                "device_name": "test",
                 "product_id": PRODUCT_ID
             }
         else:
             return {
-                "real_device_name": f"intelligent_wiper_{username}",
-                "virtual_device_name": f"intelligent_wiper_{username}_virtual",
+                "device_name": f"intelligent_wiper_{username}",
                 "product_id": PRODUCT_ID
             }
 
@@ -93,19 +89,17 @@ def get_mqtt_topics(device_name, cmdid=None):
 
 def connect_mqtt():
     """连接到MQTT服务器"""
-    global mqtt_client, current_virtual_device_name, current_real_device_name
+    global mqtt_client, current_real_device_name
 
     try:
-        # 🔧 正确架构：设备模拟器连接真实设备，模拟真实硬件行为
+        # 🔧 设备模拟器连接真实设备，模拟真实硬件行为
         # 获取设备配置
         device_config = get_user_device_config(current_username)
-        current_real_device_name = device_config["real_device_name"]  # 使用本地函数返回的键名
-        current_virtual_device_name = device_config["virtual_device_name"]
+        current_real_device_name = device_config["device_name"]
 
-        log(f"🎯 设备模拟器架构:")
+        log(f"🎯 设备模拟器:")
         log(f"   连接设备: {current_real_device_name} (真实设备)")
         log(f"   模拟角色: 真实硬件设备")
-        log(f"   虚拟设备: {current_virtual_device_name} (供前端连接)")
 
         # 创建MQTT客户端，使用真实设备名称作为客户端ID（OneNET要求）
         client_id = current_real_device_name
@@ -146,8 +140,7 @@ def connect_mqtt():
         log(f"🔌 正在连接到MQTT服务器: {MQTT_HOST}:{MQTT_PORT}")
         log(f"📱 客户端ID: {client_id}")
         log(f"🏭 产品ID: {PRODUCT_ID}")
-        log(f"📟 真实设备名称: {current_real_device_name}")
-        log(f"🎯 虚拟设备名称: {current_virtual_device_name}")
+        log(f"📟 设备名称: {current_real_device_name}")
 
         # 连接到MQTT服务器
         mqtt_client.connect(MQTT_HOST, MQTT_PORT, MQTT_KEEPALIVE)
@@ -177,13 +170,13 @@ def disconnect_mqtt():
 
 def on_connect(client, userdata, flags, rc, *args):
     """MQTT连接回调函数"""
-    global current_real_device_name, current_virtual_device_name
+    global current_real_device_name
 
     if rc == 0:
         log(f"✅ 设备模拟器成功连接到MQTT服务器: {MQTT_HOST}")
         log(f"🔗 连接身份: {current_real_device_name} (真实设备)")
 
-        # 🔧 正确架构：订阅真实设备的CMD命令请求主题
+        # 订阅真实设备的CMD命令请求主题
         topics = get_mqtt_topics(current_real_device_name)
         cmd_request_topic = topics['command_request']
         client.subscribe(cmd_request_topic)
@@ -194,7 +187,6 @@ def on_connect(client, userdata, flags, rc, *args):
         send_device_online_status()
 
         log("🎯 设备模拟器已就绪，等待接收命令...")
-        log("💡 架构: 模拟器连接真实设备，前端连接虚拟设备，主题指向真实设备！")
     else:
         log(f"❌ 连接MQTT服务器失败，返回码: {rc}")
 
@@ -493,7 +485,7 @@ def start_device_simulator():
 
 def main():
     """主函数，处理命令行参数并启动模拟器"""
-    global current_device_name, current_username, running, current_real_device_name, current_virtual_device_name
+    global current_device_name, current_username, running, current_real_device_name
 
     parser = argparse.ArgumentParser(description='OneNET MQTT设备模拟器')
     parser.add_argument('--username', default='admin', help='用户名，用于确定模拟哪个设备')
@@ -512,12 +504,10 @@ def main():
         current_device_name = args.device
         # 如果直接指定设备，假设它是真实设备
         current_real_device_name = args.device
-        current_virtual_device_name = f"{args.device}_virtual"
     else:
         device_config = get_user_device_config(current_username)
-        current_device_name = device_config['real_device_name']  # 使用本地函数返回的键名
-        current_real_device_name = device_config['real_device_name']  # 使用本地函数返回的键名
-        current_virtual_device_name = device_config['virtual_device_name']
+        current_device_name = device_config['device_name']
+        current_real_device_name = device_config['device_name']
 
     # 设置初始状态
     device_state["wiper_status"] = args.status

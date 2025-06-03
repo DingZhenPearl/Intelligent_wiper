@@ -53,10 +53,11 @@
           <span>{{ voiceResult }}</span>
         </div>
 
-        <!-- 雨刷控制消息 -->
+        <!-- 雨刷控制消息 (HTTP同步命令) -->
         <div v-if="wiperControlMessage" class="wiper-control-message" :class="{ 'success': wiperControlSuccess, 'error': !wiperControlSuccess }">
           <span class="icon material-icons">{{ wiperControlSuccess ? 'check_circle' : 'error' }}</span>
           <span>{{ wiperControlMessage }}</span>
+          <small v-if="wiperControlSuccess" class="sync-command-info">通过HTTP同步命令执行</small>
         </div>
       </div>
     </div>
@@ -1233,6 +1234,14 @@ export default {
 
     .icon {
       font-size: calc(var(--font-size-sm) * 1.2);
+    }
+
+    .sync-command-info {
+      font-size: 0.75rem;
+      opacity: 0.7;
+      margin-top: 2px;
+      font-style: italic;
+      align-self: flex-end;
     }
   }
 

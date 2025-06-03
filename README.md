@@ -115,7 +115,7 @@ npm run build:android
 ```bash
 adb.exe connect 127.0.0.1:16384
 ```
-
+jzp3gWxwCon3TJaNg7en+/npRN9At0/a1qx16BnnJW8RjJwjgCX87qljUfJnQXB5用户accesskey
 ## Python模块
 
 ### 数据管理

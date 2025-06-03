@@ -2,21 +2,27 @@
 # -*- coding: utf-8 -*-
 
 """
-OneNET MQTT 控制端脚本
+OneNET HTTP同步命令控制端脚本
 
-🔧 重要修改：已移除设备端模拟功能，现在只作为控制端使用
+🔧 重要更新：从MQTT命令下发改为HTTP同步命令转发
 
 功能说明：
-- ✅ 发送控制命令到OneNET平台 (cmd/request主题)
-- ✅ 接收设备回复 (cmd/response主题)
+- ✅ 通过HTTP同步命令API向设备下发控制命令
+- ✅ 实时获取设备执行结果和响应
+- ✅ 支持超时控制和错误处理
+- ✅ 保持API接口不变，确保前端无需修改
+- ❌ 不再使用MQTT发送命令（仍保留MQTT连接用于其他功能）
 - ❌ 不再模拟设备端行为
-- ❌ 不再处理cmd/request主题
 - ❌ 不再执行本地硬件控制
-- ❌ 不再上报设备状态
 
 架构说明：
-控制端 (本脚本) → OneNET平台 → 真实设备
-真实设备 → OneNET平台 → 控制端 (本脚本)
+控制端 (本脚本) → OneNET HTTP同步命令API → 真实设备
+真实设备 → OneNET HTTP同步命令API → 控制端 (本脚本)
+
+HTTP同步命令API：
+- 端点：https://iot-api.heclouds.com/datapoint/synccmds
+- 超时：5-30秒可配置
+- 响应：实时获取设备执行结果
 """
 
 import sys
@@ -257,104 +263,141 @@ def start_mqtt_service():
     return True
 
 def send_cmd_control_command(command):
-    """发送CMD格式的控制命令到OneNET平台"""
-    global mqtt_client, current_device_name
+    """发送HTTP同步控制命令到OneNET平台"""
+    global current_device_name
 
     try:
-        if not mqtt_client or not hasattr(mqtt_client, 'is_connected') or not mqtt_client.is_connected():
-            return {"success": False, "error": "MQTT客户端未连接"}
+        # 导入HTTP同步命令函数
+        from onenet_api import send_sync_command
 
         # 生成命令ID
         cmdid = int(time.time() * 1000)
 
-        # 构建CMD格式的控制命令
+        # 构建HTTP同步命令数据
         cmd_data = {
             "wiper_control": command,
             "timestamp": cmdid
         }
 
-        # 获取MQTT主题
-        topics = get_mqtt_topics(current_device_name, cmdid)
-        command_topic = topics['command']
-        payload = json.dumps(cmd_data)
+        log(f"📤 发送HTTP同步控制命令到设备: {current_device_name}")
+        log(f"📤 命令内容: {cmd_data}")
 
-        log(f"📤 发送CMD控制命令到主题: {command_topic}")
-        log(f"📤 命令内容: {payload}")
+        # 发送HTTP同步命令到OneNET平台
+        result = send_sync_command(current_device_name, cmd_data, timeout=30)
 
-        # 发送命令到OneNET平台
-        result = mqtt_client.publish(command_topic, payload, qos=1)
+        if result.get("success"):
+            log("✅ HTTP同步控制命令执行成功")
 
-        if result.rc == mqtt.MQTT_ERR_SUCCESS:
-            log("✅ CMD控制命令发送成功，等待设备回复...")
+            # 解析设备响应
+            decoded_resp = result.get("decoded_resp")
+            device_response = None
 
-            # 🔧 修复：控制端只负责发送命令，不执行本地控制逻辑
-            # 真实的设备会接收命令并执行，然后回复结果
+            if decoded_resp:
+                try:
+                    device_response = json.loads(decoded_resp)
+                    log(f"📥 设备响应数据: {device_response}")
+                except json.JSONDecodeError:
+                    log(f"📥 设备响应（文本）: {decoded_resp}")
+                    device_response = {"response": decoded_resp}
 
             return {
                 "success": True,
-                "message": "CMD控制命令发送成功，等待设备执行",
+                "message": "HTTP同步控制命令执行成功",
                 "command": command,
                 "device_name": current_device_name,
-                "method": "MQTT_CMD",
+                "method": "HTTP_SYNC_CMD",
                 "cmdid": cmdid,
-                "topic": command_topic,
-                "note": "命令已发送到OneNET平台，等待真实设备执行并回复"
+                "cmd_uuid": result.get("cmd_uuid"),
+                "device_response": device_response,
+                "request_id": result.get("request_id"),
+                "note": "命令已通过HTTP同步API发送并执行完成"
             }
         else:
-            return {"success": False, "error": f"CMD命令发送失败，错误码: {result.rc}"}
+            error_msg = result.get("error", "未知错误")
+            log(f"❌ HTTP同步控制命令执行失败: {error_msg}")
+            return {
+                "success": False,
+                "error": f"HTTP同步控制命令执行失败: {error_msg}",
+                "details": result
+            }
 
     except Exception as e:
-        return {"success": False, "error": f"发送CMD控制命令失败: {str(e)}"}
+        log(f"❌ 发送HTTP同步控制命令失败: {str(e)}")
+        import traceback
+        log(f"详细错误: {traceback.format_exc()}")
+        return {"success": False, "error": f"发送HTTP同步控制命令失败: {str(e)}"}
 
 def send_cmd_get_status_command():
-    """发送CMD格式的获取状态命令到OneNET平台"""
-    global mqtt_client, current_device_name
+    """发送HTTP同步获取状态命令到OneNET平台"""
+    global current_device_name
 
     try:
-        if not mqtt_client or not hasattr(mqtt_client, 'is_connected') or not mqtt_client.is_connected():
-            return {"success": False, "error": "MQTT客户端未连接"}
+        # 导入HTTP同步命令函数
+        from onenet_api import send_sync_command
 
         # 生成命令ID
         cmdid = int(time.time() * 1000)
 
-        # 构建CMD格式的获取状态命令
+        # 构建HTTP同步获取状态命令数据
         cmd_data = {
             "get_status": True,
             "timestamp": cmdid
         }
 
-        # 获取MQTT主题
-        topics = get_mqtt_topics(current_device_name, cmdid)
-        command_topic = topics['command']
-        payload = json.dumps(cmd_data)
+        log(f"📤 发送HTTP同步获取状态命令到设备: {current_device_name}")
+        log(f"📤 命令内容: {cmd_data}")
 
-        log(f"📤 发送CMD获取状态命令到主题: {command_topic}")
-        log(f"📤 命令内容: {payload}")
+        # 发送HTTP同步命令到OneNET平台
+        result = send_sync_command(current_device_name, cmd_data, timeout=30)
 
-        # 发送命令到OneNET平台
-        result = mqtt_client.publish(command_topic, payload, qos=1)
+        if result.get("success"):
+            log("✅ HTTP同步获取状态命令执行成功")
 
-        if result.rc == mqtt.MQTT_ERR_SUCCESS:
-            log("✅ CMD获取状态命令发送成功，等待设备回复...")
+            # 解析设备响应
+            decoded_resp = result.get("decoded_resp")
+            device_status = "unknown"
+            device_response = None
 
-            # 🔧 修复：控制端只负责发送命令，不执行本地状态查询逻辑
-            # 真实的设备会接收命令并回复当前状态
+            if decoded_resp:
+                try:
+                    device_response = json.loads(decoded_resp)
+                    log(f"📥 设备状态响应数据: {device_response}")
+
+                    # 尝试从响应中提取状态信息
+                    if isinstance(device_response, dict):
+                        device_status = device_response.get("status", device_response.get("wiper_status", "unknown"))
+                except json.JSONDecodeError:
+                    log(f"📥 设备状态响应（文本）: {decoded_resp}")
+                    device_response = {"response": decoded_resp}
+                    device_status = decoded_resp if decoded_resp in ["off", "low", "high", "interval", "smart"] else "unknown"
 
             return {
                 "success": True,
-                "message": "CMD获取状态命令发送成功，等待设备回复",
-                "status": "unknown",  # 状态需要从设备回复中获取
+                "message": "HTTP同步获取状态命令执行成功",
+                "status": device_status,
                 "device_name": current_device_name,
-                "method": "MQTT_CMD",
+                "method": "HTTP_SYNC_CMD",
                 "cmdid": cmdid,
-                "topic": command_topic,
-                "note": "状态查询命令已发送到OneNET平台，等待真实设备回复当前状态"
+                "cmd_uuid": result.get("cmd_uuid"),
+                "device_response": device_response,
+                "request_id": result.get("request_id"),
+                "note": "状态查询命令已通过HTTP同步API发送并执行完成"
             }
         else:
-            return {"success": False, "error": f"CMD获取状态命令发送失败，错误码: {result.rc}"}
+            error_msg = result.get("error", "未知错误")
+            log(f"❌ HTTP同步获取状态命令执行失败: {error_msg}")
+            return {
+                "success": False,
+                "error": f"HTTP同步获取状态命令执行失败: {error_msg}",
+                "status": "unknown",
+                "details": result
+            }
 
     except Exception as e:
-        return {"success": False, "error": f"发送CMD获取状态命令失败: {str(e)}"}
+        log(f"❌ 发送HTTP同步获取状态命令失败: {str(e)}")
+        import traceback
+        log(f"详细错误: {traceback.format_exc()}")
+        return {"success": False, "error": f"发送HTTP同步获取状态命令失败: {str(e)}", "status": "unknown"}
 
 def stop_mqtt_service():
     """停止MQTT服务"""

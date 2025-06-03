@@ -27,7 +27,11 @@ DEVICE_NAME = "test"
 # TODO: 【必填】替换为实际的设备ID，在OneNET平台的设备详情页获取
 DEVICE_ID = "2441202951"  # 从API响应中获取的实际设备ID
 # TODO: 【必填】替换为实际的访问密钥(Access Key)，在OneNET平台的产品详情页获取
-ACCESS_KEY = "Rk9mVGdrQWE5dzJqWU12bzFsSFFpZWtRZDVWdTFZZlU="
+ACCESS_KEY = "Rk9mVGdrQWE5dzJqWU12bzFsSFFpZWtRZDVWdTFZZlU="  # 产品级AccessKey
+# TODO: 【必填】替换为实际的用户编号，用于HTTP同步命令API的用户级鉴权
+USER_ID = "364732"
+# TODO: 【必填】用户级AccessKey，用于HTTP同步命令API的用户级鉴权
+USER_ACCESS_KEY = "jzp3gWxwCon3TJaNg7en+/npRN9At0/a1qx16BnnJW8RjJwjgCX87qljUfJnQXB5"
 
 def get_user_datastream_id(username):
     """根据用户名生成数据流ID
@@ -149,6 +153,7 @@ def get_user_device_config(username):
                 "datastream_id": "rain_info"
             }
         else:
+            # 使用原始test设备（真实设备）
             log(f"⚠️ admin专用设备不存在，使用原始test设备: {DEVICE_NAME}")
             return {
                 "device_name": DEVICE_NAME,  # 原始设备名称 (test)
@@ -1172,6 +1177,44 @@ def generate_token(device_name=None):
         log(traceback.format_exc())
         return None
 
+def generate_product_token():
+    """生成OneNET平台的产品级JWT token（用于HTTP同步命令API）
+
+    返回:
+        str: 产品级JWT token字符串
+    """
+    try:
+        # 设置token参数 - 产品级token使用产品资源路径
+        version = '2018-10-31'
+        res = f"products/{PRODUCT_ID}"  # 产品级资源路径，不包含设备
+        # 设置token过期时间，这里设置为10小时后过期
+        et = str(int(time.time()) + 36000)
+        # 签名方法，支持md5、sha1、sha256
+        method = 'sha1'
+
+        # 对access_key进行decode
+        key = base64.b64decode(ACCESS_KEY)
+
+        # 计算sign
+        org = et + '\n' + method + '\n' + res + '\n' + version
+        sign_b = hmac.new(key=key, msg=org.encode(), digestmod=method)
+        sign = base64.b64encode(sign_b.digest()).decode()
+
+        # value部分进行url编码
+        sign = quote(sign, safe='')
+        res = quote(res, safe='')
+
+        # token参数拼接
+        token = f'version={version}&res={res}&et={et}&method={method}&sign={sign}'
+
+        log(f"生成的OneNET产品级token: {token[:30]}...")
+        return token
+    except Exception as e:
+        error_msg = f"生成OneNET产品级token失败: {str(e)}"
+        log(error_msg)
+        log(traceback.format_exc())
+        return None
+
 def find_user_device(username):
     """查找用户的设备
 
@@ -1628,6 +1671,205 @@ def generate_device_token(device_name, device_key):
 
     except Exception as e:
         log(f"生成设备token出错: {str(e)}")
+        return None
+
+def generate_http_sync_token(device_name, device_key):
+    """生成HTTP同步命令API专用token（使用产品级资源路径）"""
+    try:
+        import hmac
+        import hashlib
+        import base64
+        import urllib.parse
+        import time
+
+        log(f"生成HTTP同步命令API专用token for device {device_name}")
+
+        # HTTP同步命令API token参数 - 设备下发命令使用 products/{pid}/devices/{device} 格式
+        version = "2018-10-31"
+        resource_name = f"products/{PRODUCT_ID}/devices/{device_name}"  # 设备下发命令格式
+        expiration_time = str(int(time.time()) + 3600)  # 1小时后过期
+        signature_method = "sha1"
+
+        # 构建签名字符串：et \n method \n res \n version
+        string_to_sign = f"{expiration_time}\n{signature_method}\n{resource_name}\n{version}"
+
+        # 使用产品级ACCESS_KEY进行HMAC-SHA1签名
+        key_bytes = base64.b64decode(ACCESS_KEY)
+        signature = hmac.new(key_bytes, string_to_sign.encode('utf-8'), hashlib.sha1).digest()
+        signature_b64 = base64.b64encode(signature).decode('utf-8')
+
+        # 构建token
+        token_parts = [
+            f"version={version}",
+            f"res={urllib.parse.quote(resource_name, safe='')}",
+            f"et={expiration_time}",
+            f"method={signature_method}",
+            f"sign={urllib.parse.quote(signature_b64, safe='')}"
+        ]
+
+        token = "&".join(token_parts)
+        log(f"HTTP同步命令API token生成成功: {token[:50]}...")
+        return token
+
+    except Exception as e:
+        log(f"生成HTTP同步命令API token出错: {str(e)}")
+        return None
+
+def generate_http_sync_token_with_id(device_id, device_key):
+    """生成HTTP同步命令API专用token（在资源路径中使用设备ID）"""
+    try:
+        import hmac
+        import hashlib
+        import base64
+        import urllib.parse
+        import time
+
+        log(f"生成HTTP同步命令API专用token for device ID {device_id}")
+
+        # HTTP同步命令API token参数 - 在资源路径中使用设备ID
+        version = "2018-10-31"
+        resource_name = f"products/{PRODUCT_ID}/devices/{device_id}"  # 使用设备ID而不是设备名称
+        expiration_time = str(int(time.time()) + 3600)  # 1小时后过期
+        signature_method = "sha1"
+
+        # 构建签名字符串：et \n method \n res \n version
+        string_to_sign = f"{expiration_time}\n{signature_method}\n{resource_name}\n{version}"
+
+        # 使用产品级ACCESS_KEY进行HMAC-SHA1签名
+        key_bytes = base64.b64decode(ACCESS_KEY)
+        signature = hmac.new(key_bytes, string_to_sign.encode('utf-8'), hashlib.sha1).digest()
+        signature_b64 = base64.b64encode(signature).decode('utf-8')
+
+        # 构建token
+        token_parts = [
+            f"version={version}",
+            f"res={urllib.parse.quote(resource_name, safe='')}",
+            f"et={expiration_time}",
+            f"method={signature_method}",
+            f"sign={urllib.parse.quote(signature_b64, safe='')}"
+        ]
+
+        token = "&".join(token_parts)
+        log(f"HTTP同步命令API token生成成功: {token[:50]}...")
+        log(f"资源路径: {resource_name}")
+        log(f"签名字符串: {string_to_sign}")
+        return token
+
+    except Exception as e:
+        log(f"生成HTTP同步命令API token出错: {str(e)}")
+        return None
+
+def generate_http_sync_token_reference_format(device_name, device_key):
+    """完全按照参考代码格式生成HTTP同步命令API token"""
+    try:
+        import requests, time, hmac, hashlib, base64, urllib.parse, json
+
+        # 🔧 尝试使用设备级AccessKey进行签名
+        PID = PRODUCT_ID
+        AK = device_key  # 🔧 修正：使用设备级AccessKey而不是产品级
+        ttl = 3600
+        et = str(int(time.time()) + ttl)
+        res = f"products/{PID}/devices/{device_name}"  # 🔧 修正：使用设备级资源路径
+        ver, meth = "2018-10-31", "sha1"  # 🔧 修正：回到2018-10-31版本
+
+        # 签名字符串：et→method→res→version
+        sts = "\n".join([et, meth, res, ver])
+        sign = base64.b64encode(
+            hmac.new(base64.b64decode(AK), sts.encode(), hashlib.sha1).digest()
+        ).decode()
+
+        # 🔧 修正：res需要URL-encode，sign也需要URL-encode
+        token = f"version={ver}&res={urllib.parse.quote(res, safe='')}&et={et}&method={meth}&sign={urllib.parse.quote(sign)}"
+
+        log(f"参考格式修正版HTTP同步命令API token生成成功: {token[:50]}...")
+        log(f"PID: {PID}")
+        log(f"资源路径: {res} (userid格式)")
+        log(f"签名字符串: {sts}")
+        return token
+
+    except Exception as e:
+        log(f"生成参考格式HTTP同步命令API token出错: {str(e)}")
+        return None
+
+def generate_user_level_token():
+    """
+    按照OneNET官方安全鉴权文档生成用户级token
+
+    根据图片中的官方鉴权方法：
+    1. 签名方法：将请求过期时间(et)、签名算法(method)、资源信息(res)和签名版本(version)按行拼接
+    2. 以资源访问密钥(用户AccessKey)进行base64_decode得到字节作为密钥，对StringForSignature进行hmac算法计算
+    3. 将计算得到的签名字符串进行base64编码，再进行url_encode处理
+
+    StringForSignature格式：et + "\n" + method + "\n" + res + "\n" + version
+    示例：
+    1623982416
+    sha256
+    userid/1
+    20220501
+    """
+    try:
+        import requests, time, hmac, hashlib, base64, urllib.parse, json
+
+        # 🔐 按照图片中的官方文档设置参数
+        USER_ID_VAL = USER_ID  # 用户编号：364732
+        AK = USER_ACCESS_KEY  # 用户级 AccessKey
+
+        # 设置过期时间（1小时后）
+        et = str(int(time.time()) + 3600)
+
+        # 设置签名算法（按照网络搜索结果，大多数示例使用sha1）
+        method = "sha1"
+
+        # 设置资源信息（用户级资源路径）
+        res = f"userid/{USER_ID_VAL}"
+
+        # 设置签名版本（按照网络搜索结果：新版使用2022-05-01）
+        version = "2022-05-01"  # 新版OneNET使用2022-05-01格式
+
+        # 🔧 按照官方文档要求构建签名字符串：et + "\n" + method + "\n" + res + "\n" + version
+        StringForSignature = et + "\n" + method + "\n" + res + "\n" + version
+
+        log(f"🔐 生成用户级token（按照官方鉴权方法）")
+        log(f"用户ID: {USER_ID_VAL}")
+        log(f"过期时间: {et}")
+        log(f"签名算法: {method}")
+        log(f"资源路径: {res}")
+        log(f"签名版本: {version}")
+        log(f"签名字符串: {StringForSignature}")
+
+        # 🔧 按照文档要求：以资源访问密钥进行base64_decode得到字节作为密钥
+        try:
+            # 对用户AccessKey进行base64解码得到字节作为密钥
+            key_bytes = base64.b64decode(AK)
+            log(f"✅ AccessKey成功进行base64解码，密钥长度: {len(key_bytes)} 字节")
+        except Exception as decode_error:
+            # 如果解码失败，直接使用原始字符串的字节
+            key_bytes = AK.encode('utf-8')
+            log(f"⚠️ AccessKey无法base64解码，使用原始字符串: {decode_error}")
+
+        # 🔧 按照文档要求：对StringForSignature进行hmac算法计算
+        signature = hmac.new(key_bytes, StringForSignature.encode('utf-8'), hashlib.sha1).digest()
+
+        # 🔧 将计算得到的签名字符串进行base64编码
+        sign = base64.b64encode(signature).decode('utf-8')
+
+        # 🔧 对资源路径和签名进行URL编码
+        res_encoded = urllib.parse.quote(res, safe='')
+        sign_encoded = urllib.parse.quote(sign, safe='')
+
+        # 🔧 按照官方格式拼接token
+        token = f"version={version}&res={res_encoded}&et={et}&method={method}&sign={sign_encoded}"
+
+        log(f"✅ 用户级token生成成功")
+        log(f"Token前50字符: {token[:50]}...")
+        log(f"完整token长度: {len(token)}")
+        log(f"使用的AccessKey前20字符: {AK[:20]}...")
+
+        return token
+
+    except Exception as e:
+        log(f"❌ 生成用户级token出错: {str(e)}")
+        log(traceback.format_exc())
         return None
 
 def mqtt_connection_activation(device_name, device_token):
@@ -2245,6 +2487,185 @@ def get_device_sec_key(device_name, token):
     except Exception as e:
         log(f"获取设备安全密钥出错: {str(e)}")
         return None
+
+def send_sync_command(device_name, command_data, timeout=30):
+    """
+    通过HTTP同步命令API向设备下发命令
+
+    Args:
+        device_name (str): 设备名称
+        command_data (dict): 命令数据
+        timeout (int): 超时时间，5-30秒，默认30秒
+
+    Returns:
+        dict: 命令执行结果
+    """
+    try:
+        log(f"开始通过HTTP同步命令API向设备 {device_name} 下发命令")
+        log(f"命令数据: {command_data}")
+        log(f"超时时间: {timeout}秒")
+
+        # 验证超时时间范围
+        if timeout < 5 or timeout > 30:
+            timeout = 30
+            log(f"超时时间调整为: {timeout}秒")
+
+        # 获取设备ID（HTTP同步命令API可能需要设备ID而不是设备名称）
+        device_id = get_device_id_by_name(device_name)
+        if not device_id:
+            # 如果找不到设备ID，尝试使用设备名称
+            log(f"未找到设备 {device_name} 的ID，尝试使用设备名称")
+            device_id = device_name
+        else:
+            log(f"找到设备 {device_name} 的ID: {device_id}")
+
+        # HTTP同步命令API使用和MQTT一样的设备级安全鉴权
+        # 根据您的说明"和mqtt的鉴权一样"，使用设备级token
+
+        # 获取设备密钥
+        device_key = get_device_key(device_name)
+        if not device_key:
+            return {
+                "success": False,
+                "error": f"无法获取设备 {device_name} 的密钥"
+            }
+
+        # 🔧 强制使用用户级鉴权！！
+        log("强制使用用户级token进行HTTP同步命令")
+
+        http_sync_token = generate_user_level_token()
+        if not http_sync_token:
+            return {
+                "success": False,
+                "error": f"无法生成用户级HTTP同步命令token"
+            }
+
+        # OneNET HTTP同步命令API端点（🔧 修正：使用正确的API路径）
+        url = f"https://iot-api.heclouds.com/datapoint/synccmds"
+
+        # 🔧 修正：根据JSON示例，使用query参数和JSON请求体
+        query_params = {
+            "product_id": PRODUCT_ID,
+            "device_name": device_name,
+            "timeout": str(timeout)
+        }
+
+        # 请求体（根据JSON示例格式）
+        request_body = {
+            "product_id": PRODUCT_ID,
+            "device_name": device_name,
+            "timeout": str(timeout)
+        }
+
+        # 请求头（根据JSON示例修正）
+        headers = {
+            "Accept": "application/json, text/plain, */*",
+            "Content-Type": "application/json",
+            "authorization": http_sync_token  # 使用小写authorization，与JSON示例一致
+        }
+
+        log(f"HTTP同步命令API URL: {url}")
+        log(f"Query参数: {query_params}")
+        log(f"请求头: {headers}")
+        log(f"请求体: {request_body}")
+
+        # 发送POST请求（根据JSON示例格式）
+        response = requests.post(
+            url,
+            params=query_params,
+            headers=headers,
+            json=request_body,
+            timeout=timeout + 5  # 给HTTP请求额外5秒超时时间
+        )
+
+        log(f"HTTP响应状态码: {response.status_code}")
+        log(f"HTTP响应头: {response.headers}")
+
+        if response.status_code == 200:
+            try:
+                response_data = response.json()
+                log(f"HTTP同步命令API响应: {response_data}")
+
+                # 检查不同的成功标识（OneNET API可能返回code或errno）
+                if (response_data.get("code") == 0 or
+                    response_data.get("errno") == 0 or
+                    response_data.get("errno") == "0"):
+                    # 命令执行成功
+                    data = response_data.get("data", {})
+                    cmd_uuid = data.get("cmd_uuid")
+                    cmd_resp = data.get("cmd_resp")
+
+                    # 解码base64响应内容
+                    decoded_resp = None
+                    if cmd_resp:
+                        try:
+                            import base64
+                            decoded_resp = base64.b64decode(cmd_resp).decode('utf-8')
+                            log(f"解码后的设备响应: {decoded_resp}")
+                        except Exception as e:
+                            log(f"解码设备响应失败: {e}")
+                            decoded_resp = cmd_resp
+
+                    return {
+                        "success": True,
+                        "message": "HTTP同步命令执行成功",
+                        "cmd_uuid": cmd_uuid,
+                        "cmd_resp": cmd_resp,
+                        "decoded_resp": decoded_resp,
+                        "request_id": response_data.get("request_id"),
+                        "device_name": device_name,
+                        "method": "HTTP_SYNC_CMD"
+                    }
+                else:
+                    # 命令执行失败
+                    error_msg = (response_data.get("error") or
+                               response_data.get("msg") or
+                               f"错误码: {response_data.get('errno', response_data.get('code', '未知'))}")
+                    return {
+                        "success": False,
+                        "error": f"HTTP同步命令执行失败: {error_msg}",
+                        "code": response_data.get("code"),
+                        "errno": response_data.get("errno"),
+                        "msg": response_data.get("msg"),
+                        "error_detail": response_data.get("error"),
+                        "request_id": response_data.get("request_id"),
+                        "full_response": response_data
+                    }
+            except json.JSONDecodeError as e:
+                log(f"解析HTTP同步命令API响应失败: {e}")
+                return {
+                    "success": False,
+                    "error": "解析HTTP同步命令API响应失败",
+                    "response_text": response.text
+                }
+        else:
+            log(f"HTTP同步命令API请求失败，状态码: {response.status_code}")
+            return {
+                "success": False,
+                "error": f"HTTP同步命令API请求失败，状态码: {response.status_code}",
+                "response_text": response.text
+            }
+
+    except requests.exceptions.Timeout:
+        log(f"HTTP同步命令API请求超时")
+        return {
+            "success": False,
+            "error": "HTTP同步命令API请求超时"
+        }
+    except requests.exceptions.RequestException as e:
+        log(f"HTTP同步命令API请求异常: {e}")
+        return {
+            "success": False,
+            "error": f"HTTP同步命令API请求异常: {str(e)}"
+        }
+    except Exception as e:
+        log(f"发送HTTP同步命令时出错: {e}")
+        import traceback
+        log(f"详细错误: {traceback.format_exc()}")
+        return {
+            "success": False,
+            "error": f"发送HTTP同步命令时出错: {str(e)}"
+        }
 
 def http_activate_device(device_name, device_id, token):
     """通过HTTP数据上传激活设备"""
