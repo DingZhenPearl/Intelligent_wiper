@@ -8,6 +8,7 @@ const XFYUN_API_KEY = '0de5f528ef3bd2b67625b45543c704e7';
 const XFYUN_API_SECRET = 'NjVkNWVjMTljMGZlZjJiNTRjZmJjMzJl';
 const XFYUN_API_URL = 'wss://iat-api.xfyun.cn/v2/iat';
 
+
 // 音频配置
 const SAMPLE_RATE = 16000; // 采样率 16kHz
 const FRAME_SIZE = 1280; // 每帧音频大小 (40ms @ 16kHz = 640 samples = 1280 bytes)
