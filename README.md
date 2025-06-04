@@ -213,11 +213,19 @@ source venv/bin/activate  # Linux/Mac
 # 或
 venv\Scripts\activate     # Windows
 
+# 升级pip到最新版本
+python -m pip install --upgrade pip
+
 # 安装Python依赖
+npm run python:install
+# 或直接使用pip
 pip install -r requirements.txt
 
 # 验证安装
 pip list
+
+# 检查依赖版本
+pip show mysql-connector-python PyMySQL requests
 ```
 
 #### 4. 数据库配置
@@ -598,12 +606,23 @@ node generate_activation_codes.js -f uuid -c 5
 #### 🐍 Python环境问题
 ```bash
 # 依赖管理
-pip freeze > requirements.txt  # 导出依赖
+npm run python:update  # 导出当前依赖
+npm run python:install  # 安装依赖
+npm run python:upgrade  # 升级所有依赖
+
+# 手动依赖操作
+pip freeze > requirements-current.txt  # 导出当前依赖
 pip install -r requirements.txt  # 安装依赖
+pip install --upgrade -r requirements.txt  # 升级依赖
 
 # 虚拟环境问题
 python -m venv venv --clear  # 重建虚拟环境
-source venv/bin/activate  # 激活环境
+source venv/bin/activate  # 激活环境 (Linux/Mac)
+venv\Scripts\activate  # 激活环境 (Windows)
+
+# 依赖冲突解决
+pip uninstall -y -r requirements.txt  # 卸载所有依赖
+pip install -r requirements.txt  # 重新安装
 
 # 数据库连接问题
 python python/rainfall_db.py --action=test  # 测试数据库连接
@@ -611,6 +630,12 @@ python python/rainfall_db.py --action=test  # 测试数据库连接
 
 #### 🌐 Node.js服务问题
 ```bash
+# 依赖管理
+npm run check:deps  # 检查过期依赖
+npm run update:deps  # 更新依赖并修复安全问题
+npm audit  # 安全审计
+npm audit fix  # 自动修复安全问题
+
 # 端口占用
 netstat -ano | findstr :3000  # Windows
 lsof -i :3000  # Linux/Mac
@@ -619,6 +644,11 @@ lsof -i :3000  # Linux/Mac
 npm cache clean --force  # 清理缓存
 rm -rf node_modules package-lock.json  # 重新安装
 npm install
+
+# 版本冲突解决
+npm ls  # 查看依赖树
+npm dedupe  # 去重依赖
+npm ci  # 使用package-lock.json精确安装
 
 # SSL证书问题
 node server/generate-cert.js  # 重新生成证书
@@ -698,6 +728,28 @@ npm version
 npm version patch  # 补丁版本
 npm version minor  # 次要版本
 npm version major  # 主要版本
+```
+
+### 🔄 依赖管理
+```bash
+# 一键检查所有依赖
+npm run deps:check
+
+# 一键更新所有依赖
+npm run deps:update
+
+# 深度清理和更新
+npm run deps:clean
+
+# 分别管理依赖
+npm run check:deps        # 检查Node.js依赖
+npm run python:upgrade    # 升级Python依赖
+npm run update:deps       # 更新Node.js依赖
+
+# 手动使用依赖管理脚本
+node update-dependencies.js help
+node update-dependencies.js all --fix
+node update-dependencies.js python --upgrade-pip
 ```
 
 ### 🔄 数据备份
