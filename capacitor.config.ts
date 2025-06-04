@@ -5,12 +5,11 @@ const config: CapacitorConfig = {
   appName: '智能雨刷控制系统',
   webDir: 'dist',
   server: {
-    androidScheme: 'http',
+    androidScheme: 'https', // 使用https以确保安全上下文
     cleartext: true,
     allowNavigation: ['*'],
-    // 在开发模式下，让安卓应用连接到开发服务器
-    url: 'http://10.129.154.206:3000', // 使用服务器显示的IP地址
-    iosScheme: 'http'
+    hostname: 'localhost', // 允许localhost
+    iosScheme: 'https' // 使用https
   },
   plugins: {
     CapacitorHttp: {

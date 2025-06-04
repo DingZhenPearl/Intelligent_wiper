@@ -19,6 +19,7 @@ import java.util.List;
 public class MainActivity extends BridgeActivity {
     private static final String TAG = "MainActivity";
     private static final int LOCATION_PERMISSION_REQUEST_CODE = 1001;
+    private static final int AUDIO_PERMISSION_REQUEST_CODE = 1002;
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
@@ -32,8 +33,121 @@ public class MainActivity extends BridgeActivity {
         getBridge().getWebView().addJavascriptInterface(new NativeLocationBridge(this), "NativeLocation");
         Log.d(TAG, "已注册原生定位桥接器");
 
+        // 配置WebView以支持媒体设备访问
+        configureWebViewForMedia();
+
         // 主动检查并请求位置权限
         checkAndRequestLocationPermissions();
+
+        // 主动检查并请求录音权限
+        checkAndRequestAudioPermissions();
+    }
+
+    /**
+     * 配置WebView以支持媒体设备访问
+     */
+    private void configureWebViewForMedia() {
+        Log.d(TAG, "配置WebView以支持媒体设备访问");
+
+        // 启用媒体播放和录制
+        getBridge().getWebView().getSettings().setMediaPlaybackRequiresUserGesture(false);
+        getBridge().getWebView().getSettings().setDomStorageEnabled(true);
+        getBridge().getWebView().getSettings().setDatabaseEnabled(true);
+
+        // Android 11+ 特定配置
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) { // Android 11 (API 30)
+            Log.d(TAG, "Android 11+，启用额外的WebView媒体配置");
+
+            // 启用混合内容模式（允许HTTPS页面加载HTTP资源）
+            getBridge().getWebView().getSettings().setMixedContentMode(
+                android.webkit.WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
+
+            // 启用安全浏览
+            getBridge().getWebView().getSettings().setSafeBrowsingEnabled(false);
+
+            // 允许文件访问
+            getBridge().getWebView().getSettings().setAllowFileAccess(true);
+            getBridge().getWebView().getSettings().setAllowContentAccess(true);
+
+            // 启用JavaScript接口
+            getBridge().getWebView().getSettings().setJavaScriptCanOpenWindowsAutomatically(true);
+        }
+
+        // 强制启用安全上下文特性（关键配置）
+        try {
+            // 通过反射启用WebView的安全上下文特性
+            android.webkit.WebSettings settings = getBridge().getWebView().getSettings();
+
+            // 启用所有必要的权限
+            settings.setGeolocationEnabled(true);
+            settings.setAllowUniversalAccessFromFileURLs(true);
+            settings.setAllowFileAccessFromFileURLs(true);
+
+            Log.d(TAG, "已启用WebView安全上下文特性");
+        } catch (Exception e) {
+            Log.w(TAG, "启用WebView安全上下文特性失败: " + e.getMessage());
+        }
+
+        // 设置WebView客户端以处理权限请求
+        getBridge().getWebView().setWebChromeClient(new android.webkit.WebChromeClient() {
+            @Override
+            public void onPermissionRequest(android.webkit.PermissionRequest request) {
+                Log.d(TAG, "WebView权限请求: " + Arrays.toString(request.getResources()));
+
+                // 检查是否请求录音权限
+                for (String resource : request.getResources()) {
+                    if (resource.equals(android.webkit.PermissionRequest.RESOURCE_AUDIO_CAPTURE)) {
+                        Log.d(TAG, "WebView请求录音权限");
+
+                        // 检查应用是否已有录音权限
+                        if (ContextCompat.checkSelfPermission(MainActivity.this,
+                                Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
+                            Log.d(TAG, "应用已有录音权限，授予WebView权限");
+                            request.grant(request.getResources());
+                        } else {
+                            Log.d(TAG, "应用无录音权限，拒绝WebView权限请求");
+                            request.deny();
+                        }
+                        return;
+                    }
+                }
+
+                // 对于其他权限，默认授予
+                request.grant(request.getResources());
+            }
+        });
+
+        Log.d(TAG, "WebView媒体配置完成");
+    }
+
+    /**
+     * 检查并请求录音权限
+     */
+    public void checkAndRequestAudioPermissions() {
+        Log.d(TAG, "检查录音权限状态");
+
+        boolean recordAudioGranted = ContextCompat.checkSelfPermission(this,
+                Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED;
+        boolean modifyAudioGranted = ContextCompat.checkSelfPermission(this,
+                Manifest.permission.MODIFY_AUDIO_SETTINGS) == PackageManager.PERMISSION_GRANTED;
+
+        Log.d(TAG, "录音权限状态: " + (recordAudioGranted ? "已授权" : "未授权"));
+        Log.d(TAG, "音频设置权限状态: " + (modifyAudioGranted ? "已授权" : "未授权"));
+
+        // 如果没有录音权限，请求权限
+        if (!recordAudioGranted || !modifyAudioGranted) {
+            Log.d(TAG, "请求录音权限");
+            ActivityCompat.requestPermissions(
+                this,
+                new String[]{
+                    Manifest.permission.RECORD_AUDIO,
+                    Manifest.permission.MODIFY_AUDIO_SETTINGS
+                },
+                AUDIO_PERMISSION_REQUEST_CODE
+            );
+        } else {
+            Log.d(TAG, "已有所有需要的录音权限，无需请求");
+        }
     }
 
     /**
@@ -162,6 +276,28 @@ public class MainActivity extends BridgeActivity {
                 notifyLocationPermissionGranted();
             }
         }
+        // 处理录音权限请求结果
+        else if (requestCode == AUDIO_PERMISSION_REQUEST_CODE) {
+            boolean allAudioGranted = true;
+
+            for (int i = 0; i < permissions.length; i++) {
+                if (permissions[i].equals(Manifest.permission.RECORD_AUDIO) ||
+                    permissions[i].equals(Manifest.permission.MODIFY_AUDIO_SETTINGS)) {
+                    if (grantResults[i] != PackageManager.PERMISSION_GRANTED) {
+                        allAudioGranted = false;
+                        break;
+                    }
+                }
+            }
+
+            if (allAudioGranted) {
+                Log.d(TAG, "录音权限已授予，可以使用语音识别功能");
+                notifyAudioPermissionGranted();
+            } else {
+                Log.d(TAG, "录音权限被拒绝，无法使用语音识别功能");
+                notifyAudioPermissionDenied();
+            }
+        }
     }
 
     /**
@@ -180,5 +316,23 @@ public class MainActivity extends BridgeActivity {
         // 通过Bridge通知JS层
         Log.d(TAG, "通知JS层位置权限被拒绝");
         getBridge().triggerWindowJSEvent("locationPermissionDenied", "{}");
+    }
+
+    /**
+     * 通知JS层录音权限已授予
+     */
+    private void notifyAudioPermissionGranted() {
+        // 通过Bridge通知JS层
+        Log.d(TAG, "通知JS层录音权限已授予");
+        getBridge().triggerWindowJSEvent("audioPermissionGranted", "{}");
+    }
+
+    /**
+     * 通知JS层录音权限被拒绝
+     */
+    private void notifyAudioPermissionDenied() {
+        // 通过Bridge通知JS层
+        Log.d(TAG, "通知JS层录音权限被拒绝");
+        getBridge().triggerWindowJSEvent("audioPermissionDenied", "{}");
     }
 }

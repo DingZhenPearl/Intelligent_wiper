@@ -689,11 +689,19 @@ export default {
       isVoiceListening.value = voiceService.isListening.value;
     };
 
-    // 🔧 修复：检查登录状态
+    // 🔧 修复：检查登录状态（非阻塞式）
     const checkLoginStatus = async () => {
       console.log('[Home] 检查登录状态');
 
       try {
+        // 首先检查本地是否有用户信息
+        const userData = localStorage.getItem('user');
+        if (!userData) {
+          console.log('[Home] 本地无用户信息，跳转到登录页');
+          window.location.href = '/login';
+          return false;
+        }
+
         // 准备请求头
         const headers = {
           'Content-Type': 'application/json'
@@ -701,17 +709,14 @@ export default {
 
         // 如果是原生应用，添加token到Authorization头
         if (isNative()) {
-          const userData = localStorage.getItem('user');
-          if (userData) {
-            try {
-              const user = JSON.parse(userData);
-              if (user && user.token) {
-                headers['Authorization'] = `Bearer ${user.token}`;
-                console.log('[Home] 原生应用添加token到请求头');
-              }
-            } catch (e) {
-              console.error('[Home] 解析用户数据失败:', e);
+          try {
+            const user = JSON.parse(userData);
+            if (user && user.token) {
+              headers['Authorization'] = `Bearer ${user.token}`;
+              console.log('[Home] 原生应用添加token到请求头');
             }
+          } catch (e) {
+            console.error('[Home] 解析用户数据失败:', e);
           }
         }
 
@@ -739,11 +744,9 @@ export default {
 
       } catch (error) {
         console.error('[Home] 检查登录状态失败:', error);
-        // 清除本地存储的用户信息
-        localStorage.removeItem('user');
-        // 跳转到登录页面
-        window.location.href = '/login';
-        return false;
+        // 网络错误时不清除用户信息，允许离线使用
+        console.log('[Home] 网络错误，允许离线使用，不跳转登录页');
+        return true; // 返回true允许继续使用
       }
     };
 
@@ -810,14 +813,17 @@ export default {
       console.log('[Home] 组件已挂载');
 
       try {
-        // 🔧 修复：首先验证登录状态
-        await checkLoginStatus();
+        // 🔧 优化：语音功能优先初始化，不受网络状态影响
+        console.log('[Home] 优先初始化语音功能');
+        setupVoiceEventListeners();
+
+        // 🔧 修复：异步验证登录状态，不阻塞其他功能
+        checkLoginStatus().catch(err => {
+          console.error('[Home] 登录状态检查失败，但不影响其他功能:', err);
+        });
 
         // 🔧 新增：获取当前雨刷状态
         await fetchCurrentWiperStatus();
-
-        // 设置语音事件监听器
-        setupVoiceEventListeners();
 
         // 检查数据采集器状态
         const statusResult = await rainfallDataService.checkCollectorStatus();
