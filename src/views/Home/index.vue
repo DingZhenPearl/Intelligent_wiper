@@ -100,7 +100,7 @@ export default {
     // 使用响应式引用存储雨量数据
     const rainfall = ref(0) // 实时雨量百分比
     const rainfallLevel = ref({ level: 'none', text: '无降雨' }) // 雨量级别
-    const currentStatus = ref('low') // 当前工作状态
+    const currentStatus = ref('off') // 当前工作状态
     const backendMessage = ref('') // 来自后端的消息
 
     // 模拟数据相关状态

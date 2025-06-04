@@ -1,0 +1,169 @@
+{
+  "device_info": {
+    "device_name": "intelligent_wiper_hw001",
+    "device_id": "YOUR_DEVICE_ID",
+    "product_id": "66eIb47012",
+    "device_key": "YOUR_DEVICE_KEY",
+    "description": "智能雨刷硬件设备配置"
+  },
+  "onenet_config": {
+    "platform_url": "iot-api.heclouds.com",
+    "mqtt_server": "183.230.40.39",
+    "mqtt_port": 6002,
+    "http_api_base": "https://iot-api.heclouds.com",
+    "auth_version": "2018-10-31",
+    "auth_method": "sha1"
+  },
+  "device_capabilities": {
+    "wiper_modes": [
+      {
+        "mode": "off",
+        "description": "关闭",
+        "gpio_config": {
+          "enable_pin": 0,
+          "speed_pin": 0
+        }
+      },
+      {
+        "mode": "interval",
+        "description": "间歇",
+        "gpio_config": {
+          "enable_pin": 1,
+          "speed_pin": 0,
+          "interval_ms": 3000
+        }
+      },
+      {
+        "mode": "low",
+        "description": "低速",
+        "gpio_config": {
+          "enable_pin": 1,
+          "speed_pin": 1,
+          "pwm_duty": 30
+        }
+      },
+      {
+        "mode": "high",
+        "description": "高速",
+        "gpio_config": {
+          "enable_pin": 1,
+          "speed_pin": 1,
+          "pwm_duty": 80
+        }
+      },
+      {
+        "mode": "smart",
+        "description": "智能",
+        "gpio_config": {
+          "enable_pin": 1,
+          "speed_pin": 1,
+          "auto_adjust": true,
+          "rain_sensor_pin": 2
+        }
+      }
+    ],
+    "sensors": {
+      "rain_sensor": {
+        "pin": 2,
+        "type": "analog",
+        "threshold_values": {
+          "no_rain": 1000,
+          "light_rain": 800,
+          "moderate_rain": 600,
+          "heavy_rain": 400
+        }
+      },
+      "battery_monitor": {
+        "pin": 3,
+        "type": "analog",
+        "voltage_divider_ratio": 2.0,
+        "low_battery_threshold": 3.3
+      },
+      "signal_strength": {
+        "source": "cellular_modem",
+        "update_interval_ms": 5000
+      }
+    }
+  },
+  "communication_settings": {
+    "command_timeout_ms": 10000,
+    "heartbeat_interval_ms": 30000,
+    "max_retry_attempts": 3,
+    "response_buffer_size": 1024,
+    "json_parser_buffer_size": 512
+  },
+  "mqtt_topics": {
+    "cmd_request": "$sys/{product_id}/{device_name}/cmd/request/{cmdid}",
+    "cmd_response": "$sys/{product_id}/{device_name}/cmd/response/{cmdid}",
+    "property_post": "$sys/{product_id}/{device_name}/dp/post/json",
+    "property_set": "$sys/{product_id}/{device_name}/dp/post/json/accepted"
+  },
+  "hardware_pins": {
+    "wiper_enable": 4,
+    "wiper_speed": 5,
+    "rain_sensor": 2,
+    "battery_monitor": 3,
+    "status_led": 13,
+    "debug_uart_tx": 1,
+    "debug_uart_rx": 0
+  },
+  "system_settings": {
+    "cpu_frequency_mhz": 80,
+    "watchdog_timeout_ms": 8000,
+    "deep_sleep_enabled": false,
+    "log_level": "INFO",
+    "debug_output": true
+  },
+  "error_handling": {
+    "max_consecutive_failures": 5,
+    "failure_recovery_delay_ms": 5000,
+    "auto_restart_on_critical_error": true,
+    "error_led_indication": true
+  },
+  "performance_monitoring": {
+    "enable_performance_stats": true,
+    "command_response_time_tracking": true,
+    "memory_usage_monitoring": true,
+    "network_quality_monitoring": true
+  },
+  "security_settings": {
+    "enable_command_validation": true,
+    "max_command_rate_per_minute": 60,
+    "require_user_authentication": true,
+    "log_all_commands": true
+  },
+  "firmware_info": {
+    "version": "1.0.0",
+    "build_date": "2025-06-03",
+    "compiler": "gcc",
+    "target_platform": "ESP32",
+    "flash_size_mb": 4,
+    "ram_size_kb": 520
+  },
+  "calibration_data": {
+    "rain_sensor_calibration": {
+      "dry_value": 1023,
+      "wet_value": 200,
+      "calibration_date": "2025-06-03"
+    },
+    "battery_voltage_calibration": {
+      "reference_voltage": 3.3,
+      "adc_resolution": 4096,
+      "calibration_factor": 1.0
+    }
+  },
+  "maintenance_settings": {
+    "auto_diagnostic_interval_hours": 24,
+    "log_rotation_size_kb": 100,
+    "config_backup_enabled": true,
+    "remote_update_enabled": true
+  },
+  "usage_notes": [
+    "请在OneNET平台创建对应的设备并获取device_id和device_key",
+    "确保硬件GPIO配置与实际连接一致",
+    "雨量传感器需要根据实际硬件进行校准",
+    "建议在生产环境中禁用debug_output以节省资源",
+    "定期检查设备状态和性能指标",
+    "确保网络连接稳定以保证命令响应及时性"
+  ]
+}
