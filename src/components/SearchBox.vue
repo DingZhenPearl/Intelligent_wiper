@@ -222,20 +222,22 @@ export default {
     background-color: white;
     border-radius: var(--border-radius-md);
     box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
-    overflow: hidden;
-    
+    overflow: visible; /* 改为 visible 防止按钮被裁剪 */
+    position: relative;
+
     .search-input {
       flex: 1;
       padding: var(--spacing-sm) var(--spacing-md);
       border: none;
       outline: none;
       font-size: var(--font-size-md);
-      
+      min-width: 0; /* 防止输入框过度扩展 */
+
       &::placeholder {
         color: #999;
       }
     }
-    
+
     .search-button, .clear-button {
       display: flex;
       align-items: center;
@@ -244,27 +246,36 @@ export default {
       border: none;
       padding: var(--spacing-sm);
       cursor: pointer;
-      
+      min-width: 40px; /* 确保按钮有最小宽度 */
+      height: 40px; /* 确保按钮有固定高度 */
+      flex-shrink: 0; /* 防止按钮被压缩 */
+
       .material-icons {
         font-size: 20px;
         color: #666;
       }
-      
+
       &:hover .material-icons {
         color: var(--primary-color);
       }
     }
-    
+
     .search-button {
       background-color: var(--primary-color);
-      
+      border-radius: 0 var(--border-radius-md) var(--border-radius-md) 0;
+
       .material-icons {
         color: white;
       }
-      
+
       &:hover {
         background-color: var(--primary-color-dark);
       }
+    }
+
+    .clear-button {
+      order: -1; /* 将清除按钮放在搜索按钮前面 */
+      margin-right: var(--spacing-xs);
     }
   }
   
@@ -334,6 +345,49 @@ export default {
 @media screen and (max-width: 768px) {
   .search-box {
     max-width: 100%;
+
+    .search-input-container {
+      .search-input {
+        padding: var(--spacing-xs) var(--spacing-sm);
+        font-size: var(--font-size-sm);
+      }
+
+      .search-button, .clear-button {
+        min-width: 36px;
+        height: 36px;
+        padding: var(--spacing-xs);
+
+        .material-icons {
+          font-size: 18px;
+        }
+      }
+    }
+  }
+}
+
+/* 超小屏幕适配 */
+@media screen and (max-width: 480px) {
+  .search-box {
+    .search-input-container {
+      .search-input {
+        padding: var(--spacing-xs);
+        font-size: var(--font-size-sm);
+      }
+
+      .search-button, .clear-button {
+        min-width: 32px;
+        height: 32px;
+        padding: 4px;
+
+        .material-icons {
+          font-size: 16px;
+        }
+      }
+
+      .clear-button {
+        margin-right: 4px;
+      }
+    }
   }
 }
 </style>

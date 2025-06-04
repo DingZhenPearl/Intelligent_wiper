@@ -6,7 +6,7 @@
     <div class="section">
       <h3>个人信息</h3>
       <div class="user-info">
-        <img :src="userAvatar" alt="用户头像" class="avatar">
+        <!-- <img :src="userAvatar" alt="用户头像" class="avatar"> -->
         <div class="info-item">
           <label>用户名:</label>
           <span>{{ username }}</span>
@@ -98,7 +98,7 @@
     </div>
 
     <!-- 状态信息 -->
-    <div class="section">
+    <!-- <div class="section">
       <h3>状态信息</h3>
       <div class="status-list">
         <div class="status-item">
@@ -122,10 +122,10 @@
           <span class="status-normal">已连接</span>
         </div>
       </div>
-    </div>
+    </div> -->
 
     <!-- 远程数据上传频率设置 -->
-    <div class="section">
+    <!-- <div class="section">
       <h3>远程数据上传频率设置</h3>
       <select v-model="uploadFrequency" class="frequency-select">
         <option value="1">每小时</option>
@@ -135,10 +135,10 @@
         <option value="12">每12小时</option>
         <option value="24">每24小时</option>
       </select>
-    </div>
+    </div> -->
 
     <!-- 服务器地址设置 (仅在安卓环境中显示) -->
-    <div class="section" v-if="isAndroid">
+    <!-- <div class="section" v-if="isAndroid">
       <h3>服务器地址设置</h3>
       <div class="server-address">
         <input
@@ -151,11 +151,11 @@
           请输入完整的服务器地址，包括协议(http://)和端口号
         </div>
       </div>
-    </div>
+    </div> -->
 
     <!-- 底部按钮 -->
     <div class="button-group">
-      <button class="btn-save" @click="saveSettings">保存设置</button>
+      <!-- <button class="btn-save" @click="saveSettings">保存设置</button> -->
       <button class="btn-logout" @click="logout">退出登录</button>
     </div>
   </div>

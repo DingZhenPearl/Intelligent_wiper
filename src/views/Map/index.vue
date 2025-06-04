@@ -1125,7 +1125,26 @@ export default {
     transform: translateX(-50%);
     width: 90%;
     max-width: 500px;
-    z-index: 9; /* 降低z-index，确保导航面板在上层 */
+    z-index: 9; /* 确保z-index适当 */
+  }
+
+  /* 确保搜索框内部的按钮可见和正确布局 */
+  :deep(.search-box .search-input-container) {
+    display: flex;
+    align-items: center;
+    overflow: visible; /* 确保按钮不被裁剪 */
+  }
+
+  :deep(.search-box .search-button),
+  :deep(.search-box .clear-button) {
+    z-index: 10; /* 确保按钮在搜索框上层 */
+    position: relative; /* 添加相对定位 */
+    flex-shrink: 0; /* 防止按钮被压缩 */
+  }
+
+  /* 确保搜索结果下拉框在正确的层级 */
+  :deep(.search-box .search-results) {
+    z-index: 15; /* 确保搜索结果在按钮上方 */
   }
 
   .map-view {
@@ -1474,6 +1493,11 @@ export default {
       margin-bottom: var(--spacing-md);
     }
 
+    .search-box-container {
+      width: 95%;
+      top: calc(var(--spacing-md) + var(--font-size-xl) + var(--spacing-md));
+    }
+
     .map-view {
       min-height: 300px;
     }
@@ -1489,11 +1513,26 @@ export default {
 
     .navigation-panel {
       width: 95%;
-      top: calc(var(--spacing-lg) + var(--font-size-xl) + var(--spacing-md) + 40px); /* 调整移动设备上的位置 */
+      top: calc(var(--spacing-md) + var(--font-size-xl) + var(--spacing-md) + 50px); /* 调整移动设备上的位置 */
 
       .panel-content {
         padding: var(--spacing-sm);
       }
+    }
+  }
+}
+
+/* 超小屏幕适配 */
+@media screen and (max-width: 480px) {
+  .map-container {
+    .search-box-container {
+      width: 98%;
+      left: 50%;
+      transform: translateX(-50%);
+    }
+
+    .navigation-panel {
+      width: 98%;
     }
   }
 }

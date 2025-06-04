@@ -21,11 +21,11 @@
       </router-link>
       <router-link to="/map" class="nav-item">
         <span class="icon">🗺️</span>
-        <span>地图</span>
+        <span>地图天气</span>
       </router-link>
       <router-link to="/settings" class="nav-item">
         <span class="icon">⚙️</span>
-        <span>状态与设置</span>
+        <span>我的</span>
       </router-link>
     </nav>
   </div>
