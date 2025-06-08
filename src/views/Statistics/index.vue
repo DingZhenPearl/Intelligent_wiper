@@ -948,7 +948,7 @@ export default {
           // 获取序号信息
           const name = params.data && params.data.name ? params.data.name : `数据点 #${params.dataIndex + 1}`;
 
-          return `${name}<br/>时间: ${timeStr}<br/>雨量: ${rainfallValue} mm`;
+          return `${name}<br/>时间: ${timeStr}<br/>雨量: ${rainfallValue} mm/h`;
         },
         backgroundColor: 'rgba(50, 50, 50, 0.9)',
         borderColor: '#e74c3c',
@@ -986,7 +986,7 @@ export default {
         splitLine: {
           show: true
         },
-        name: '雨量 (mm)'
+        name: '雨量 (mm/h)'
       },
       grid: {
         containLabel: true,
@@ -1032,7 +1032,7 @@ export default {
           label: {
             show: true,
             position: 'top',
-            formatter: '{c} mm',
+            formatter: '{c} mm/h',
             fontSize: 12,
             color: '#333'
           },
