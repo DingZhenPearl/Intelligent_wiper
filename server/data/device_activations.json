@@ -55,6 +55,15 @@
       "deviceModel": "智能雨刷设备",
       "firmwareVersion": "v2.0",
       "activatedAt": "2025-06-01T03:07:57.010Z"
+    },
+    "new": {
+      "deviceId": 2447605094,
+      "deviceName": "intelligent_wiper_new",
+      "activationCode": "TEST-2025-D80F-A02F",
+      "serialNumber": "IW-2025-002",
+      "deviceModel": "智能雨刷设备",
+      "firmwareVersion": "v2.0",
+      "activatedAt": "2025-06-09T01:15:28.890Z"
     }
   },
   "activationCodes": {
@@ -68,11 +77,13 @@
       "usedAt": "2025-06-01T03:07:57.010Z"
     },
     "TEST-2025-D80F-A02F": {
-      "isUsed": false,
+      "isUsed": true,
       "deviceModel": "智能雨刷设备",
       "serialNumber": "IW-2025-002",
       "firmwareVersion": "v2.0",
-      "generatedAt": "2025-05-31T15:25:01.100Z"
+      "generatedAt": "2025-05-31T15:25:01.100Z",
+      "usedBy": "new",
+      "usedAt": "2025-06-09T01:15:28.890Z"
     },
     "TEST-2025-5F9F-18CB": {
       "isUsed": false,
