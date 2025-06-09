@@ -13,6 +13,7 @@ const ipLocationRoutes = require('./routes/ipLocationRoutes');
 const amapWeatherRoutes = require('./routes/amapWeatherRoutes');
  const wiperControlRoutes = require('./wiper-control');
 const deviceActivationRoutes = require('./routes/deviceActivationRoutes');
+const hardwareRoutes = require('./routes/hardwareRoutes');
 
 // 创建Express应用
 const app = express();
@@ -101,6 +102,7 @@ app.use('/api/iplocation', ipLocationRoutes);
 app.use('/api/amap', amapWeatherRoutes);
 app.use('/api/wiper', wiperControlRoutes);
 app.use('/api/device/activation', deviceActivationRoutes);
+app.use('/api/hardware', hardwareRoutes);
 
 // 处理所有前端路由 - 必须放在所有API路由之后
 app.get('*', (req, res) => {

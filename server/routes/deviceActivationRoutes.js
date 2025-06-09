@@ -19,6 +19,9 @@ const DEVICE_ACTIVATION_FILE = path.join(dataDir, 'device_activations.json');
 // OneNET设备激活服务
 const oneNetActivationService = require('../services/oneNetActivationService');
 
+// 设备绑定服务
+const deviceBindingService = require('../services/deviceBindingService');
+
 // 初始化设备激活数据文件
 function initDeviceActivationFile() {
   if (!fs.existsSync(DEVICE_ACTIVATION_FILE)) {
@@ -219,7 +222,7 @@ router.post('/activate', async (req, res) => {
     data.activationCodes[activationCode].usedBy = username;
     data.activationCodes[activationCode].usedAt = activatedAt;
 
-    // 记录用户激活信息
+    // 记录用户激活信息（保持向后兼容）
     data.activations[username] = {
       deviceId: activationResult.deviceId,
       deviceName: activationResult.deviceName,
@@ -231,8 +234,40 @@ router.post('/activate', async (req, res) => {
       oneNetResponse: activationResult.oneNetResponse
     };
 
-    // 保存数据
-    if (saveDeviceActivationData(data)) {
+    // 保存到JSON文件（保持向后兼容）
+    const jsonSaveSuccess = saveDeviceActivationData(data);
+
+    // 新增：将设备绑定信息存储到users表
+    try {
+      console.log(`[设备激活] 将设备绑定信息存储到users表`);
+
+      const deviceData = {
+        activationCode: activationCode,
+        deviceId: activationResult.deviceId,
+        deviceName: activationResult.deviceName,
+        deviceKey: activationResult.deviceKey || null,
+        productId: '66eIb47012',
+        serialNumber: codeInfo.serialNumber,
+        deviceModel: codeInfo.deviceModel,
+        firmwareVersion: codeInfo.firmwareVersion,
+        deviceStatus: 'virtual_only',
+        activatedAt: activatedAt
+      };
+
+      const dbStoreResult = await deviceBindingService.storeDeviceBinding(username, deviceData);
+
+      if (dbStoreResult.success) {
+        console.log(`[设备激活] 成功将设备绑定信息存储到users表`);
+      } else {
+        console.error(`[设备激活] 存储设备绑定信息到users表失败:`, dbStoreResult.error);
+        // 不影响主流程，只记录错误
+      }
+    } catch (dbError) {
+      console.error(`[设备激活] 存储设备绑定信息到users表异常:`, dbError);
+      // 不影响主流程，只记录错误
+    }
+
+    if (jsonSaveSuccess) {
       console.log(`[设备激活] 用户 ${username} 设备激活成功，设备ID: ${activationResult.deviceId}`);
 
       res.json({

@@ -90,16 +90,67 @@ def init_db():
     conn = get_db_connection()
     try:
         with conn.cursor() as cursor:
-            # 创建用户表
+            # 创建用户表（扩展版本，包含设备绑定信息）
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS users (
                     id INT AUTO_INCREMENT PRIMARY KEY,
                     username VARCHAR(50) UNIQUE NOT NULL,
                     password VARCHAR(255) NOT NULL,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+                    -- 设备激活相关字段
+                    activation_code VARCHAR(20) NULL,
+                    onenet_device_id VARCHAR(50) NULL,
+                    onenet_device_name VARCHAR(100) NULL,
+                    device_key TEXT NULL,
+                    product_id VARCHAR(20) DEFAULT '66eIb47012',
+                    serial_number VARCHAR(50) NULL,
+                    device_model VARCHAR(100) DEFAULT '智能雨刷设备',
+                    firmware_version VARCHAR(20) DEFAULT 'v2.0',
+
+                    -- 硬件绑定相关字段
+                    hardware_mac VARCHAR(17) NULL,
+                    hardware_serial VARCHAR(50) NULL,
+                    hardware_identifier VARCHAR(100) NULL,
+
+                    -- 状态和时间字段
+                    device_status ENUM('not_activated', 'virtual_only', 'hardware_bound', 'both_active') DEFAULT 'not_activated',
+                    activated_at TIMESTAMP NULL,
+                    last_hardware_access TIMESTAMP NULL,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+                    -- 索引
+                    INDEX idx_activation_code (activation_code),
+                    INDEX idx_onenet_device_id (onenet_device_id),
+                    INDEX idx_hardware_mac (hardware_mac),
+                    INDEX idx_device_status (device_status)
                 )
             ''')
+
+            # 创建硬件访问日志表
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS hardware_access_logs (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    user_id INT NOT NULL,
+                    username VARCHAR(50) NOT NULL,
+                    hardware_identifier VARCHAR(100) NULL,
+                    access_ip VARCHAR(45) NULL,
+                    request_type ENUM('get_credentials', 'status_update', 'heartbeat') DEFAULT 'get_credentials',
+                    response_status ENUM('success', 'failed', 'unauthorized') DEFAULT 'success',
+                    access_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    request_details TEXT NULL,
+                    response_details TEXT NULL,
+
+                    INDEX idx_user_id (user_id),
+                    INDEX idx_username (username),
+                    INDEX idx_access_time (access_time),
+                    INDEX idx_hardware_identifier (hardware_identifier),
+                    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+                )
+            ''')
+
         conn.commit()
+        log("数据库表结构创建/更新成功")
         return {"success": True, "message": "数据库初始化成功"}
     except Exception as e:
         log(f"数据库初始化失败: {str(e)}")
@@ -276,6 +327,10 @@ def delete_user_and_data(username):
             user_id = user['id']
             log(f"找到用户 {username} (ID: {user_id})")
 
+            # 删除硬件访问日志
+            cursor.execute('DELETE FROM hardware_access_logs WHERE user_id = %s', (user_id,))
+            log(f"删除用户 {username} 的硬件访问日志")
+
             # 删除雨量相关数据表中的数据
             tables_to_clean = [
                 'rainfall_raw',      # 原始雨量数据
@@ -324,14 +379,384 @@ def delete_user_and_data(username):
     finally:
         conn.close()
 
+# ==================== 设备绑定相关函数 ====================
+
+def store_device_binding(username, device_data):
+    """存储用户的设备绑定信息到users表"""
+    if not username or not device_data:
+        return {"success": False, "error": "用户名和设备数据不能为空"}
+
+    log(f"存储用户 {username} 的设备绑定信息")
+
+    conn = get_db_connection()
+    try:
+        with conn.cursor() as cursor:
+            # 处理日期时间格式
+            activated_at = device_data.get('activated_at')
+            if activated_at:
+                # 如果是ISO格式的字符串，转换为MySQL可接受的格式
+                if isinstance(activated_at, str) and 'T' in activated_at:
+                    # 移除毫秒部分和时区信息
+                    activated_at = activated_at.split('.')[0].replace('T', ' ').replace('Z', '')
+
+            # 更新用户的设备绑定信息
+            update_sql = '''
+                UPDATE users SET
+                    activation_code = %s,
+                    onenet_device_id = %s,
+                    onenet_device_name = %s,
+                    device_key = %s,
+                    product_id = %s,
+                    serial_number = %s,
+                    device_model = %s,
+                    firmware_version = %s,
+                    device_status = %s,
+                    activated_at = %s,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE username = %s
+            '''
+
+            cursor.execute(update_sql, (
+                device_data.get('activation_code'),
+                device_data.get('onenet_device_id'),
+                device_data.get('onenet_device_name'),
+                device_data.get('device_key'),
+                device_data.get('product_id', '66eIb47012'),
+                device_data.get('serial_number'),
+                device_data.get('device_model', '智能雨刷设备'),
+                device_data.get('firmware_version', 'v2.0'),
+                device_data.get('device_status', 'virtual_only'),
+                activated_at,
+                username
+            ))
+
+            if cursor.rowcount == 0:
+                return {"success": False, "error": f"用户 {username} 不存在"}
+
+        conn.commit()
+        log(f"成功存储用户 {username} 的设备绑定信息")
+        return {"success": True, "message": "设备绑定信息存储成功"}
+
+    except Exception as e:
+        conn.rollback()
+        error_msg = f"存储设备绑定信息失败: {str(e)}"
+        log(error_msg)
+        return {"success": False, "error": error_msg}
+    finally:
+        conn.close()
+
+def get_device_credentials_by_activation_code(activation_code):
+    """通过激活码获取设备凭证"""
+    if not activation_code:
+        return {"success": False, "error": "激活码不能为空"}
+
+    log(f"通过激活码获取设备凭证: {activation_code}")
+
+    conn = get_db_connection()
+    try:
+        with conn.cursor() as cursor:
+            cursor.execute('''
+                SELECT id, username, activation_code, onenet_device_id, onenet_device_name,
+                       device_key, product_id, serial_number, device_model, firmware_version,
+                       device_status, activated_at, hardware_mac, hardware_serial
+                FROM users
+                WHERE activation_code = %s AND device_status != 'not_activated'
+                ORDER BY activated_at DESC
+                LIMIT 1
+            ''', (activation_code,))
+
+            user = cursor.fetchone()
+
+            if not user:
+                return {"success": False, "error": "未找到对应的设备绑定信息"}
+
+            return {
+                "success": True,
+                "user_id": user['id'],
+                "username": user['username'],
+                "credentials": {
+                    "device_id": user['onenet_device_id'],
+                    "device_name": user['onenet_device_name'],
+                    "product_id": user['product_id'],
+                    "device_key": user['device_key'],
+                    "mqtt_server": "183.230.40.39",
+                    "mqtt_port": 6002
+                },
+                "device_info": {
+                    "activation_code": user['activation_code'],
+                    "serial_number": user['serial_number'],
+                    "device_model": user['device_model'],
+                    "firmware_version": user['firmware_version'],
+                    "device_status": user['device_status'],
+                    "activated_at": user['activated_at'].isoformat() if user['activated_at'] else None,
+                    "hardware_mac": user['hardware_mac'],
+                    "hardware_serial": user['hardware_serial']
+                }
+            }
+
+    except Exception as e:
+        error_msg = f"获取设备凭证失败: {str(e)}"
+        log(error_msg)
+        return {"success": False, "error": error_msg}
+    finally:
+        conn.close()
+
+def get_device_credentials_by_hardware(mac_address=None, hardware_serial=None):
+    """通过硬件标识符获取设备凭证"""
+    if not mac_address and not hardware_serial:
+        return {"success": False, "error": "需要提供MAC地址或硬件序列号"}
+
+    log(f"通过硬件标识符获取设备凭证: MAC={mac_address}, Serial={hardware_serial}")
+
+    conn = get_db_connection()
+    try:
+        with conn.cursor() as cursor:
+            # 构建查询条件
+            where_conditions = []
+            params = []
+
+            if mac_address:
+                where_conditions.append("hardware_mac = %s")
+                params.append(mac_address)
+
+            if hardware_serial:
+                where_conditions.append("hardware_serial = %s")
+                params.append(hardware_serial)
+
+            where_clause = " OR ".join(where_conditions)
+
+            cursor.execute(f'''
+                SELECT id, username, activation_code, onenet_device_id, onenet_device_name,
+                       device_key, product_id, serial_number, device_model, firmware_version,
+                       device_status, activated_at, hardware_mac, hardware_serial
+                FROM users
+                WHERE ({where_clause}) AND device_status != 'not_activated'
+                ORDER BY activated_at DESC
+                LIMIT 1
+            ''', params)
+
+            user = cursor.fetchone()
+
+            if not user:
+                return {"success": False, "error": "未找到对应的设备绑定信息"}
+
+            return {
+                "success": True,
+                "user_id": user['id'],
+                "username": user['username'],
+                "credentials": {
+                    "device_id": user['onenet_device_id'],
+                    "device_name": user['onenet_device_name'],
+                    "product_id": user['product_id'],
+                    "device_key": user['device_key'],
+                    "mqtt_server": "183.230.40.39",
+                    "mqtt_port": 6002
+                },
+                "device_info": {
+                    "activation_code": user['activation_code'],
+                    "serial_number": user['serial_number'],
+                    "device_model": user['device_model'],
+                    "firmware_version": user['firmware_version'],
+                    "device_status": user['device_status'],
+                    "activated_at": user['activated_at'].isoformat() if user['activated_at'] else None,
+                    "hardware_mac": user['hardware_mac'],
+                    "hardware_serial": user['hardware_serial']
+                }
+            }
+
+    except Exception as e:
+        error_msg = f"通过硬件标识符获取设备凭证失败: {str(e)}"
+        log(error_msg)
+        return {"success": False, "error": error_msg}
+    finally:
+        conn.close()
+
+def update_hardware_binding(username, hardware_mac=None, hardware_serial=None, hardware_identifier=None):
+    """更新用户的硬件绑定信息"""
+    if not username:
+        return {"success": False, "error": "用户名不能为空"}
+
+    log(f"更新用户 {username} 的硬件绑定信息")
+
+    conn = get_db_connection()
+    try:
+        with conn.cursor() as cursor:
+            # 更新硬件绑定信息和设备状态
+            cursor.execute('''
+                UPDATE users SET
+                    hardware_mac = %s,
+                    hardware_serial = %s,
+                    hardware_identifier = %s,
+                    device_status = CASE
+                        WHEN device_status = 'virtual_only' THEN 'hardware_bound'
+                        WHEN device_status = 'not_activated' THEN 'hardware_bound'
+                        ELSE device_status
+                    END,
+                    last_hardware_access = CURRENT_TIMESTAMP,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE username = %s
+            ''', (hardware_mac, hardware_serial, hardware_identifier, username))
+
+            if cursor.rowcount == 0:
+                return {"success": False, "error": f"用户 {username} 不存在"}
+
+        conn.commit()
+        log(f"成功更新用户 {username} 的硬件绑定信息")
+        return {"success": True, "message": "硬件绑定信息更新成功"}
+
+    except Exception as e:
+        conn.rollback()
+        error_msg = f"更新硬件绑定信息失败: {str(e)}"
+        log(error_msg)
+        return {"success": False, "error": error_msg}
+    finally:
+        conn.close()
+
+def log_hardware_access(user_id, username, hardware_identifier, access_ip, request_type='get_credentials',
+                       response_status='success', request_details=None, response_details=None):
+    """记录硬件访问日志"""
+    log(f"记录硬件访问日志: 用户={username}, 硬件={hardware_identifier}, 类型={request_type}")
+
+    conn = get_db_connection()
+    try:
+        with conn.cursor() as cursor:
+            cursor.execute('''
+                INSERT INTO hardware_access_logs
+                (user_id, username, hardware_identifier, access_ip, request_type,
+                 response_status, request_details, response_details)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+            ''', (user_id, username, hardware_identifier, access_ip, request_type,
+                  response_status, request_details, response_details))
+
+        conn.commit()
+        return {"success": True, "message": "硬件访问日志记录成功"}
+
+    except Exception as e:
+        error_msg = f"记录硬件访问日志失败: {str(e)}"
+        log(error_msg)
+        return {"success": False, "error": error_msg}
+    finally:
+        conn.close()
+
+def get_user_device_info(username):
+    """获取用户的完整设备信息"""
+    if not username:
+        return {"success": False, "error": "用户名不能为空"}
+
+    log(f"获取用户 {username} 的设备信息")
+
+    conn = get_db_connection()
+    try:
+        with conn.cursor() as cursor:
+            cursor.execute('''
+                SELECT id, username, activation_code, onenet_device_id, onenet_device_name,
+                       device_key, product_id, serial_number, device_model, firmware_version,
+                       hardware_mac, hardware_serial, hardware_identifier,
+                       device_status, activated_at, last_hardware_access, created_at, updated_at
+                FROM users
+                WHERE username = %s
+            ''', (username,))
+
+            user = cursor.fetchone()
+
+            if not user:
+                return {"success": False, "error": f"用户 {username} 不存在"}
+
+            # 获取硬件访问日志（最近10条）
+            cursor.execute('''
+                SELECT hardware_identifier, access_ip, request_type, response_status,
+                       access_time, request_details, response_details
+                FROM hardware_access_logs
+                WHERE user_id = %s
+                ORDER BY access_time DESC
+                LIMIT 10
+            ''', (user['id'],))
+
+            access_logs = cursor.fetchall()
+
+            # 格式化时间字段
+            def format_datetime(dt):
+                return dt.isoformat() if dt and hasattr(dt, 'isoformat') else str(dt) if dt else None
+
+            return {
+                "success": True,
+                "user_info": {
+                    "id": user['id'],
+                    "username": user['username'],
+                    "created_at": format_datetime(user['created_at'])
+                },
+                "device_info": {
+                    "activation_code": user['activation_code'],
+                    "onenet_device_id": user['onenet_device_id'],
+                    "onenet_device_name": user['onenet_device_name'],
+                    "product_id": user['product_id'],
+                    "serial_number": user['serial_number'],
+                    "device_model": user['device_model'],
+                    "firmware_version": user['firmware_version'],
+                    "device_status": user['device_status'],
+                    "activated_at": format_datetime(user['activated_at']),
+                    "updated_at": format_datetime(user['updated_at'])
+                },
+                "hardware_info": {
+                    "hardware_mac": user['hardware_mac'],
+                    "hardware_serial": user['hardware_serial'],
+                    "hardware_identifier": user['hardware_identifier'],
+                    "last_hardware_access": format_datetime(user['last_hardware_access'])
+                },
+                "access_logs": [
+                    {
+                        "hardware_identifier": log['hardware_identifier'],
+                        "access_ip": log['access_ip'],
+                        "request_type": log['request_type'],
+                        "response_status": log['response_status'],
+                        "access_time": format_datetime(log['access_time']),
+                        "request_details": log['request_details'],
+                        "response_details": log['response_details']
+                    }
+                    for log in access_logs
+                ]
+            }
+
+    except Exception as e:
+        error_msg = f"获取用户设备信息失败: {str(e)}"
+        log(error_msg)
+        return {"success": False, "error": error_msg}
+    finally:
+        conn.close()
+
 if __name__ == '__main__':
     try:
         parser = argparse.ArgumentParser(description='数据库服务')
-        parser.add_argument('--action', choices=['init', 'register', 'login', 'get_user', 'get_all_users', 'delete_user'],
-                            required=True, help='执行的操作')
+        parser.add_argument('--action', choices=[
+            'init', 'register', 'login', 'get_user', 'get_all_users', 'delete_user',
+            'store_device_binding', 'get_device_credentials', 'update_hardware_binding',
+            'get_user_device_info', 'log_hardware_access'
+        ], required=True, help='执行的操作')
         parser.add_argument('--username', help='用户名')
         parser.add_argument('--password', help='密码')
         parser.add_argument('--user_id', help='用户ID')
+
+        # 设备绑定相关参数
+        parser.add_argument('--activation_code', help='激活码')
+        parser.add_argument('--onenet_device_id', help='OneNET设备ID')
+        parser.add_argument('--onenet_device_name', help='OneNET设备名称')
+        parser.add_argument('--device_key', help='设备密钥')
+        parser.add_argument('--product_id', help='产品ID', default='66eIb47012')
+        parser.add_argument('--serial_number', help='设备序列号')
+        parser.add_argument('--device_model', help='设备型号', default='智能雨刷设备')
+        parser.add_argument('--firmware_version', help='固件版本', default='v2.0')
+        parser.add_argument('--device_status', help='设备状态', default='virtual_only')
+        parser.add_argument('--activated_at', help='激活时间')
+
+        # 硬件绑定相关参数
+        parser.add_argument('--hardware_mac', help='硬件MAC地址')
+        parser.add_argument('--hardware_serial', help='硬件序列号')
+        parser.add_argument('--hardware_identifier', help='硬件标识符')
+        parser.add_argument('--access_ip', help='访问IP地址')
+        parser.add_argument('--request_type', help='请求类型', default='get_credentials')
+        parser.add_argument('--response_status', help='响应状态', default='success')
+        parser.add_argument('--request_details', help='请求详情')
+        parser.add_argument('--response_details', help='响应详情')
 
         args = parser.parse_args()
 
@@ -362,6 +787,48 @@ if __name__ == '__main__':
                 result = {"success": False, "error": "删除用户需要提供用户名"}
             else:
                 result = delete_user_and_data(args.username)
+        elif args.action == 'store_device_binding':
+            if not args.username:
+                result = {"success": False, "error": "存储设备绑定需要提供用户名"}
+            else:
+                device_data = {
+                    'activation_code': args.activation_code,
+                    'onenet_device_id': args.onenet_device_id,
+                    'onenet_device_name': args.onenet_device_name,
+                    'device_key': args.device_key,
+                    'product_id': args.product_id,
+                    'serial_number': args.serial_number,
+                    'device_model': args.device_model,
+                    'firmware_version': args.firmware_version,
+                    'device_status': args.device_status,
+                    'activated_at': args.activated_at
+                }
+                result = store_device_binding(args.username, device_data)
+        elif args.action == 'get_device_credentials':
+            if args.activation_code:
+                result = get_device_credentials_by_activation_code(args.activation_code)
+            elif args.hardware_mac or args.hardware_serial:
+                result = get_device_credentials_by_hardware(args.hardware_mac, args.hardware_serial)
+            else:
+                result = {"success": False, "error": "需要提供激活码或硬件标识符"}
+        elif args.action == 'update_hardware_binding':
+            if not args.username:
+                result = {"success": False, "error": "更新硬件绑定需要提供用户名"}
+            else:
+                result = update_hardware_binding(args.username, args.hardware_mac,
+                                               args.hardware_serial, args.hardware_identifier)
+        elif args.action == 'get_user_device_info':
+            if not args.username:
+                result = {"success": False, "error": "获取用户设备信息需要提供用户名"}
+            else:
+                result = get_user_device_info(args.username)
+        elif args.action == 'log_hardware_access':
+            if not args.user_id or not args.username:
+                result = {"success": False, "error": "记录硬件访问日志需要提供用户ID和用户名"}
+            else:
+                result = log_hardware_access(args.user_id, args.username, args.hardware_identifier,
+                                           args.access_ip, args.request_type, args.response_status,
+                                           args.request_details, args.response_details)
         else:
             result = {"success": False, "error": "未知操作"}
 
