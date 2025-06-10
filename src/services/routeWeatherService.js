@@ -107,9 +107,43 @@ const routeWeatherService = {
 
     console.log(`[路线天气服务] 开始获取${samplePoints.length}个采样点的天气信息`);
 
-    // 并行获取所有采样点的天气信息
-    const weatherPromises = samplePoints.map(async (point) => {
+    // 并行获取所有采样点的天气信息，但限制并发数量以避免API限制
+    const weatherPromises = samplePoints.map(async (point, index) => {
+      // 添加延迟以避免API调用过于频繁
+      await new Promise(resolve => setTimeout(resolve, index * 200));
+
+      return this.getPointWeatherWithRetry(point, 3);
+    });
+
+    // 等待所有天气信息获取完成
+    const pointsWithWeather = await Promise.all(weatherPromises);
+
+    // 统计成功和失败的数量
+    const successCount = pointsWithWeather.filter(point => point.weather && point.weather.weather && point.weather.weather !== '数据获取失败').length;
+    const failureCount = pointsWithWeather.length - successCount;
+
+    console.log(`[路线天气服务] 天气信息获取完成: 成功${successCount}个, 失败${failureCount}个`);
+
+    if (failureCount > 0) {
+      console.warn(`[路线天气服务] ${failureCount}个采样点的天气信息获取失败，将显示为未知天气`);
+    }
+
+    return pointsWithWeather;
+  },
+
+  /**
+   * 带重试机制的获取单个采样点天气信息
+   * @param {Object} point - 采样点信息
+   * @param {number} maxRetries - 最大重试次数
+   * @returns {Promise<Object>} - 带有天气信息的采样点
+   */
+  async getPointWeatherWithRetry(point, maxRetries = 3) {
+    let lastError = null;
+
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
+        console.log(`[路线天气服务] 尝试获取采样点(${point.longitude},${point.latitude})的天气信息 (第${attempt}次)`);
+
         // 获取天气信息
         const weatherData = await weatherMapService.getWeatherByLocation(
           point.longitude,
@@ -119,26 +153,49 @@ const routeWeatherService = {
         // 格式化天气数据
         const formattedData = weatherMapService.formatWeatherData(weatherData);
 
+        // 检查数据有效性
+        if (!formattedData.live || !formattedData.live.weather) {
+          throw new Error('天气数据格式无效或为空');
+        }
+
+        console.log(`[路线天气服务] 成功获取采样点(${point.longitude},${point.latitude})的天气信息:`, formattedData.live.weather);
+
         // 返回带有天气信息的采样点
         return {
           ...point,
-          weather: formattedData.live
+          weather: formattedData.live,
+          status: 'success'
         };
       } catch (error) {
-        console.error(`[路线天气服务] 获取采样点(${point.longitude},${point.latitude})的天气信息失败:`, error);
-        return {
-          ...point,
-          weather: null
-        };
+        lastError = error;
+        console.warn(`[路线天气服务] 第${attempt}次获取采样点(${point.longitude},${point.latitude})的天气信息失败:`, error.message);
+
+        // 如果不是最后一次尝试，等待一段时间后重试
+        if (attempt < maxRetries) {
+          const delay = attempt * 1000; // 递增延迟
+          console.log(`[路线天气服务] ${delay}ms后进行第${attempt + 1}次重试`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+        }
       }
-    });
+    }
 
-    // 等待所有天气信息获取完成
-    const pointsWithWeather = await Promise.all(weatherPromises);
+    // 所有重试都失败了，返回带有错误信息的采样点
+    console.error(`[路线天气服务] 获取采样点(${point.longitude},${point.latitude})的天气信息最终失败:`, lastError?.message);
 
-    console.log(`[路线天气服务] 获取路线天气信息成功:`, pointsWithWeather);
-
-    return pointsWithWeather;
+    return {
+      ...point,
+      weather: {
+        weather: '数据获取失败',
+        temperature: '--',
+        winddirection: '',
+        windpower: '',
+        humidity: '',
+        reporttime: '',
+        icon: '❌'
+      },
+      status: 'failed',
+      error: lastError?.message || '未知错误'
+    };
   },
 
   /**

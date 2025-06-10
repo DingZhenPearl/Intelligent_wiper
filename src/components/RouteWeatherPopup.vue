@@ -37,20 +37,35 @@
         </div>
         
         <div class="route-points">
-          <h4>路线天气详情</h4>
+          <div class="points-header">
+            <h4>路线天气详情</h4>
+            <div class="weather-stats" v-if="weatherStats.failed > 0">
+              <span class="stats-text">
+                成功获取 {{ weatherStats.success }}/{{ weatherStats.total }} 个采样点天气
+              </span>
+              <span class="failed-count">{{ weatherStats.failed }} 个失败</span>
+            </div>
+          </div>
           <div class="points-list">
             <div v-for="(point, index) in routePoints" :key="index" class="point-item">
               <div class="point-header">
                 <span class="point-index">{{ index + 1 }}</span>
                 <span class="point-name">{{ point.name || `途经点 ${index + 1}` }}</span>
               </div>
-              <div class="point-weather">
-                <span class="weather-icon">{{ point.weather?.icon || '🌈' }}</span>
+              <div class="point-weather" :class="{ 'weather-failed': point.status === 'failed' }">
+                <span class="weather-icon">{{ getWeatherIcon(point) }}</span>
                 <div class="weather-details">
-                  <div class="weather-main">{{ point.weather?.weather || '未知天气' }} {{ point.weather?.temperature || '--' }}°C</div>
-                  <div class="weather-extra">
+                  <div class="weather-main">
+                    {{ getWeatherText(point) }}
+                    <span v-if="point.weather?.temperature && point.weather.temperature !== '--'">{{ point.weather.temperature }}°C</span>
+                    <span v-else-if="point.status !== 'failed'">--°C</span>
+                  </div>
+                  <div class="weather-extra" v-if="point.status !== 'failed'">
                     <span v-if="point.weather?.winddirection">{{ point.weather.winddirection }}风 {{ point.weather.windpower }}级</span>
                     <span v-if="point.weather?.humidity">湿度: {{ point.weather.humidity }}%</span>
+                  </div>
+                  <div class="weather-error" v-if="point.status === 'failed' && point.error">
+                    <small>{{ point.error }}</small>
                   </div>
                 </div>
               </div>
@@ -90,6 +105,14 @@ export default {
         const weather = point.weather?.weather || '';
         return weather.includes('雨') || weather.includes('阵雨') || weather.includes('雷雨');
       });
+    },
+
+    // 统计天气获取成功和失败的数量
+    weatherStats() {
+      const total = this.routePoints.length;
+      const failed = this.routePoints.filter(point => point.status === 'failed').length;
+      const success = total - failed;
+      return { total, success, failed };
     }
   },
   methods: {
@@ -98,6 +121,36 @@ export default {
     },
     retry() {
       this.$emit('retry');
+    },
+
+    // 获取天气图标
+    getWeatherIcon(point) {
+      if (point.status === 'failed') {
+        return '❌';
+      }
+
+      if (point.weather?.icon) {
+        return point.weather.icon;
+      }
+
+      // 根据天气描述返回默认图标
+      const weather = point.weather?.weather || '';
+      if (weather.includes('晴')) return '☀️';
+      if (weather.includes('云')) return '☁️';
+      if (weather.includes('雨')) return '🌧️';
+      if (weather.includes('雪')) return '❄️';
+      if (weather.includes('雾')) return '🌫️';
+
+      return '🌈'; // 默认图标
+    },
+
+    // 获取天气文本
+    getWeatherText(point) {
+      if (point.status === 'failed') {
+        return '数据获取失败';
+      }
+
+      return point.weather?.weather || '未知天气';
     }
   }
 };
@@ -242,11 +295,32 @@ export default {
       }
       
       .route-points {
-        h4 {
-          margin: 0 0 var(--spacing-md);
-          font-size: var(--font-size-md);
-          border-bottom: 1px solid #eee;
-          padding-bottom: var(--spacing-xs);
+        .points-header {
+          margin-bottom: var(--spacing-md);
+
+          h4 {
+            margin: 0 0 var(--spacing-xs);
+            font-size: var(--font-size-md);
+            border-bottom: 1px solid #eee;
+            padding-bottom: var(--spacing-xs);
+          }
+
+          .weather-stats {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: var(--font-size-sm);
+            color: #666;
+
+            .stats-text {
+              color: #4caf50;
+            }
+
+            .failed-count {
+              color: #f44336;
+              font-weight: bold;
+            }
+          }
         }
         
         .points-list {
@@ -286,25 +360,42 @@ export default {
             .point-weather {
               display: flex;
               align-items: center;
-              
+
+              &.weather-failed {
+                opacity: 0.7;
+
+                .weather-details .weather-main {
+                  color: #f44336;
+                }
+              }
+
               .weather-icon {
                 font-size: 24px;
                 margin-right: var(--spacing-md);
               }
-              
+
               .weather-details {
                 flex: 1;
-                
+
                 .weather-main {
                   font-size: var(--font-size-md);
                 }
-                
+
                 .weather-extra {
                   display: flex;
                   justify-content: space-between;
                   font-size: var(--font-size-sm);
                   color: #666;
                   margin-top: var(--spacing-xs);
+                }
+
+                .weather-error {
+                  margin-top: var(--spacing-xs);
+
+                  small {
+                    color: #f44336;
+                    font-size: 12px;
+                  }
                 }
               }
             }

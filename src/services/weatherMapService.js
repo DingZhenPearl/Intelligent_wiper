@@ -15,10 +15,20 @@ const weatherMapService = {
     try {
       console.log(`[天气地图服务] 开始获取位置(${longitude},${latitude})的天气信息`);
 
+      // 验证输入参数
+      if (!longitude || !latitude || isNaN(longitude) || isNaN(latitude)) {
+        throw new Error('无效的经纬度坐标');
+      }
+
+      // 检查坐标范围
+      if (longitude < -180 || longitude > 180 || latitude < -90 || latitude > 90) {
+        throw new Error('经纬度坐标超出有效范围');
+      }
+
       // 先通过高德地图JavaScript API获取城市编码
       const cityInfo = await this.getCityByLocationJS(longitude, latitude);
       if (!cityInfo || !cityInfo.adcode) {
-        throw new Error('无法获取城市信息');
+        throw new Error('无法获取该位置的城市信息，可能是偏远地区或海域');
       }
 
       console.log(`[天气地图服务] 获取到城市信息:`, cityInfo);
@@ -26,45 +36,62 @@ const weatherMapService = {
       // 使用城市编码获取天气信息
       const weatherData = await this.getWeatherByCityJS(cityInfo.city);
 
+      // 验证天气数据
+      if (!weatherData || !weatherData.live) {
+        throw new Error('获取的天气数据格式无效');
+      }
+
       // 格式化天气数据
       const formattedData = this.formatJSWeatherData(weatherData);
       console.log(`[天气地图服务] 格式化后的天气数据:`, formattedData);
 
-      // 构造返回数据，格式与原来保持一致
+      // 构造返回数据，格式与原来保持一致，添加数据验证
       return {
         lives: [{
-          city: cityInfo.city,
-          adcode: cityInfo.adcode,
-          province: cityInfo.province,
-          weather: weatherData.live.weather,
-          temperature: weatherData.live.temperature,
-          winddirection: weatherData.live.windDirection,
-          windpower: weatherData.live.windPower,
-          humidity: weatherData.live.humidity,
-          reporttime: weatherData.live.reportTime
+          city: cityInfo.city || '未知城市',
+          adcode: cityInfo.adcode || '',
+          province: cityInfo.province || '',
+          weather: weatherData.live.weather || '未知',
+          temperature: weatherData.live.temperature || '--',
+          winddirection: weatherData.live.windDirection || '',
+          windpower: weatherData.live.windPower || '',
+          humidity: weatherData.live.humidity || '',
+          reporttime: weatherData.live.reportTime || ''
         }],
-        forecasts: [{
-          city: cityInfo.city,
-          adcode: cityInfo.adcode,
-          province: cityInfo.province,
-          reporttime: weatherData.forecast.reportTime,
+        forecasts: weatherData.forecast && weatherData.forecast.forecasts ? [{
+          city: cityInfo.city || '未知城市',
+          adcode: cityInfo.adcode || '',
+          province: cityInfo.province || '',
+          reporttime: weatherData.forecast.reportTime || '',
           casts: weatherData.forecast.forecasts.map(item => ({
-            date: item.date,
-            week: item.week,
-            dayweather: item.dayWeather,
-            nightweather: item.nightWeather,
-            daytemp: item.dayTemp,
-            nighttemp: item.nightTemp,
-            daywind: item.dayWindDir,
-            nightwind: item.nightWindDir,
-            daypower: item.dayWindPower,
-            nightpower: item.nightWindPower
+            date: item.date || '',
+            week: item.week || '',
+            dayweather: item.dayWeather || '未知',
+            nightweather: item.nightWeather || '未知',
+            daytemp: item.dayTemp || '--',
+            nighttemp: item.nightTemp || '--',
+            daywind: item.dayWindDir || '',
+            nightwind: item.nightWindDir || '',
+            daypower: item.dayWindPower || '',
+            nightpower: item.nightWindPower || ''
           }))
-        }]
+        }] : []
       };
     } catch (error) {
       console.error('[天气地图服务] 获取天气信息失败:', error);
-      throw error;
+
+      // 提供更具体的错误信息
+      if (error.message.includes('网络')) {
+        throw new Error('网络连接失败，请检查网络连接');
+      } else if (error.message.includes('城市') || error.message.includes('位置')) {
+        throw new Error('该位置暂不支持天气查询');
+      } else if (error.message.includes('API') || error.message.includes('加载')) {
+        throw new Error('天气服务暂时不可用，请稍后重试');
+      } else if (error.message.includes('坐标')) {
+        throw new Error('坐标参数无效');
+      } else {
+        throw new Error(`获取天气信息失败: ${error.message}`);
+      }
     }
   },
 
@@ -368,45 +395,83 @@ const weatherMapService = {
         forecast: []
       };
 
+      // 验证输入数据
+      if (!weatherData) {
+        throw new Error('天气数据为空');
+      }
+
       // 处理实时天气
       if (weatherData.live) {
         const live = weatherData.live;
-        result.city = live.city;
+        result.city = live.city || '未知城市';
+
+        // 验证关键天气数据
+        if (!live.weather) {
+          console.warn('[天气地图服务] 实时天气描述为空');
+        }
+
         result.live = {
-          weather: live.weather,
-          temperature: live.temperature,
-          winddirection: live.windDirection,
-          windpower: live.windPower,
-          humidity: live.humidity,
-          reporttime: live.reportTime,
-          icon: this.getWeatherIcon(live.weather)
+          weather: live.weather || '未知',
+          temperature: live.temperature || '--',
+          winddirection: live.windDirection || '',
+          windpower: live.windPower || '',
+          humidity: live.humidity || '',
+          reporttime: live.reportTime || '',
+          icon: this.getWeatherIcon(live.weather || '未知')
+        };
+      } else {
+        console.warn('[天气地图服务] 实时天气数据为空');
+        result.live = {
+          weather: '数据获取失败',
+          temperature: '--',
+          winddirection: '',
+          windpower: '',
+          humidity: '',
+          reporttime: '',
+          icon: '❌'
         };
       }
 
       // 处理天气预报
-      if (weatherData.forecast && weatherData.forecast.forecasts) {
+      if (weatherData.forecast && weatherData.forecast.forecasts && Array.isArray(weatherData.forecast.forecasts)) {
         result.city = weatherData.forecast.city || result.city;
 
         result.forecast = weatherData.forecast.forecasts.map(cast => ({
-          date: cast.date,
-          week: cast.week,
-          dayweather: cast.dayWeather,
-          nightweather: cast.nightWeather,
-          daytemp: cast.dayTemp,
-          nighttemp: cast.nightTemp,
-          daywind: cast.dayWindDir,
-          nightwind: cast.nightWindDir,
-          daypower: cast.dayWindPower,
-          nightpower: cast.nightWindPower,
-          dayicon: this.getWeatherIcon(cast.dayWeather),
-          nighticon: this.getWeatherIcon(cast.nightWeather)
+          date: cast.date || '',
+          week: cast.week || '',
+          dayweather: cast.dayWeather || '未知',
+          nightweather: cast.nightWeather || '未知',
+          daytemp: cast.dayTemp || '--',
+          nighttemp: cast.nightTemp || '--',
+          daywind: cast.dayWindDir || '',
+          nightwind: cast.nightWindDir || '',
+          daypower: cast.dayWindPower || '',
+          nightpower: cast.nightWindPower || '',
+          dayicon: this.getWeatherIcon(cast.dayWeather || '未知'),
+          nighticon: this.getWeatherIcon(cast.nightWeather || '未知')
         }));
+      } else {
+        console.warn('[天气地图服务] 天气预报数据为空或格式不正确');
       }
 
       return result;
     } catch (error) {
       console.error('[天气地图服务] 格式化JavaScript API天气数据失败:', error);
-      throw error;
+
+      // 返回一个安全的默认结果
+      return {
+        city: '未知城市',
+        live: {
+          weather: '数据格式化失败',
+          temperature: '--',
+          winddirection: '',
+          windpower: '',
+          humidity: '',
+          reporttime: '',
+          icon: '❌'
+        },
+        forecast: []
+      };
     }
   }
 };
