@@ -105,7 +105,7 @@
       </form>
 
       <!-- 提示信息 -->
-      <p class="footer-text">© 2023 智能雨刷系统 · 版权所有</p>
+      <p class="footer-text">© 2025 智能雨刷系统 · 版权所有</p>
     </div>
 
     <div class="background-decoration"></div>
