@@ -337,13 +337,15 @@ export default {
 </script>
 
 <style lang="scss" scoped>
+@import "@/assets/css/global.scss";
+
 .login-container {
   display: flex;
   justify-content: center;
   align-items: center;
   min-height: 100vh;
-  background: #f5f5f5;
-  padding: min(4vw, 30px); // 使用视口宽度的百分比，但设置上限
+  background: #f8f9fa;
+  padding: var(--spacing-lg);
   position: relative;
   overflow: hidden;
 
@@ -353,75 +355,75 @@ export default {
     left: -10%;
     width: 120%;
     height: 120%;
-    background: linear-gradient(135deg, rgba(98, 0, 238, 0.05) 0%, rgba(63, 81, 181, 0.05) 100%);
+    background: linear-gradient(135deg, rgba(66, 133, 244, 0.05) 0%, rgba(52, 168, 83, 0.05) 100%);
     opacity: 0.8;
     z-index: 0;
     pointer-events: none;
-    background-image: radial-gradient(circle, rgba(98, 0, 238, 0.1) 2px, transparent 2px);
+    background-image: radial-gradient(circle, rgba(66, 133, 244, 0.1) 2px, transparent 2px);
     background-size: 24px 24px;
   }
 
   .login-card {
     background: white;
-    border-radius: clamp(8px, 2vw, 30px);
-    padding: max(3vw, 30px);
+    border-radius: var(--border-radius-lg);
+    padding: var(--spacing-xl);
     width: 95%;
     max-width: none;
-    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
     position: relative;
     z-index: 1;
 
     .app-title {
       text-align: center;
-      margin-bottom: max(3vw, 30px);
-      font-size: calc(2.5vw + 24px);
-      font-weight: 500;
-      color: #6200ee;
+      margin-bottom: var(--spacing-xl);
+      font-size: var(--font-size-xxl);
+      font-weight: 600;
+      color: var(--primary-color);
     }
   }
 
   .mode-switch {
     display: flex;
-    margin-bottom: clamp(20px, 3vw, 40px); // 响应式下边距
-    border-radius: clamp(4px, 0.8vw, 10px);
+    margin-bottom: var(--spacing-xl);
+    border-radius: var(--border-radius-md);
     overflow: hidden;
     background-color: #f5f5f5;
-    padding: clamp(2px, 0.5vw, 6px);
+    padding: var(--spacing-xs);
 
     .switch-btn {
       flex: 1;
-      padding: clamp(10px, 1.5vw, 20px) clamp(8px, 1vw, 18px); // 响应式内边距
+      padding: var(--spacing-sm) var(--spacing-md);
       background: transparent;
       border: none;
-      color: #6200ee;
-      font-size: clamp(16px, 1vw + 0.8rem, 26px); // 响应式字体大小
+      color: var(--primary-color);
+      font-size: var(--font-size-md);
       cursor: pointer;
-      transition: all 0.2s ease;
-      border-radius: clamp(4px, 0.6vw, 8px);
+      transition: all 0.3s ease;
+      border-radius: var(--border-radius-sm);
 
       &.active {
-        background: #6200ee;
+        background: var(--primary-color);
         color: white;
-        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12), 0 1px 2px rgba(0, 0, 0, 0.24);
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1), 0 1px 2px rgba(0, 0, 0, 0.08);
       }
 
       &:hover:not(.active) {
-        background: rgba(98, 0, 238, 0.08);
+        background: rgba(66, 133, 244, 0.1);
       }
     }
   }
 
   .login-form {
     .form-group {
-      margin-bottom: clamp(20px, 3vw, 45px); // 响应式下边距
+      margin-bottom: var(--spacing-lg);
       position: relative;
 
       label {
         display: block;
-        margin-bottom: clamp(6px, 1vw, 15px); // 响应式下边距
+        margin-bottom: var(--spacing-xs);
         color: #757575;
         font-weight: 400;
-        font-size: clamp(14px, 1vw + 0.5rem, 22px); // 响应式字体大小
+        font-size: var(--font-size-md);
       }
 
       .input-wrapper {
@@ -429,46 +431,44 @@ export default {
 
         .input-icon {
           position: absolute;
-          left: clamp(3px, 0.5vw, 8px);
+          left: var(--spacing-sm);
           top: 50%;
           transform: translateY(-50%);
-          width: clamp(24px, 2.5vw, 36px); // 响应式图标大小
-          height: clamp(24px, 2.5vw, 36px);
+          width: 24px;
+          height: 24px;
           opacity: 0.6;
           background-size: contain;
           background-repeat: no-repeat;
           background-position: center;
-          color: #6200ee;
+          color: var(--primary-color);
 
           &.user-icon {
-            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%236200ee'%3E%3Cpath d='M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z'%3E%3C/path%3E%3C/svg%3E");
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%234285f4'%3E%3Cpath d='M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z'%3E%3C/path%3E%3C/svg%3E");
           }
 
           &.lock-icon {
-            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%236200ee'%3E%3Cpath d='M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z'%3E%3C/path%3E%3C/svg%3E");
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%234285f4'%3E%3Cpath d='M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z'%3E%3C/path%3E%3C/svg%3E");
           }
         }
 
         input {
           width: 100%;
-          padding: clamp(12px, 1.8vw, 24px) clamp(10px, 1.5vw, 22px)
-                  clamp(8px, 1.2vw, 18px) clamp(32px, 4vw, 55px); // 响应式内边距
+          padding: var(--spacing-sm) var(--spacing-md) var(--spacing-xs) calc(var(--spacing-md) * 2);
           border: none;
           border-bottom: 2px solid #e0e0e0;
-          font-size: clamp(16px, 1vw + 0.7rem, 24px); // 响应式字体大小
+          font-size: var(--font-size-md);
           transition: all 0.2s;
           background-color: transparent;
           border-radius: 0;
-          border-bottom-width: clamp(1px, 0.2vw, 3px); // 响应式边框
 
           &:focus {
             outline: none;
-            border-bottom-width: clamp(2px, 0.3vw, 4px);
-            padding-bottom: calc(clamp(8px, 1.2vw, 18px) - 1px);
+            border-bottom-width: 3px;
+            padding-bottom: calc(var(--spacing-xs) - 1px);
           }
 
           &:not(:placeholder-shown) {
-            border-bottom-color: #6200ee;
+            border-bottom-color: var(--primary-color);
           }
         }
 
@@ -478,8 +478,8 @@ export default {
           bottom: 0;
           left: 0;
           width: 0;
-          height: clamp(2px, 0.3vw, 4px); // 响应式下划线高度
-          background-color: #6200ee;
+          height: 3px;
+          background-color: var(--primary-color);
           transition: width 0.3s ease;
         }
 
@@ -490,20 +490,19 @@ export default {
     }
 
     .error-message {
-      color: #b00020;
-      margin-bottom: 16px;
-      font-size: clamp(14px, 0.8vw + 0.5rem, 18px);
-      padding: clamp(6px, 1vw, 12px);
-      background-color: rgba(176, 0, 32, 0.08);
-      border-radius: 4px;
+      color: var(--danger-color);
+      margin-bottom: var(--spacing-md);
+      font-size: var(--font-size-sm);
+      padding: var(--spacing-sm);
+      background-color: rgba(234, 67, 53, 0.08);
+      border-radius: var(--border-radius-sm);
       text-align: center;
     }
 
     .remember-me {
       display: flex;
       align-items: center;
-      margin-top: calc(var(--spacing-md) - 5px);
-      margin-bottom: calc(var(--spacing-md) - 5px);
+      margin: var(--spacing-md) 0;
 
       .checkbox-container {
         display: flex;
@@ -512,14 +511,14 @@ export default {
         user-select: none;
 
         input[type="checkbox"] {
-          margin-right: 8px;
-          width: 16px;
-          height: 16px;
+          margin-right: var(--spacing-xs);
+          width: 18px;
+          height: 18px;
           accent-color: var(--primary-color);
         }
 
         .checkbox-text {
-          font-size: clamp(14px, 0.9vw + 0.4rem, 18px);
+          font-size: var(--font-size-sm);
           color: #666;
         }
       }
@@ -527,28 +526,26 @@ export default {
 
     .btn-submit {
       width: 100%;
-      padding: clamp(12px, 1.5vw, 22px); // 响应式按钮内边距
-      background: #6200ee;
+      padding: var(--spacing-md);
+      background: var(--primary-color);
       color: white;
       border: none;
-      border-radius: clamp(4px, 0.7vw, 10px);
-      font-size: clamp(16px, 1vw + 0.7rem, 24px); // 响应式字体大小
+      border-radius: var(--border-radius-md);
+      font-size: var(--font-size-md);
       font-weight: 500;
       cursor: pointer;
-      transition: all 0.2s;
-      margin-top: clamp(20px, 3vw, 40px);
+      transition: all 0.3s ease;
+      margin-top: var(--spacing-lg);
       text-transform: uppercase;
       letter-spacing: 0.5px;
-      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12), 0 1px 2px rgba(0, 0, 0, 0.24);
+      box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
 
       &:hover {
-        background: #7928f5;
-        box-shadow: 0 3px 6px rgba(0, 0, 0, 0.16), 0 3px 6px rgba(0, 0, 0, 0.23);
+        background: #3367d6;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
       }
 
       &:active {
-        background: #5000d1;
-        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
         transform: translateY(1px);
       }
     }
@@ -556,213 +553,94 @@ export default {
 
   .footer-text {
     text-align: center;
-    margin-top: clamp(20px, 3vw, 36px);
-    font-size: clamp(12px, 0.8vw + 0.3rem, 18px);
+    margin-top: var(--spacing-lg);
+    font-size: var(--font-size-sm);
     color: #757575;
-    position: relative;
-
-    .config-icon {
-      position: absolute;
-      right: 0;
-      top: 50%;
-      transform: translateY(-50%);
-      cursor: pointer;
-      font-size: 20px;
-      opacity: 0.6;
-
-      &:hover {
-        opacity: 1;
-      }
-    }
   }
 
-  /* 移动端样式 - 保持不变 */
+  /* 移动端样式 */
   @media screen and (max-width: 380px) {
-    padding: 10px;
+    padding: var(--spacing-sm);
 
     .login-card {
-      padding: 15px;
-      width: 96%;
-    }
-
-    .form-group .input-wrapper input {
-      font-size: 16px; // 确保在小屏设备上不会自动缩放
+      padding: var(--spacing-md);
+      width: 100%;
     }
   }
 
   /* 浏览器中的样式优化 */
   @media screen and (min-width: 768px) {
     .login-card {
-      max-width: 800px; /* 显著增大最大宽度 */
-      padding: 60px;
-      border-radius: 12px;
-      box-shadow: 0 15px 30px rgba(0, 0, 0, 0.15);
+      max-width: 600px;
+      padding: var(--spacing-xl);
 
       .app-title {
-        font-size: 42px; /* 显著增大字体大小 */
-        margin-bottom: 50px;
+        font-size: var(--font-size-xxl);
+        margin-bottom: var(--spacing-xl);
       }
     }
 
     .mode-switch {
-      margin-bottom: 50px;
+      margin-bottom: var(--spacing-xl);
 
       .switch-btn {
-        padding: 20px 30px;
-        font-size: 22px; /* 显著增大字体大小 */
-        border-radius: 8px;
+        padding: var(--spacing-md) var(--spacing-lg);
+        font-size: var(--font-size-md);
       }
     }
 
     .login-form {
       .form-group {
-        margin-bottom: 45px;
+        margin-bottom: var(--spacing-xl);
 
         label {
-          font-size: 22px; /* 显著增大字体大小 */
-          margin-bottom: 15px;
+          font-size: var(--font-size-md);
         }
 
         .input-wrapper {
           .input-icon {
-            width: 32px; /* 显著增大图标大小 */
-            height: 32px;
-            left: 15px;
+            width: 28px;
+            height: 28px;
           }
 
           input {
-            padding: 22px 20px 18px 60px; /* 显著增大内边距 */
-            font-size: 22px; /* 显著增大字体大小 */
-            border-bottom-width: 3px;
-          }
-        }
-      }
-
-      .error-message {
-        font-size: 18px;
-        padding: 12px;
-        margin-bottom: 20px;
-      }
-
-      .remember-me {
-        margin: 25px 0;
-
-        .checkbox-container {
-          input[type="checkbox"] {
-            width: 22px; /* 显著增大复选框大小 */
-            height: 22px;
-            margin-right: 12px;
-          }
-
-          .checkbox-text {
-            font-size: 20px;
+            padding: var(--spacing-md) var(--spacing-lg) var(--spacing-sm) calc(var(--spacing-lg) * 1.5);
+            font-size: var(--font-size-md);
           }
         }
       }
 
       .btn-submit {
-        padding: 22px;
-        font-size: 22px;
-        border-radius: 8px;
-        margin-top: 45px;
-        letter-spacing: 1px;
+        padding: var(--spacing-md);
+        font-size: var(--font-size-md);
       }
     }
   }
 
   /* 大屏幕浏览器优化 */
-  @media screen and (min-width: 1200px) {
+  @media screen and (min-width: 1024px) {
     .login-card {
-      max-width: 900px; /* 显著增大宽度 */
-      padding: 70px;
+      max-width: 700px;
+      padding: var(--spacing-xxl);
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
     }
 
-    /* 优化背景装饰 */
+    .app-title {
+      font-size: calc(var(--font-size-xxl) * 1.2);
+    }
+
     .background-decoration {
-      background-size: 40px 40px; /* 显著增大背景图案大小 */
-      opacity: 0.6; /* 降低不透明度，使其更加美观 */
+      background-size: 30px 30px;
     }
-
-    /* 大屏幕上的元素进一步增大 */
-    .app-title {
-      font-size: 48px !important;
-      margin-bottom: 60px !important;
-    }
-
-    .mode-switch .switch-btn {
-      padding: 24px 36px;
-      font-size: 24px;
-    }
-
-    .login-form {
-      .form-group {
-        margin-bottom: 55px;
-
-        label {
-          font-size: 24px;
-          margin-bottom: 18px;
-        }
-      }
-
-      .input-wrapper {
-        .input-icon {
-          width: 36px;
-          height: 36px;
-          left: 18px;
-        }
-
-        input {
-          padding: 26px 24px 22px 70px;
-          font-size: 24px;
-          border-bottom-width: 3px;
-        }
-      }
-
-      .remember-me .checkbox-container {
-        .checkbox-text {
-          font-size: 22px;
-        }
-
-        input[type="checkbox"] {
-          width: 24px;
-          height: 24px;
-          margin-right: 14px;
-        }
-      }
-
-      .btn-submit {
-        padding: 26px;
-        font-size: 24px;
-        margin-top: 55px;
-        letter-spacing: 1.5px;
-      }
-    }
-  }
-
-  /* 超大屏幕优化 */
-  @media screen and (min-width: 1600px) {
-    .login-card {
-      max-width: 1000px; /* 超大屏幕上的最大宽度 */
-      padding: 80px;
-    }
-
-    .app-title {
-      font-size: 52px !important;
-    }
-
-    /* 增强视觉效果 */
-    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
   }
 
   /* 添加浏览器特定的悬停效果 */
   @media (hover: hover) and (pointer: fine) {
     .btn-submit:hover {
       transform: translateY(-3px);
-      box-shadow: 0 8px 16px rgba(98, 0, 238, 0.25);
     }
 
     .switch-btn:hover:not(.active) {
-      background: rgba(98, 0, 238, 0.15);
       transform: translateY(-2px);
     }
   }
