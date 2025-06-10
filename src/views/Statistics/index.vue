@@ -1026,7 +1026,7 @@ export default {
           label: {
             show: true,
             position: 'top',
-            formatter: '{c} mm/h',
+            formatter: '{c}',
             fontSize: 12,
             color: '#333'
           },
