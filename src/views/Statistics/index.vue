@@ -25,13 +25,7 @@
       </button>
     </div>
 
-    <!-- 添加本小时雨量显示，只在小时视图中显示 -->
-    <div v-if="activePeriod === 1" class="hour-rainfall">
-      <div class="rainfall-card">
-        <h3>{{ currentHourDisplay }}时累计雨量</h3>
-        <div class="rainfall-value">{{ currentHourTotal }} <span>mm</span></div>
-      </div>
-    </div>
+
 
     <!-- 显示图表 -->
     <div class="chart-container">
@@ -925,7 +919,7 @@ export default {
     // 原始数据图表配置
     const rawChartOption = ref({
       title: {
-        text: 'OneNET原始数据 - 6小时',
+        text: 'OneNET原始数据',
         subtext: '',
         textStyle: {
           fontSize: 16
